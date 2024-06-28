@@ -1,0 +1,6 @@
+settings.local.ini.php
+*.swp
+!.gitkeep
+log
+log.*.gz
+last_sync

@@ -1,0 +1,26 @@
+<?php
+/**
+ * settings.local.ini.php
+ * 
+ * Defines local initialization settings for alder, overriding default settings found in
+ * settings.ini.php
+ */
+
+global $SETTINGS;
+
+// the file path to the framework
+$SETTINGS['path']['CENOZO'] = '/path/to/cenozo';
+
+// the path to the log file
+$SETTINGS['path']['LOG_FILE'] = $SETTINGS['path']['APPLICATION'].'/log';
+
+// database settings (the driver, server and prefixes are set in the framework's settings)
+$SETTINGS['db']['username'] = 'put your database username here';
+$SETTINGS['db']['password'] = 'put your database password here';
+
+// the directory where sound files are located
+$SETTINGS['path']['IMAGES'] = $SETTINGS['path']['APPLICATION'].'/path/to/images';
+$SETTINGS['url']['IMAGES'] = 'images';
+
+// where to store the file which tracks when the last sync was performed
+$SETTINGS['general']['last_sync_file'] = sprintf( '%s/last_sync', $SETTINGS['path']['APPLICATION'] );
