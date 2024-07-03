@@ -1,7 +1,8 @@
-<cn-record-view model="model"></cn-record-view>
-<cn-list-selector model="model"></cn-list-selector>
-<div ng-show="null === model.viewModel.tab || child.subject.snake == model.viewModel.tab"
-     ng-repeat="child in model.viewModel.getChildList()"
-     class="vertical-spacer">
-  <cn-record-list model="model.viewModel[child.subject.camel+'Model']"></cn-record-list>
+<div class="row">
+  <div class="col-sm-6">
+    <cn-record-view model="model"></cn-record-view>
+  </div>
+  <div class="container-fluid col-sm-6" style="height: 85vh;">
+    <canvas id="canvas" width="1000" height="1000" style="height:100%; width:100%"></canvas>
+  </div>
 </div>

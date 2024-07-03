@@ -15,6 +15,34 @@ use cenozo\lib, cenozo\log, cenozo\util;
 class image extends \cenozo\database\record
 {
   /**
+   * Generates a jpeg image from the DICOM image
+   */
+  public function get_base64_jpeg()
+  {
+    $path = sprintf( '%s/%s', IMAGES_PATH, $this->path );
+    if( preg_match( "/\.(jpg|jpeg)$/", basename( $this->path ) ) )
+    {
+      // load the jpeg and encode it
+      $b64_string = base64_encode( file_get_contents( $path ) );
+    }
+    else
+    {
+      // convert the image to a temporary jpeg file
+      $temp_path = sprintf( '%s/image_%d.jpeg', TEMP_PATH, $this->id );
+      $command = sprintf( 'convert %s %s', $path, $temp_path );
+      util::exec_timeout( $command );
+
+      // load the jpeg and encode it
+      $b64_string = base64_encode( file_get_contents( $temp_path ) );
+
+      // clean up before returning the data
+      unlink( $temp_path );
+    }
+
+    return $b64_string;
+  }
+
+  /**
    * Adds any image files found in the data path which are newer than the last time this method was called
    * 
    * @access public

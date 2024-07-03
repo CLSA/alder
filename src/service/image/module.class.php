@@ -14,6 +14,11 @@ use cenozo\lib, cenozo\log, alder\util;
 class module extends \cenozo\service\module
 {
   /**
+   * Extend parent property
+   */
+  protected static $base64_column_list = ['image' => 'image/jpeg'];
+
+  /**
    * Extend parent method
    */
   public function prepare_read( $select, $modifier )
@@ -25,6 +30,15 @@ class module extends \cenozo\service\module
     if( $select->has_column( 'filename' ) )
     {
       $select->add_column( 'RIGHT(path, LOCATE("/", REVERSE(path))-1)', 'filename', false );
+    }
+
+    $db_image = $this->get_resource();
+    if( !is_null( $db_image ) )
+    {
+      if( $select->has_column( 'image' ) )
+      {
+        $select->add_constant( $db_image->get_base64_jpeg(), 'image' );
+      }
     }
   }
 }
