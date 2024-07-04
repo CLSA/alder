@@ -47,35 +47,27 @@ cenozoApp.defineModule({
     });
 
     /* ############################################################################################## */
-    cenozo.providers.directive("cnImageView", [
-      "CnImageModelFactory",
-      "CnSession",
-      function (CnImageModelFactory, CnSession) {
-        return {
-          templateUrl: module.getFileUrl("view.tpl.html"),
-          restrict: "E",
-          scope: { model: "=?" },
-          controller: async function ($scope, $element) {
-            if (angular.isUndefined($scope.model)) $scope.model = CnImageModelFactory.root;
-          },
-        };
-      },
-    ]);
-
-    /* ############################################################################################## */
     cenozo.providers.factory("CnImageViewFactory", [
       "CnBaseViewFactory",
+      "CnImageFactory",
       "CnHttpFactory",
       "$timeout",
-      function (CnBaseViewFactory, CnHttpFactory, $timeout) {
+      function (CnBaseViewFactory, CnImageFactory, CnHttpFactory, $timeout) {
         var object = function (parentModel, root) {
           CnBaseViewFactory.construct(this, parentModel, root);
 
           // load the image as well as the record data
           angular.extend(this, {
+            /*
             loadingImage: true,
             image: null,
+            */
+            imageModel: CnImageFactory.instance(this.parentModel),
             onView: async function(force) {
+              await this.$$onView(force);
+              await this.imageModel.onView();
+
+/*                
               this.loadingImage = true;
               try {
                 function createHiPPICanvas(width, height) {
@@ -130,6 +122,7 @@ cenozoApp.defineModule({
               } finally {
                 this.loadingImage = false;
               }
+*/              
             },
           });
         };
