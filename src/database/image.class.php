@@ -19,6 +19,8 @@ class image extends \cenozo\database\record
    */
   public function get_base64_jpeg()
   {
+    $b64_string = NULL;
+
     $path = sprintf( '%s/%s', IMAGES_PATH, $this->path );
     if( preg_match( "/\.(jpg|jpeg)$/", basename( $this->path ) ) )
     {
@@ -27,16 +29,42 @@ class image extends \cenozo\database\record
     }
     else
     {
-      // convert the image to a temporary jpeg file
       $temp_path = sprintf( '%s/image_%d.jpeg', TEMP_PATH, $this->id );
-      $command = sprintf( 'convert %s %s', $path, $temp_path );
-      util::exec_timeout( $command );
 
-      // load the jpeg and encode it
-      $b64_string = base64_encode( file_get_contents( $temp_path ) );
+      // determine if this is a valid image, and encode the first slice
+      $command = sprintf( 'identify %s', $path );
+      $identify_response = util::exec_timeout( $command );
+      if( 0 == $identify_response['exitcode'] )
+      {
+        $convert_response = 1; // start assuming no image is found
+        $lines = count( explode( "\n", $identify_response['output'] ) );
+        if( 2 < $lines )
+        {
+          // try converting each image until a valid one is found
+          for( $sub_image = 1; $sub_image <= $lines; $sub_image++ )
+          {
+            // convert the image to a temporary jpeg file
+            $command = sprintf( 'convert %s[%d] %s', $path, $sub_image, $temp_path );
+            $convert_response = util::exec_timeout( $command );
+            if( 0 == $convert_response['exitcode'] ) break;
+          }
+        }
+        else
+        {
+          // convert the image to a temporary jpeg file
+          $command = sprintf( 'convert %s %s', $path, $temp_path );
+          $convert_response = util::exec_timeout( $command );
+        }
 
-      // clean up before returning the data
-      unlink( $temp_path );
+        if( 0 == $convert_response['exitcode'] )
+        {
+          // load the jpeg and encode it
+          $b64_string = base64_encode( file_get_contents( $temp_path ) );
+
+          // clean up before returning the data
+          unlink( $temp_path );
+        }
+      }
     }
 
     return $b64_string;
