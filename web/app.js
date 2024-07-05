@@ -41,6 +41,11 @@ cenozo.factory("CnImageFactory", [
         imageRatio: null,
         imageTransform: null,
 
+        bounds: {
+          b: { min: 0.5, max: 2.0 },
+          c: { min: 1.0, max: 10.0 },
+        },
+
         createCanvas: function(width, height) {
           const ratio = window.devicePixelRatio;
           const canvas = document.getElementById("canvas");
@@ -66,6 +71,10 @@ cenozo.factory("CnImageFactory", [
           this.context.rect(0, 0, this.canvas.width, this.canvas.height);
           this.context.fillStyle = "black";
           this.context.fill();
+
+          this.context.filter =
+            "brightness(" + (100*this.imageTransform.b) + "%) " +
+            "contrast(" + (100*this.imageTransform.c) + "%)";
 
           this.context.drawImage(
             this.image,
@@ -130,8 +139,8 @@ cenozo.factory("CnImageFactory", [
             this.image.height/this.canvas.height :
             this.image.width/this.canvas.width
           );
-          let x = this.imageTransform.x - dx * ratio / this.imageTransform.scale;
-          let y = this.imageTransform.y - dy * ratio / this.imageTransform.scale;
+          let x = this.imageTransform.x + dx * ratio / this.imageTransform.scale;
+          let y = this.imageTransform.y + dy * ratio / this.imageTransform.scale;
 
           angular.extend(this.imageTransform, {
             x: 0 > x ? 0 : x,
@@ -141,7 +150,20 @@ cenozo.factory("CnImageFactory", [
           this.paint();
         },
 
-        windowLevel: function(window, level) {
+        reset: function() {
+          this.imageTransform = { x: 0, y: 0, panX: 0, panY: 0, b: 1, c: 1, scale: 1 };
+          this.paint();
+        },
+
+        windowLevel: function(dc, db) {
+          let b = this.imageTransform.b + (this.bounds.b.max - this.bounds.b.min) * db / 600;
+          let c = this.imageTransform.c + (this.bounds.c.max - this.bounds.c.min) * dc / 600;
+
+          angular.extend(this.imageTransform, {
+            b: b = b < this.bounds.b.min ? this.bounds.b.min : b > this.bounds.b.max ? this.bounds.b.max : b,
+            c: c = c < this.bounds.c.min ? this.bounds.c.min : c > this.bounds.c.max ? this.bounds.c.max : c,
+          });
+          this.paint();
         },
 
         drawLine: function() {
@@ -159,8 +181,9 @@ cenozo.factory("CnImageFactory", [
         mouseMove: function(button, x, y, dx, dy) {
           if ("left" == button) {
           } else if ("middle" == button) {
-            this.pan(dx, dy);
+            this.pan(-dx, -dy);
           } else if ("right" == button) {
+            this.windowLevel(dx, -dy);
           }
         },
 
@@ -172,6 +195,17 @@ cenozo.factory("CnImageFactory", [
               this.paint();
               resizeWait = true;
               $timeout(() => { this.paint(); resizeWait = false; }, 50);
+            }
+          });
+
+          // capture all key inputs when the mouse is on the canvas
+          window.addEventListener("keydown", (event) => {
+            if (this.canvas.parentNode.matches(":hover")) {
+              if ("r" == event.key) {
+                this.reset();
+              }
+              event.preventDefault();
+              event.stopPropagation();
             }
           });
 
@@ -236,11 +270,8 @@ cenozo.factory("CnImageFactory", [
 
             this.image = new Image();
             this.image.onload = () => {
-              angular.extend(this, {
-                imageTransform: { x: 0, y: 0, panX: 0, panY: 0, scale: 1 },
-                imageRatio: this.image.width/this.image.height,
-              });
-              this.paint();
+              this.imageRatio = this.image.width/this.image.height;
+              this.reset();
             }
 
             const response = await CnHttpFactory.instance({
