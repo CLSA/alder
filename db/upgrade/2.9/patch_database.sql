@@ -18,6 +18,7 @@ SOURCE code_type.sql
 SOURCE scan_type_has_code_type.sql
 SOURCE code.sql
 SOURCE rating.sql
+SOURCE arrow.sql
 
 SOURCE service.sql
 SOURCE role_has_service.sql

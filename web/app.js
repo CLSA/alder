@@ -27,9 +27,10 @@ cenozo.directive("cnImage", [
 
 /* ############################################################################################## */
 cenozo.factory("CnImageFactory", [
+  "CnSession",
   "CnHttpFactory",
   "$timeout",
-  function (CnHttpFactory, $timeout) {
+  function (CnSession, CnHttpFactory, $timeout) {
     var object = function (parentModel) {
       angular.extend(this, {
         parentModel: parentModel,
@@ -40,6 +41,8 @@ cenozo.factory("CnImageFactory", [
         canvasRatio: null,
         imageRatio: null,
         imageTransform: null,
+        arrowList: [],
+        activeArrow: null,
 
         bounds: {
           x: { min: 0, max: 1 },
@@ -63,9 +66,71 @@ cenozo.factory("CnImageFactory", [
           if (this.bounds.y.min > this.bounds.y.max) this.bounds.y.max = this.bounds.y.min;
         },
 
-        activeArrow: null,
+        getMousePoint: function(event) {
+          if (null == this.imageTransform) return { x: null, y: null };
+
+          const rect = this.canvas.getBoundingClientRect();
+          return {
+            x: (event.clientX - rect.left)/this.imageTransform.scale + this.imageTransform.ix,
+            y: (event.clientY - rect.top)/this.imageTransform.scale + this.imageTransform.iy,
+          };
+        },
+
+        reset: function() {
+          this.imageTransform = { x: 0, y: 0, ix: 0, iy: 0, b: 1, c: 1, scale: 1 };
+        },
+
+        drawArrow: function(arrow) {
+          let x0 = arrow.x0 - this.imageTransform.ix;
+          let y0 = arrow.y0 - this.imageTransform.iy;
+          let x1 = arrow.x1 - this.imageTransform.ix;
+          let y1 = arrow.y1 - this.imageTransform.iy;
+          let a = Math.atan((arrow.y1 - arrow.y0)/(arrow.x1 - arrow.x0)) + (arrow.x1 < arrow.x0 ? Math.PI : 0);
+
+          this.context.lineWidth = 1;
+          this.context.strokeStyle = "blue";
+          this.context.fillStyle = "blue";
+
+          // draw the arrow body
+          this.context.beginPath();
+          this.context.moveTo(x0, y0);
+          this.context.lineTo(x1, y1);
+          this.context.stroke();
+
+          // draw the hover markers
+          if (arrow.hover0) {
+            this.context.beginPath();
+            this.context.arc(x0, y0, 4, 0, 2*Math.PI);
+            this.context.stroke();
+          }
+
+          if (arrow.hover1) {
+            this.context.beginPath();
+            this.context.arc(x1, y1, 4, 0, 2*Math.PI);
+            this.context.stroke();
+          }
+
+          // rotate about the a head
+          this.context.translate(x1, y1);
+          this.context.rotate(a);
+          this.context.translate(-x1, -y1);
+
+          // draw the arrow head
+          this.context.beginPath();
+          this.context.moveTo(x1 + 1, y1);
+          this.context.lineTo(x1 - 5, y1 - 3);
+          this.context.lineTo(x1 - 5, y1 + 3);
+          this.context.fill();
+
+          // reverse the rotation
+          this.context.translate(x1, y1);
+          this.context.rotate(-a);
+          this.context.translate(-x1, -y1);
+        },
 
         paint: function() {
+          if (null == this.imageTransform) this.reset();
+
           // recalculate the canvas size based on the bounding client
           const canvasRect = this.canvas.getBoundingClientRect();
           this.canvas.width = canvasRect.width;
@@ -111,11 +176,24 @@ cenozo.factory("CnImageFactory", [
             this.view.width, this.view.height
           );
 
+          // draw all arrows
+          this.arrowList.forEach((arrow) => {
+            this.drawArrow(arrow);
+          });
+
+          // draw the active arrow
+          if (null != this.activeArrow) {
+            this.drawArrow(this.activeArrow);
+          }
+
+          // DEBUG: draw a red line around the image
+          /*
           this.context.beginPath();
           this.context.lineWidth = "2";
           this.context.rect(0, 0, this.view.width, this.view.height);
           this.context.strokeStyle = "red";
           this.context.stroke();
+          */
         },
 
         scale: function(cx, cy, inward) {
@@ -147,6 +225,10 @@ cenozo.factory("CnImageFactory", [
             y: this.bounds.x.min > y ? this.bounds.x.min : this.bounds.y.max < y ? this.bounds.y.max : y,
             scale: newScale,
           });
+          angular.extend(this.imageTransform, {
+            ix: this.imageTransform.x/this.icRatio,
+            iy: this.imageTransform.y/this.icRatio,
+          });
 
           this.paint();
         },
@@ -154,17 +236,15 @@ cenozo.factory("CnImageFactory", [
         pan: function(dx, dy) {
           let x = this.imageTransform.x + dx * this.icRatio / this.imageTransform.scale;
           let y = this.imageTransform.y + dy * this.icRatio / this.imageTransform.scale;
-
           angular.extend(this.imageTransform, {
             x: this.bounds.x.min > x ? this.bounds.x.min : this.bounds.x.max < x ? this.bounds.x.max : x,
             y: this.bounds.x.min > y ? this.bounds.x.min : this.bounds.y.max < y ? this.bounds.y.max : y,
           });
+          angular.extend(this.imageTransform, {
+            ix: this.imageTransform.x/this.icRatio,
+            iy: this.imageTransform.y/this.icRatio,
+          });
 
-          this.paint();
-        },
-
-        reset: function() {
-          this.imageTransform = { x: 0, y: 0, b: 1, c: 1, scale: 1 };
           this.paint();
         },
 
@@ -179,36 +259,118 @@ cenozo.factory("CnImageFactory", [
           this.paint();
         },
 
-        drawArrow: function(x, y) {
+        createActiveArrow: function(point) {
+          // start drawing an arrow a x, y with the end of the arrow grabbed
           this.activeArrow = {
-            
+            id: null,
+            x0: point.x,
+            y0: point.y,
+            x1: null,
+            y1: null,
+            grab0: false,
+            grab1: true
           };
-          console.log("start line at " + x + ", " + y);
         },
 
-        endArrow: function(x, y) {
-          console.log("end line at " + x + ", " + y);
+        saveActiveArrow: async function() {
+          // add the arrow to the list
+          if (null != this.activeArrow) {
+            let arrow = null;
+
+            // check if the arrow is valid
+            let valid = (
+              null != this.activeArrow.x0 && null != this.activeArrow.x1 &&
+              null != this.activeArrow.y0 && null != this.activeArrow.y1 && (
+                this.activeArrow.x0 != this.activeArrow.x1 || this.activeArrow.y0 != this.activeArrow.y1
+              )
+            );
+
+            if (valid) {
+              // add the new arrow
+              arrow = {
+                id: this.activeArrow.id,
+                x0: this.activeArrow.x0,
+                y0: this.activeArrow.y0,
+                x1: this.activeArrow.x1,
+                y1: this.activeArrow.y1,
+                hover0: false,
+                hover1: false
+              };
+              this.arrowList.push(arrow);
+            }
+
+            this.activeArrow = null;
+            this.paint();
+
+            if (valid) {
+              // TODO: handle server errors
+              if (null == arrow.id) {
+                const response = await CnHttpFactory.instance({
+                  path: this.parentModel.getServiceResourcePath() + "/arrow",
+                  data: {
+                    x0: arrow.x0,
+                    y0: arrow.y0,
+                    x1: arrow.x1,
+                    y1: arrow.y1,
+                  }
+                }).post();
+                arrow.id = response.data;
+              } else {
+                await CnHttpFactory.instance({
+                  path: this.parentModel.getServiceResourcePath() + "/arrow/" + arrow.id,
+                  data: {
+                    x0: arrow.x0,
+                    y0: arrow.y0,
+                    x1: arrow.x1,
+                    y1: arrow.y1,
+                  }
+                }).patch();
+              }
+            }
+          }
+        },
+
+        translateActiveArrow: async function(dx, dy) {
+          this.activeArrow.x0 += dx;
+          this.activeArrow.y0 += dy;
+          this.activeArrow.x1 += dx;
+          this.activeArrow.y1 += dy;
+          this.paint();
+        },
+
+        moveActiveArrowStartPoint: function(point) {
+          angular.extend(this.activeArrow, { x0: point.x, y0: point.y });
+          this.paint();
+        },
+
+        moveActiveArrowEndPoint: function(point) {
+          angular.extend(this.activeArrow, { x1: point.x, y1: point.y });
+          this.paint();
+        },
+
+        highlightArrows: function(point) {
+          // only ever hover over a single arrow
+          let hover = false;
+          this.arrowList.forEach((arrow) => {
+            if (hover) {
+              angular.extend(arrow, {hover0: false, hover1: false});
+            } else if (4 > Math.abs(point.x - arrow.x0) && 4 > Math.abs(point.y - arrow.y0)) {
+              angular.extend(arrow, {hover0: true, hover1: false});
+              hover = true;
+            } else if (4 > Math.abs(point.x - arrow.x1) && 4 > Math.abs(point.y - arrow.y1)) {
+              angular.extend(arrow, {hover0: false, hover1: true});
+              hover = true;
+            } else {
+              angular.extend(arrow, {hover0: false, hover1: false});
+            }
+          });
+          this.paint();
         },
 
         drawElipse: function() {
         },
 
         drawSquare: function() {
-        },
-
-        buttonClick: function(button, x, y, down) {
-          if ("left" == button) {
-            down ? this.drawArrow(x, y) : this.endArrow(x,y);
-          }
-        },
-
-        mouseMove: function(button, x, y, dx, dy) {
-          if ("left" == button) {
-          } else if ("middle" == button) {
-            this.pan(-dx, -dy);
-          } else if ("right" == button) {
-            this.windowLevel(dx, -dy);
-          }
         },
 
         createEventListeners: function() {
@@ -223,13 +385,38 @@ cenozo.factory("CnImageFactory", [
           });
 
           // capture all key inputs when the mouse is on the canvas
-          window.addEventListener("keydown", (event) => {
+          window.addEventListener("keydown", async (event) => {
             if (this.canvas.parentNode.matches(":hover")) {
-              if ("Escape" == event.key) {
-                this.reset();
-              }
               event.preventDefault();
               event.stopPropagation();
+
+              if ("Delete" == event.key) {
+                let index = this.arrowList.findIndexByProperty("hover0", true);
+                if (null == index) index = this.arrowList.findIndexByProperty("hover1", true);
+
+                if (null != index) {
+                  const arrow = this.arrowList[index];
+
+                  if (null != index) {
+                    this.arrowList.splice(index, 1);
+                    this.paint();
+
+                    await CnHttpFactory.instance({
+                      path: this.parentModel.getServiceResourcePath() + "/arrow/" + arrow.id
+                    }).delete();
+                  }
+                }
+              } else if ("Escape" == event.key) {
+                this.reset();
+                this.paint();
+              }
+            }
+          });
+
+          window.addEventListener("mouseout", (event) => {
+            if (this.activeArrow) {
+              this.activeArrow = null;
+              this.paint();
             }
           });
 
@@ -241,36 +428,54 @@ cenozo.factory("CnImageFactory", [
             },
 
             ondblclick: (event) => {
-              console.log(event);
             },
 
             onmousedown: (event) => {
-              const rect = this.canvas.getBoundingClientRect();
-              let x = event.clientX - rect.left;
-              let y = event.clientY - rect.top;
-              if (0 == event.button) this.buttonClick("left", x, y, true);
-              else if (1 == event.button) this.buttonClick("middle", x, y, true);
-              else if (2 == event.button) this.buttonClick("right", x, y, true);
+              const point = this.getMousePoint(event);
+              if (event.altKey) {
+                // do nothing
+              } else if (event.ctrlKey) {
+                // left click creates an active arrow
+                if (0 == event.button) this.createActiveArrow(point);
+              } else if(event.shiftKey) {
+                // do nothing
+              } else {
+                // left click or middle click grabs an arrow being hovered over
+                if ([0,1].includes(event.button) && null == this.activeArrow) {
+                  let hover = 0;
+                  let index = this.arrowList.findIndexByProperty("hover0", true);
+                  if (null == index) {
+                    index = this.arrowList.findIndexByProperty("hover1", true);
+                    hover = 1;
+                  }
+
+                  if (null != index) {
+                    this.activeArrow = this.arrowList[index];
+                    angular.extend(this.activeArrow, { grab0: 0 == hover, grab1: 1 == hover });
+                    this.arrowList.splice(index, 1);
+                    return;
+                  }
+                }
+              }
             },
 
             onmouseup: (event) => {
-              const rect = this.canvas.getBoundingClientRect();
-              let x = event.clientX - rect.left;
-              let y = event.clientY - rect.top;
-              if (0 == event.button) this.buttonClick("left", x, y, false);
-              else if (1 == event.button) this.buttonClick("middle", x, y, false);
-              else if (2 == event.button) this.buttonClick("right", x, y, false);
+              const point = this.getMousePoint(event);
+              if (0 == event.button) { // left button
+                if (null != this.activeArrow) this.saveActiveArrow();
+              } else if (1 == event.button) { // middle button
+                if (null != this.activeArrow) this.saveActiveArrow();
+              } else if (2 == event.button) { // right button
+              }
             },
 
             onwheel: (event) => {
               event.preventDefault();
               event.stopPropagation();
+
+              // use absolute coordinates
               const rect = this.canvas.getBoundingClientRect();
-              this.scale(
-                event.clientX-rect.left,
-                event.clientY-rect.top,
-                0 < event.wheelDelta
-              );
+              this.scale( event.clientX - rect.left, event.clientY - rect.top, 0 < event.wheelDelta);
             },
 
             onmousemove: (event) => {
@@ -279,15 +484,37 @@ cenozo.factory("CnImageFactory", [
               else if (4 == event.buttons) button = "middle";
               else if (2 == event.buttons) button = "right";
 
-              if (null != button) {
-                const rect = this.canvas.getBoundingClientRect();
-                this.mouseMove(
-                  button,
-                  event.clientX-rect.left,
-                  event.clientY-rect.top,
-                  event.movementX,
-                  event.movementY
-                );
+              const point = this.getMousePoint(event);
+              if (null == button) {
+                // highlight any arrow points under the cursor
+                if (!event.altKey && !event.ctrlKey && !event.shiftKey && 0 < this.arrowList.length) {
+                  this.highlightArrows(point);
+                }
+              } else if ("left" == button) {
+                // move the active arrow's grab point
+                if (null != this.activeArrow) {
+                  if (this.activeArrow.grab0) {
+                    this.moveActiveArrowStartPoint(point);
+                  } else if (this.activeArrow.grab1) {
+                    this.moveActiveArrowEndPoint(point);
+                  }
+                }
+              } else if ("middle" == button) {
+                // translate the active arrow
+                if (null != this.activeArrow) {
+                  if (this.activeArrow.grab0) {
+                    this.translateActiveArrow(point.x - this.activeArrow.x0, point.y - this.activeArrow.y0);
+                    return;
+                  } if (this.activeArrow.grab1) {
+                    this.translateActiveArrow(point.x - this.activeArrow.x1, point.y - this.activeArrow.y1);
+                    return;
+                  }
+                }
+
+                // if there is no arrow to translate then pan the image
+                this.pan(-event.movementX, -event.movementY);
+              } else if ("right" == button) {
+                this.windowLevel(event.movementX, -event.movementY);
               }
             },
           });
@@ -301,7 +528,7 @@ cenozo.factory("CnImageFactory", [
             const canvasRect = this.canvas.getBoundingClientRect();
             this.canvas.width = canvasRect.width * dpRatio;
             this.canvas.height = canvasRect.height * dpRatio;
-            
+
             this.context = this.canvas.getContext("2d")
             this.context.scale(dpRatio, dpRatio);
             this.context.font = "24px Arial";
@@ -311,13 +538,37 @@ cenozo.factory("CnImageFactory", [
             this.image.onload = () => {
               this.imageRatio = this.image.width / this.image.height;
               this.reset();
+              this.paint();
             }
 
-            const response = await CnHttpFactory.instance({
-              path: this.parentModel.getServiceResourcePath(),
-              data: { select: { column: "image" } }
-            }).get();
-            this.image.src = response.data.image.data;
+            // load the image and all annotation data
+            const [imageResponse, arrowResponse] = await Promise.all([
+              CnHttpFactory.instance({
+                path: this.parentModel.getServiceResourcePath(),
+                data: { select: { column: "image" } },
+              }).get(),
+
+              CnHttpFactory.instance({
+                path: this.parentModel.getServiceResourcePath() + "/arrow",
+                data: { modifier: { where: { column: "user_id", operator: "=", value: CnSession.user.id } } },
+              }).get(),
+            ]);
+
+            this.image.src = imageResponse.data.image.data;
+
+            this.arrowList = arrowResponse.data.reduce((list, arrow) => {
+              list.push({
+                id: arrow.id,
+                x0: arrow.x0,
+                y0: arrow.y0,
+                x1: arrow.x1,
+                y1: arrow.y1,
+                hover0: false,
+                hover1: false
+              });
+              return list;
+            }, []);
+
             this.loadingImage = false;
 
             this.createEventListeners();
