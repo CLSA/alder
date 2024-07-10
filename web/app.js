@@ -44,7 +44,7 @@ cenozo.factory("CnImageFactory", [
         arrowList: [],
         ellipseList: [],
         activeAnnotation: null,
-        hover: { type: null, id: null },
+        hover: { type: null, handle: null, id: null },
 
         bounds: {
           x: { min: 0, max: 1 },
@@ -80,7 +80,7 @@ cenozo.factory("CnImageFactory", [
 
         reset: function() {
           this.imageTransform = { x: 0, y: 0, ix: 0, iy: 0, b: 1, c: 1, scale: 1 };
-          this.hover = { type: null, id: null };
+          this.hover = { type: null, handle: null, id: null };
         },
 
         drawArrow: function(arrow) {
@@ -101,16 +101,18 @@ cenozo.factory("CnImageFactory", [
           this.context.stroke();
 
           // draw the hover markers
-          if ("arrow start" == this.hover.type && this.hover.id == arrow.id) {
-            this.context.beginPath();
-            this.context.arc(x0, y0, 4, 0, 2*Math.PI);
-            this.context.stroke();
-          }
+          if (this.hover.id == arrow.id && "arrow" == this.hover.type) {
+            if (["all", "start"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(x0, y0, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
 
-          if ("arrow end" == this.hover.type && this.hover.id == arrow.id) {
-            this.context.beginPath();
-            this.context.arc(x1, y1, 4, 0, 2*Math.PI);
-            this.context.stroke();
+            if (["all", "end"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(x1, y1, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
           }
 
           // rotate about the a head
@@ -141,6 +143,33 @@ cenozo.factory("CnImageFactory", [
           this.context.beginPath();
           this.context.ellipse(x, y, ellipse.rx, ellipse.ry, 0, 0, 2*Math.PI);
           this.context.stroke();
+
+          // draw the hover markers
+          if (this.hover.id == ellipse.id && "ellipse" == this.hover.type) {
+            if (["all", "nw"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(x - ellipse.rx, y - ellipse.ry, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
+
+            if (["all", "sw"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(x - ellipse.rx, y + ellipse.ry, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
+
+            if (["all", "se"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(x + ellipse.rx, y + ellipse.ry, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
+
+            if (["all", "ne"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(x + ellipse.rx, y - ellipse.ry, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
+          }
         },
 
         paint: function() {
@@ -283,29 +312,55 @@ cenozo.factory("CnImageFactory", [
           this.paint();
         },
 
-        selectActiveAnnotation: function(type, id) {
-          let list = this[type+"List"];
-          let annotation = null;
-
-          if (list && angular.isArray(list)) {
-            // if the annotation is found then remove it from the list
-            let index = list.findIndexByProperty("id", id);
-            if (null != index) {
-              annotation = list[index];
-              list.splice(index, 1);
-            }
-          }
-
-          this.activeAnnotation = annotation;
-        },
-
         createAnnotation: function(type, point) {
           // start drawing an arrow at the given point
           this.activeAnnotation = { id: null, type: type };
           if ("arrow" == this.activeAnnotation.type) {
             angular.extend(this.activeAnnotation, { x0: point.x, y0: point.y, x1: null, y1: null, grab: "end" });
           } else if ("ellipse" == this.activeAnnotation.type) {
-            angular.extend(this.activeAnnotation, { x: point.x, y: point.y, rx: null, ry: null });
+            angular.extend(this.activeAnnotation, { x: point.x, y: point.y, rx: null, ry: null, grab: "se" });
+          }
+        },
+
+        updateActiveAnnotation: function(point) {
+          let annotation = null;
+          if (null != this.hover.type && null != this.hover.id) {
+            let list = this[this.hover.type+"List"];
+
+            if (list && angular.isArray(list)) {
+              // if the annotation is found then remove it from the list
+              let index = list.findIndexByProperty("id", this.hover.id);
+              if (null != index) {
+                annotation = list[index];
+                list.splice(index, 1);
+
+                // set where we've grabbed the annotation
+                annotation.grab = "all" == this.hover.handle ? point : this.hover.handle;
+              }
+            }
+          }
+
+          this.activeAnnotation = annotation;
+        },
+
+        deleteActiveAnnotation: async function() {
+          if (null == this.hover.type || null == this.hover.id) return;
+
+          let type = this.hover.type;
+          let list = this[type+"List"];
+
+          if (list && angular.isArray(list)) {
+            let index = list.findIndexByProperty("id", this.hover.id);
+            if (null != index) {
+              let id = this.hover.id;
+              list.splice(index, 1);
+              this.hover = { type: null, handle: null, id: null };
+              this.paint();
+
+              await CnHttpFactory.instance({
+                path: [this.parentModel.getServiceResourcePath(), type, id].join("/")
+              }).delete();
+            }
           }
         },
 
@@ -373,53 +428,74 @@ cenozo.factory("CnImageFactory", [
         },
 
         updateHover: function(point) {
-          // check if we're hovering over an arrow
+          // 1. check if we're hovering over an arrow end
           let hover = this.arrowList.some((arrow) => {
             if (4 > Math.abs(point.x - arrow.x0) && 4 > Math.abs(point.y - arrow.y0)) {
-              angular.extend(this.hover, { type: "arrow start", id: arrow.id });
+              angular.extend(this.hover, { type: "arrow", handle: "start", id: arrow.id });
               return true;
             }
 
             if (4 > Math.abs(point.x - arrow.x1) && 4 > Math.abs(point.y - arrow.y1)) {
-              angular.extend(this.hover, { type: "arrow end", id: arrow.id });
+              angular.extend(this.hover, { type: "arrow", handle: "end", id: arrow.id });
               return true;
             }
           });
 
+          // 2. check if we're hovering over an arrow body
           if (!hover) {
-            // check if we're hovering over an ellipse
-            hover = this.ellipseList.some((ellipse) => {
-              if (4 > Math.abs(point.x - ellipse.x) && 4 > Math.abs(point.y - ellipse.y)) {
-                angular.extend(this.hover, { type: "ellipse", id: ellipse.id });
+            hover = this.arrowList.some((arrow) => {
+              let b = {
+                x0: arrow.x0 < arrow.x1 ? arrow.x0 : arrow.x1,
+                x1: arrow.x0 < arrow.x1 ? arrow.x1 : arrow.x0,
+                y0: arrow.y0 < arrow.y1 ? arrow.y0 : arrow.y1,
+                y1: arrow.y0 < arrow.y1 ? arrow.y1 : arrow.y0,
+              };
+
+              if (b.x0 <= point.x && point.x <= b.x1 && b.y0 <= point.y && point.y <= b.y1) {
+                angular.extend(this.hover, { type: "arrow", handle: "all", id: arrow.id });
                 return true;
               }
             });
-
-            // if nothing is under the mouse then reset the hover property
-            if (!hover) this.hover = { type: null, id: null };
           }
 
-          this.paint();
-        },
+          // 3. check if we're hovering over an ellipse corner
+          if (!hover) {
+            hover = this.ellipseList.some((ellipse) => {
+              let corners = {
+                nw: { x: ellipse.x - ellipse.rx, y: ellipse.y - ellipse.ry },
+                sw: { x: ellipse.x - ellipse.rx, y: ellipse.y + ellipse.ry },
+                se: { x: ellipse.x + ellipse.rx, y: ellipse.y + ellipse.ry },
+                ne: { x: ellipse.x + ellipse.rx, y: ellipse.y - ellipse.ry },
+              };
 
-        translateActiveAnnotation: async function(point) {
-          if ("arrow" == this.activeAnnotation.type) {
-            let dx = 0, dy = 0;
-            if ("start" == this.activeAnnotation.grab) {
-              dx = point.x - this.activeAnnotation.x0;
-              dy = point.y - this.activeAnnotation.y0;
-            } else if ("end" == this.activeAnnotation.grab) {
-              dx = point.x - this.activeAnnotation.x1;
-              dy = point.y - this.activeAnnotation.y1;
-            }
-            this.activeAnnotation.x0 += dx;
-            this.activeAnnotation.y0 += dy;
-            this.activeAnnotation.x1 += dx;
-            this.activeAnnotation.y1 += dy;
-          } else if ("annotation" == this.activeAnnotation.type) {
-            this.activeAnnotation.x = point.x;
-            this.activeAnnotation.y = point.y;
+              for (var handle in corners) {
+                if (4 > Math.abs(point.x - corners[handle].x) && 4 > Math.abs(point.y - corners[handle].y)) {
+                  angular.extend(this.hover, { type: "ellipse", handle: handle, id: ellipse.id });
+                  return true;
+                }
+              }
+            });
           }
+
+          // 4. check if we're hovering over an ellipse body
+          if (!hover) {
+            hover = this.ellipseList.some((ellipse) => {
+              let b = {
+                x0: ellipse.x - ellipse.rx,
+                y0: ellipse.y - ellipse.ry,
+                x1: ellipse.x + ellipse.rx,
+                y1: ellipse.y + ellipse.ry,
+              };
+
+              if (b.x0 <= point.x && point.x <= b.x1 && b.y0 <= point.y && point.y <= b.y1) {
+                angular.extend(this.hover, { type: "ellipse", handle: "all", id: ellipse.id });
+                return true;
+              }
+            });
+          }
+
+          // 5. we aren't hovering over any annotation
+          if (!hover) this.hover = { type: null, handle: null, id: null };
 
           this.paint();
         },
@@ -427,18 +503,40 @@ cenozo.factory("CnImageFactory", [
         transformActiveAnnotation: function(point) {
           if (null != this.activeAnnotation) {
             if ("arrow" == this.activeAnnotation.type) {
-              // move the grabbed end of the arrow
               if ("start" == this.activeAnnotation.grab) {
+                // move the start of the arrow
                 angular.extend(this.activeAnnotation, { x0: point.x, y0: point.y });
               } else if ("end" == this.activeAnnotation.grab) {
+                // move the end of the arrow
                 angular.extend(this.activeAnnotation, { x1: point.x, y1: point.y });
+              } else if (angular.isObject(this.activeAnnotation.grab)) {
+                // move the arrow
+                this.activeAnnotation.x1 += point.x - this.activeAnnotation.grab.x;
+                this.activeAnnotation.y1 += point.y - this.activeAnnotation.grab.y;
+                this.activeAnnotation.x0 += point.x - this.activeAnnotation.grab.x;
+                this.activeAnnotation.y0 += point.y - this.activeAnnotation.grab.y;
+
+                // update the grab point
+                this.activeAnnotation.grab.x = point.x;
+                this.activeAnnotation.grab.y = point.y;
               }
             } else if ("ellipse" == this.activeAnnotation.type) {
-              // resize the ellipse
-              angular.extend(this.activeAnnotation, {
-                rx: Math.abs(point.x - this.activeAnnotation.x),
-                ry: Math.abs(point.y - this.activeAnnotation.y),
-              });
+              if (angular.isObject(this.activeAnnotation.grab)) {
+
+                // move the ellipse
+                this.activeAnnotation.x += point.x - this.activeAnnotation.grab.x;
+                this.activeAnnotation.y += point.y - this.activeAnnotation.grab.y;
+
+                // update the grab point
+                this.activeAnnotation.grab.x = point.x;
+                this.activeAnnotation.grab.y = point.y;
+              } else {
+                // resize the ellipse
+                angular.extend(this.activeAnnotation, {
+                  rx: Math.abs(point.x - this.activeAnnotation.x),
+                  ry: Math.abs(point.y - this.activeAnnotation.y),
+                });
+              }
             }
             this.paint();
           }
@@ -462,33 +560,10 @@ cenozo.factory("CnImageFactory", [
               event.stopPropagation();
 
               if ("Delete" == event.key) {
-                // delete the hovered object
-                if ("start arrow" == this.hover.type || "end arrow" == this.hover.type) {
-                  let index = this.arrowList.findIndexByProperty("id", this.hover.id);
-                  if (null != index) {
-                    let id = this.hover.id;
-                    this.arrowList.splice(index, 1);
-                    this.hover = { type: null, id: null };
-                    this.paint();
-
-                    await CnHttpFactory.instance({
-                      path: this.parentModel.getServiceResourcePath() + "/arrow/" + id
-                    }).delete();
-                  }
-                } else if ("ellipse" == this.hover.type) {
-                  let index = this.ellipseList.findIndexByProperty("id", this.hover.id);
-                  if (null != index) {
-                    let id = this.hover.id;
-                    this.ellipseList.splice(index, 1);
-                    this.hover = { type: null, id: null };
-                    this.paint();
-
-                    await CnHttpFactory.instance({
-                      path: this.parentModel.getServiceResourcePath() + "/ellipse/" + id
-                    }).delete();
-                  }
-                }
+                // delete the hovered annotation
+                await this.deleteActiveAnnotation();
               } else if ("Escape" == event.key) {
+                // reset the image
                 this.reset();
                 this.paint();
               }
@@ -528,34 +603,22 @@ cenozo.factory("CnImageFactory", [
                 // left click creates an ellipse
                 if ("left" == button) this.createAnnotation("ellipse", point);
               } else {
-                // left click or middle click grabs hovered annotations
-                if (["left", "middle"].includes(button) && null != this.hover.id) {
-                  // but only if there isn't already an active annotation 
-                  if (null == this.activeAnnotation) {
-                    this.selectActiveAnnotation(this.hover.type.replace(/ (start|end)/, ""), this.hover.id);
-
-                    // if this is an arrow then set which end we've grabbed it by
-                    if (null != this.activeAnnotation) {
-                      if ("arrow start" == this.hover.type) {
-                        this.activeAnnotation.grab = "start";
-                      } else if ("arrow end" == this.hover.type) {
-                        this.activeAnnotation.grab = "end";
-                      }
-                    }
-                  }
+                // left click grabs hovered annotations (if none are already active)
+                if ("left" == button && null == this.activeAnnotation) {
+                  this.updateActiveAnnotation(point);
                 }
               }
             },
 
-            onmouseup: (event) => {
+            onmouseup: async (event) => {
               let button = null;
               if (0 == event.button) button = "left";
               else if (1 == event.button) button = "middle";
               else if (2 == event.button) button = "right";
 
               // save the annotation if we're letting go of an active annotation (left or middle mouse button only)
-              if (["left", "middle"].includes(button) && null != this.activeAnnotation) {
-                this.saveActiveAnnotation();
+              if ("left" == button && null != this.activeAnnotation) {
+                await this.saveActiveAnnotation();
               }
             },
 
@@ -584,13 +647,7 @@ cenozo.factory("CnImageFactory", [
                 // move the active annotation
                 this.transformActiveAnnotation(point);
               } else if ("middle" == button) {
-                // translate the active annotation
-                if (null != this.activeAnnotation) {
-                  this.translateActiveAnnotation(point);
-                } else {
-                  // if there is no annotation to translate then pan the image
-                  this.pan(-event.movementX, -event.movementY);
-                }
+                this.pan(-event.movementX, -event.movementY);
               } else if ("right" == button) {
                 this.windowLevel(event.movementX, -event.movementY);
               }
@@ -639,30 +696,15 @@ cenozo.factory("CnImageFactory", [
 
             this.image.src = imageResponse.data.image.data;
 
-            this.arrowList = arrowResponse.data.reduce((list, arrow) => {
-              list.push({
-                id: arrow.id,
-                type: "arrow",
-                x0: arrow.x0,
-                y0: arrow.y0,
-                x1: arrow.x1,
-                y1: arrow.y1
-              });
+            this.arrowList = arrowResponse.data.reduce((list, a) => {
+              list.push({ id: a.id, type: "arrow", x0: a.x0, y0: a.y0, x1: a.x1, y1: a.y1 });
               return list;
             }, []);
 
-            this.ellipseList = ellipseResponse.data.reduce((list, ellipse) => {
-              list.push({
-                id: ellipse.id,
-                type: "ellipse",
-                x: ellipse.x,
-                y: ellipse.y,
-                rx: ellipse.rx,
-                ry: ellipse.ry
-              });
+            this.ellipseList = ellipseResponse.data.reduce((list, e) => {
+              list.push({ id: e.id, type: "ellipse", x: e.x, y: e.y, rx: e.rx, ry: e.ry });
               return list;
             }, []);
-            console.log(this.ellipseList);
 
             this.loadingImage = false;
 
