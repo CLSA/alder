@@ -21,6 +21,6 @@ class module extends \cenozo\service\module
     parent::prepare_read( $select, $modifier );
 
     $modifier->join( 'modality', 'scan_type.modality_id', 'modality.id' );
-    $modifier->join( 'study_phase', 'scan_type.study_phase_id', 'study_phase.id' );
+    $this->add_count_column( 'exam_count', 'exam', $select, $modifier );
   }
 }

@@ -3,29 +3,43 @@ cenozoApp.defineModule({
   models: ["list", "view"],
   create: (module) => {
     angular.extend(module, {
-      identifier: { column: "name" },
+      identifier: {
+        parent: {
+          subject: "scan_type",
+          column: "scan_type.name",
+        },
+      },
       name: {
         singular: "code group",
         plural: "code groups",
         possessive: "code group's",
       },
       columnList: {
+        rank: {
+          title: "Rank",
+          type: "rank",
+        },
         name: {
-          column: "code_group.name",
           title: "Name",
+        },
+        value: {
+          title: "Value",
         }
       },
       defaultOrder: {
-        column: "code_group.name",
+        column: "rank",
         reverse: false,
       },
     });
 
     module.addInputGroup("", {
+      rank: {
+        title: "Rank",
+        type: "rank",
+      },
       name: {
         title: "Name",
         type: "string",
-        format: "identifier",
       },
     });
   },

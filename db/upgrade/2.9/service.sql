@@ -69,7 +69,6 @@ INSERT IGNORE INTO service ( subject, method, resource, restricted ) VALUES
 ( 'log_entry', 'GET', 1, 1 ),
 ( 'modality', 'GET', 0, 0 ),
 ( 'modality', 'GET', 1, 0 ),
-( 'modality', 'PATCH', 1, 1 ),
 ( 'rating', 'DELETE', 1, 1 ),
 ( 'rating', 'GET', 0, 0 ),
 ( 'rating', 'GET', 1, 0 ),

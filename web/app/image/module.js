@@ -45,32 +45,5 @@ cenozoApp.defineModule({
         type: "text",
       },
     });
-
-    /* ############################################################################################## */
-    cenozo.providers.factory("CnImageViewFactory", [
-      "CnBaseViewFactory",
-      "CnImageFactory",
-      "CnHttpFactory",
-      "$timeout",
-      function (CnBaseViewFactory, CnImageFactory, CnHttpFactory, $timeout) {
-        var object = function (parentModel, root) {
-          CnBaseViewFactory.construct(this, parentModel, root);
-
-          // load the image as well as the record data
-          angular.extend(this, {
-            imageModel: CnImageFactory.instance(this.parentModel),
-            onView: async function(force) {
-              await this.$$onView(force);
-              await this.imageModel.onView();
-            },
-          });
-        };
-        return {
-          instance: function (parentModel, root) {
-            return new object(parentModel, root);
-          },
-        };
-      },
-    ]);
   },
 });

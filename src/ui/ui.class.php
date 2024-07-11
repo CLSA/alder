@@ -33,7 +33,7 @@ class ui extends \cenozo\ui\ui
     if( !is_null( $module ) )
     {
       $module->add_child( 'exam' );
-      $module->add_choose( 'code_type' );
+      $module->add_choose( 'code_group' );
     }
 
     $module = $this->get_module( 'modality' );
@@ -43,20 +43,14 @@ class ui extends \cenozo\ui\ui
       $module->add_choose( 'user' );
     }
 
-    /*
-    $module = $this->get_module( 'image' );
-    if( !is_null( $module ) )
-    {
-      $module->add_child( 'code' );
-      $module->add_child( 'rating' );
-    }
-    */
-
-    $module = $this->get_module( 'code_type' );
-    if( !is_null( $module ) ) $module->add_child( 'code' );
+    $module = $this->get_module( 'user' );
+    if( !is_null( $module ) ) $module->add_choose( 'modality' );
 
     $module = $this->get_module( 'code_group' );
     if( !is_null( $module ) ) $module->add_child( 'code_type' );
+
+    $module = $this->get_module( 'code_type' );
+    if( !is_null( $module ) ) $module->add_choose( 'image' );
   }
 
   /**
@@ -69,6 +63,5 @@ class ui extends \cenozo\ui\ui
     // add application-specific lists to the base list
     $this->add_listitem( 'Interviews', 'interview' );
     $this->add_listitem( 'Modalities', 'modality' );
-    $this->add_listitem( 'Code Groups', 'code_group' );
   }
 }

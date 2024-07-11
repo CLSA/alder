@@ -15,7 +15,6 @@ SOURCE exam.sql
 SOURCE image.sql
 SOURCE code_group.sql
 SOURCE code_type.sql
-SOURCE scan_type_has_code_type.sql
 SOURCE code.sql
 SOURCE rating.sql
 SOURCE arrow.sql

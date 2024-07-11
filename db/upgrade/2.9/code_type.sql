@@ -4,19 +4,188 @@ CREATE TABLE IF NOT EXISTS code_type (
   id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
   update_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP(),
   create_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
-  code_group_id INT(10) UNSIGNED NULL DEFAULT NULL,
-  name VARCHAR(45) NOT NULL DEFAULT 0,
-  value INT(10) NOT NULL,
+  code_group_id INT(10) UNSIGNED NOT NULL,
+  rank INT(10) NOT NULL,
+  name VARCHAR(45) NULL,
+  description TEXT NULL,
   PRIMARY KEY (id),
   INDEX fk_code_group_id (code_group_id ASC),
+  UNIQUE INDEX uq_code_group_id_rank (code_group_id ASC, rank ASC),
   UNIQUE INDEX uq_code_group_id_name (code_group_id ASC, name ASC),
   CONSTRAINT fk_code_type_code_group_id
     FOREIGN KEY (code_group_id)
     REFERENCES code_group (id)
-    ON DELETE NO ACTION
+    ON DELETE CASCADE
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
--- TODO ...
--- INSERT IGNORE INTO code_type( code_group_id, name, value ) VALUES
--- ( ...
+SELECT id INTO @scan_type_id FROM scan_type WHERE name = "hip";
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Positioning of Hip";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "PL", "hip too lateral"),
+(@id, 2, "PM", "hip too medial"),
+(@id, 3, "PS", "hip too superior"),
+(@id, 4, "PI", "hip too inferior");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Femur Angulation";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "Fad", "femur is adducted"),
+(@id, 1, "Fab", "femur is abducted");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Analysis";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "AM", "medial line needs adjustment"),
+(@id, 1, "AL", "lateral line needs adjustment"),
+(@id, 1, "AS", "superior line needs adjustment"),
+(@id, 1, "AI", "inferior line needs adjustment");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Neck Box";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "CA", "corner not anchored in the trochanteric notch properly"),
+(@id, 1, "CS", "one or all of the corners that should be touching soft tissue only are touching bone");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Metal on Scan";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "MET", "metal is present on the scan but not obstructing the field of view");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Motion on Scan";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "MS", "motion is present on the scan");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Not Usable";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "ART", "artifact is obstructing the field of view"),
+(@id, 2, "NU", "the scan is not useable");
+
+
+SELECT id INTO @scan_type_id FROM scan_type WHERE name = "lateral";
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Lateral Spine Position";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "LI", "lumbar spine too inferior"),
+(@id, 2, "LS", "lumbar spine too superior");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Vertebra Certainty";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "L4", "spine is too inferior causing uncertainty of L4");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Metal on Scan";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "MET", "metal is present on the scan but not obstructing the field of view");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Motion on Scan";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "MS", "motion is present on the scan");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Not Usable";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "ART", "artifact is obstructing the field of view"),
+(@id, 2, "NU", "the scan is not useable");
+
+
+SELECT id INTO @scan_type_id FROM scan_type WHERE name = "wbody";
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Position on Table";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "WS", "whole body needs to be straighter"),
+(@id, 2, "WC", "whole body is not centered"),
+(@id, 3, "Wha", "arms/hands not within scan limits or cut off at unequal amounts"),
+(@id, 4, "WH", "hands touching sides");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Analysis";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "WN", "line is not well placed below neck and above shoulders"),
+(@id, 2, "WT", "spine is not properly framed and/or line is not dividing T12-L1"),
+(@id, 3, "Wsh", "lines not placed past the head of humerus"),
+(@id, 4, "WP", "pelvis lines not appropriately placed"),
+(@id, 5, "WL", "legs not appropriately framed");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Jewellery";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "JW", "jewellery not removed");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Metal on Scan";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "MET", "metal is present on the scan but not obstructing the field of view");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Motion on Scan";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "MS", "motion is present on the scan");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Not Usable";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "ART", "artifact is obstructing the field of view"),
+(@id, 2, "NU", "the scan is not useable");
+
+
+SELECT id INTO @scan_type_id FROM scan_type WHERE name = "forearm";
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Position of Radius and Ulna";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "FS", "radius and ulna are not straight"),
+(@id, 2, "FC", "radius and ulna are not centered");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Carpal Bones";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "CB", "first row of carpal bones is not included or more than first row included");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Analysis";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "FY", "yellow line closest to the carpal bones is not at the tip of the ulna styloid process"),
+(@id, 2, "FB", "two outer lines are touching bone or are not moved inward and placed to the outside of bone"),
+(@id, 3, "FI", "center line is not intersecting the joint between the radius and ulna");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Metal on Scan";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "MET", "metal is present on the scan but not obstructing the field of view");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Motion on Scan";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "MS", "motion is present on the scan");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Not Usable";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "ART", "artifact is obstructing the field of view"),
+(@id, 2, "NU", "the scan is not useable");
+
+
+SELECT id INTO @scan_type_id FROM scan_type WHERE name = "forearm";
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Lumbar Spine Position";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "LSp", "spine too superior"),
+(@id, 2, "LIn", "spine too inferior"),
+(@id, 3, "LLt", "spine too lateral"),
+(@id, 4, "LMd", "spine too medial");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "L1 and L5 Vertebrae";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "L1", "L1 vertebra not fully visible"),
+(@id, 2, "L5", "L5 vertebra not fully visible");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Analysis";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "LV1", "LV1 line touching bone"),
+(@id, 2, "LV2", "LV2 line touching bone"),
+(@id, 3, "LV3", "LV3 line touching bone"),
+(@id, 4, "LV4", "LV4 line touching bone"),
+(@id, 5, "LV5", "LV5 line touching bone");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "90 Degree Corner";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "CR12", "CR12"),
+(@id, 2, "CR5", "CR5");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Metal on Scan";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "MET", "metal is present on the scan but not obstructing the field of view");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Motion on Scan";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "MS", "motion is present on the scan");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Not Usable";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
+(@id, 1, "ART", "artifact is obstructing the field of view"),
+(@id, 2, "NU", "the scan is not useable");

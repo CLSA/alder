@@ -12,15 +12,64 @@ cenozo.controller("HeaderCtrl", [
 ]);
 
 /* ############################################################################################## */
+cenozo.directive("cnRating", [
+  "CnRatingFactory",
+  function (CnRatingFactory) {
+    return {
+      templateUrl: cenozoApp.getFileUrl("alder", "rating.tpl.html"),
+      restrict: "E",
+      scope: { model: "=", },
+      controller: async function ($scope) {
+        $scope.directive = "cnRating";
+
+        // create the rating model
+        $scope.ratingModel = CnRatingFactory.instance($scope.model);
+        $scope.ratingModel.onView();
+      }
+    };
+  },
+]);
+
+/* ############################################################################################## */
 cenozo.directive("cnImage", [
-  function () {
+  "CnImageFactory",
+  function (CnImageFactory) {
     return {
       templateUrl: cenozoApp.getFileUrl("alder", "image.tpl.html"),
       restrict: "E",
       scope: { model: "=", },
-      controller: async function ($scope) {
+      controller: async function ($scope, $element) {
         $scope.directive = "cnImage";
+
+        // create the image model
+        $scope.imageModel = CnImageFactory.instance($scope.model);
+
+        // connect the canvas in the element to the model, then view it
+        $scope.imageModel.canvas = $element.find("canvas.image")[0];
+        $scope.imageModel.onView();
       }
+    };
+  },
+]);
+
+/* ############################################################################################## */
+cenozo.factory("CnRatingFactory", [
+  "CnSession",
+  "CnHttpFactory",
+  function (CnSession, CnHttpFactory) {
+    var object = function (parentModel) {
+      angular.extend(this, {
+        parentModel: parentModel,
+        onView: async function() {
+          console.log('TODO: implement onView()');
+        },
+      });
+    };
+
+    return {
+      instance: function (parentModel) {
+        return new object(parentModel);
+      },
     };
   },
 ]);
@@ -658,7 +707,6 @@ cenozo.factory("CnImageFactory", [
         onView: async function() {
           this.loadingImage = true;
           try {
-            this.canvas = document.getElementById("canvas");
             const dpRatio = window.devicePixelRatio;
             const canvasRect = this.canvas.getBoundingClientRect();
             this.canvas.width = canvasRect.width * dpRatio;
