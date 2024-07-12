@@ -89,7 +89,7 @@ cenozo.factory("CnImageFactory", [
         image: null,
         canvasRatio: null,
         imageRatio: null,
-        imageTransform: null,
+        transform: { x: 0, y: 0, b: 1, c: 1, scale: 1 },
         arrowList: [],
         ellipseList: [],
         activeAnnotation: null,
@@ -103,131 +103,10 @@ cenozo.factory("CnImageFactory", [
           scale: { min: 1, max: 10 },
         },
 
-        calculateBounds: function(scale) {
-          this.bounds.x.max = 0;
-          this.bounds.y.max = 0;
-          if (this.heightBased) {
-            this.bounds.x.max = (this.view.width - this.canvas.width/scale) * this.icRatio;
-            this.bounds.y.max = this.image.height - this.view.height * this.icRatio / scale;
-          } else {
-            this.bounds.x.max = this.image.width - this.view.width * this.icRatio / scale;
-            this.bounds.y.max = (this.view.height - this.canvas.height/scale) * this.icRatio;
-          }
-          if (this.bounds.x.min > this.bounds.x.max) this.bounds.x.max = this.bounds.x.min;
-          if (this.bounds.y.min > this.bounds.y.max) this.bounds.y.max = this.bounds.y.min;
-        },
-
-        getMousePoint: function(event) {
-          if (null == this.imageTransform) return { x: null, y: null };
-
+        updateView: function(scale) {
           const rect = this.canvas.getBoundingClientRect();
-          return {
-            x: (event.clientX - rect.left)/this.imageTransform.scale + this.imageTransform.ix,
-            y: (event.clientY - rect.top)/this.imageTransform.scale + this.imageTransform.iy,
-          };
-        },
-
-        reset: function() {
-          this.imageTransform = { x: 0, y: 0, ix: 0, iy: 0, b: 1, c: 1, scale: 1 };
-          this.hover = { type: null, handle: null, id: null };
-        },
-
-        drawArrow: function(arrow) {
-          let x0 = arrow.x0 - this.imageTransform.ix;
-          let y0 = arrow.y0 - this.imageTransform.iy;
-          let x1 = arrow.x1 - this.imageTransform.ix;
-          let y1 = arrow.y1 - this.imageTransform.iy;
-          let a = Math.atan((arrow.y1 - arrow.y0)/(arrow.x1 - arrow.x0)) + (arrow.x1 < arrow.x0 ? Math.PI : 0);
-
-          this.context.lineWidth = 1;
-          this.context.strokeStyle = "blue";
-          this.context.fillStyle = "blue";
-
-          // draw the arrow body
-          this.context.beginPath();
-          this.context.moveTo(x0, y0);
-          this.context.lineTo(x1, y1);
-          this.context.stroke();
-
-          // draw the hover markers
-          if (this.hover.id == arrow.id && "arrow" == this.hover.type) {
-            if (["all", "start"].includes(this.hover.handle)) {
-              this.context.beginPath();
-              this.context.arc(x0, y0, 4, 0, 2*Math.PI);
-              this.context.stroke();
-            }
-
-            if (["all", "end"].includes(this.hover.handle)) {
-              this.context.beginPath();
-              this.context.arc(x1, y1, 4, 0, 2*Math.PI);
-              this.context.stroke();
-            }
-          }
-
-          // rotate about the a head
-          this.context.translate(x1, y1);
-          this.context.rotate(a);
-          this.context.translate(-x1, -y1);
-
-          // draw the arrow head
-          this.context.beginPath();
-          this.context.moveTo(x1 + 1, y1);
-          this.context.lineTo(x1 - 5, y1 - 3);
-          this.context.lineTo(x1 - 5, y1 + 3);
-          this.context.fill();
-
-          // reverse the rotation
-          this.context.translate(x1, y1);
-          this.context.rotate(-a);
-          this.context.translate(-x1, -y1);
-        },
-
-        drawEllipse: function(ellipse) {
-          let x = ellipse.x - this.imageTransform.ix;
-          let y = ellipse.y - this.imageTransform.iy;
-
-          this.context.lineWidth = 1;
-          this.context.strokeStyle = "blue";
-
-          this.context.beginPath();
-          this.context.ellipse(x, y, ellipse.rx, ellipse.ry, 0, 0, 2*Math.PI);
-          this.context.stroke();
-
-          // draw the hover markers
-          if (this.hover.id == ellipse.id && "ellipse" == this.hover.type) {
-            if (["all", "nw"].includes(this.hover.handle)) {
-              this.context.beginPath();
-              this.context.arc(x - ellipse.rx, y - ellipse.ry, 4, 0, 2*Math.PI);
-              this.context.stroke();
-            }
-
-            if (["all", "sw"].includes(this.hover.handle)) {
-              this.context.beginPath();
-              this.context.arc(x - ellipse.rx, y + ellipse.ry, 4, 0, 2*Math.PI);
-              this.context.stroke();
-            }
-
-            if (["all", "se"].includes(this.hover.handle)) {
-              this.context.beginPath();
-              this.context.arc(x + ellipse.rx, y + ellipse.ry, 4, 0, 2*Math.PI);
-              this.context.stroke();
-            }
-
-            if (["all", "ne"].includes(this.hover.handle)) {
-              this.context.beginPath();
-              this.context.arc(x + ellipse.rx, y - ellipse.ry, 4, 0, 2*Math.PI);
-              this.context.stroke();
-            }
-          }
-        },
-
-        paint: function() {
-          if (null == this.imageTransform) this.reset();
-
-          // recalculate the canvas size based on the bounding client
-          const canvasRect = this.canvas.getBoundingClientRect();
-          this.canvas.width = canvasRect.width;
-          this.canvas.height = canvasRect.height;
+          this.canvas.width = rect.width*window.devicePixelRatio;
+          this.canvas.height = rect.height*window.devicePixelRatio;
           this.canvasRatio = this.canvas.width/this.canvas.height;
           this.heightBased = this.canvasRatio > this.imageRatio;
           this.icRatio = (
@@ -235,14 +114,143 @@ cenozo.factory("CnImageFactory", [
             this.image.height/this.canvas.height :
             this.image.width/this.canvas.width
           );
-          this.view = {
+          this.canvasView = {
+            x: 0,
+            y: 0,
             width: this.heightBased ? this.canvas.height*this.imageRatio : this.canvas.width,
             height: this.heightBased ? this.canvas.height : this.canvas.width/this.imageRatio,
           };
-          this.calculateBounds(this.imageTransform.scale);
+
+          this.bounds.x.max = 0;
+          this.bounds.y.max = 0;
+          if (this.heightBased) {
+            this.bounds.x.max = (this.canvasView.width - this.canvas.width/scale)*this.icRatio;
+            this.bounds.y.max = this.image.height - this.canvasView.height*this.icRatio/scale;
+          } else {
+            this.bounds.x.max = this.image.width - this.canvasView.width*this.icRatio/scale;
+            this.bounds.y.max = (this.canvasView.height - this.canvas.height/scale)*this.icRatio;
+          }
+          if (this.bounds.x.min > this.bounds.x.max) this.bounds.x.max = this.bounds.x.min;
+          if (this.bounds.y.min > this.bounds.y.max) this.bounds.y.max = this.bounds.y.min;
+        },
+
+        canvasToImage: function(x, y) {
+          const rect = this.canvas.getBoundingClientRect();
+          return {
+            x: (x - rect.x)*this.icRatio/this.transform.scale + this.transform.x,
+            y: (y - rect.y)*this.icRatio/this.transform.scale + this.transform.y,
+          };
+        },
+
+        imageToCanvas: function(x, y) {
+          const rect = this.canvas.getBoundingClientRect();
+          return {
+            x: (x - this.transform.x)*this.transform.scale/this.icRatio,
+            y: (y - this.transform.y)*this.transform.scale/this.icRatio,
+          };
+        },
+
+        reset: function() {
+          this.transform = { x: 0, y: 0, b: 1, c: 1, scale: 1 };
+          this.hover = { type: null, handle: null, id: null };
+        },
+
+        drawArrow: function(arrow) {
+          let p0 = this.imageToCanvas(arrow.x0, arrow.y0);
+          let p1 = this.imageToCanvas(arrow.x1, arrow.y1);
+          let a = Math.atan((p1.y - p0.y)/(p1.x - p0.x)) + (p1.x < p0.x ? Math.PI : 0);
+
+          this.context.lineWidth = 1;
+          this.context.strokeStyle = "blue";
+          this.context.fillStyle = "blue";
+
+          // draw the arrow body
+          this.context.beginPath();
+          this.context.moveTo(p0.x, p0.y);
+          this.context.lineTo(p1.x, p1.y);
+          this.context.stroke();
+
+          // draw the hover markers
+          if (this.hover.id == arrow.id && "arrow" == this.hover.type) {
+            if (["all", "start"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(p0.x, p0.y, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
+
+            if (["all", "end"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(p1.x, p1.y, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
+          }
+
+          // rotate about the a head
+          this.context.translate(p1.x, p1.y);
+          this.context.rotate(a);
+          this.context.translate(-p1.x, -p1.y);
+
+          // draw the arrow head
+          this.context.beginPath();
+          this.context.moveTo(p1.x + 1, p1.y);
+          this.context.lineTo(p1.x - 5, p1.y - 3);
+          this.context.lineTo(p1.x - 5, p1.y + 3);
+          this.context.fill();
+
+          // reverse the rotation
+          this.context.translate(p1.x, p1.y);
+          this.context.rotate(-a);
+          this.context.translate(-p1.x, -p1.y);
+        },
+
+        drawEllipse: function(ellipse) {
+          let p = this.imageToCanvas(ellipse.x, ellipse.y);
+          let rx = ellipse.rx*this.transform.scale/this.icRatio;
+          let ry = ellipse.ry*this.transform.scale/this.icRatio;
+
+          this.context.lineWidth = 1;
+          this.context.strokeStyle = "blue";
+
+          this.context.beginPath();
+          this.context.ellipse(p.x, p.y, rx, ry, 0, 0, 2*Math.PI);
+          this.context.stroke();
+
+          // draw the hover markers
+          if (this.hover.id == ellipse.id && "ellipse" == this.hover.type) {
+            if (["all", "nw"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(p.x - rx, p.y - ry, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
+
+            if (["all", "sw"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(p.x - rx, p.y + ry, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
+
+            if (["all", "se"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(p.x + rx, p.y + ry, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
+
+            if (["all", "ne"].includes(this.hover.handle)) {
+              this.context.beginPath();
+              this.context.arc(p.x + rx, p.y - ry, 4, 0, 2*Math.PI);
+              this.context.stroke();
+            }
+          }
+        },
+
+        paint: function() {
+          if (null == this.transform) this.reset();
+
+          // recalculate the view based on the current scale
+          this.updateView(this.transform.scale);
 
           // scale the image based on the current transform
-          this.context.scale(this.imageTransform.scale, this.imageTransform.scale);
+          this.context.scale(this.transform.scale, this.transform.scale);
 
           // clear background by filling with black
           this.context.rect(0, 0, this.canvas.width, this.canvas.height);
@@ -250,34 +258,30 @@ cenozo.factory("CnImageFactory", [
           this.context.fill();
 
           this.context.filter =
-            "brightness(" + (100*this.imageTransform.b) + "%) " +
-            "contrast(" + (100*this.imageTransform.c) + "%)";
+            "brightness(" + (100*this.transform.b) + "%) " +
+            "contrast(" + (100*this.transform.c) + "%)";
 
           this.context.drawImage(
             this.image,
 
             // location on image to paint at the canvas origin (only affected by scalling/panning)
-            this.imageTransform.x, this.imageTransform.y,
+            this.transform.x, this.transform.y,
 
             // image's width/height (never changes)
             this.image.width, this.image.height,
 
-            // canvas origin (never changes)
-            0, 0,
+            // canvas view origin (never changes)
+            this.canvasView.x, this.canvasView.y,
 
-            // canvas width/height (only affected by window size)
-            this.view.width, this.view.height
+            // canvas view width/height (only affected by window size)
+            this.canvasView.width, this.canvasView.height
           );
 
-          // draw all arrows
-          this.arrowList.forEach((arrow) => {
-            this.drawArrow(arrow);
-          });
+          this.context.scale(1/this.transform.scale, 1/this.transform.scale);
 
-          // draw all ellipses
-          this.ellipseList.forEach((ellipse) => {
-            this.drawEllipse(ellipse);
-          });
+          // draw all arrows and ellipses
+          this.arrowList.forEach(arrow => this.drawArrow(arrow));
+          this.ellipseList.forEach(ellipse => this.drawEllipse(ellipse));
 
           // draw the active annotation
           if (null != this.activeAnnotation) {
@@ -287,15 +291,6 @@ cenozo.factory("CnImageFactory", [
               this.drawEllipse(this.activeAnnotation);
             }
           }
-
-          // DEBUG: draw a red line around the image
-          /*
-          this.context.beginPath();
-          this.context.lineWidth = "2";
-          this.context.rect(0, 0, this.view.width, this.view.height);
-          this.context.strokeStyle = "red";
-          this.context.stroke();
-          */
         },
 
         scale: function(cx, cy, inward) {
@@ -303,10 +298,10 @@ cenozo.factory("CnImageFactory", [
           let imageMeasure = this.heightBased ? this.image.height : this.image.width;
 
           // zoom in by 1/32nd of the image width
-          let factor = (inward ? 1 : -1) * imageMeasure / 32;
+          let scaleFactor = (inward ? 1 : -1)*imageMeasure/32;
 
-          // determine the new scaling factor
-          let newScale = imageMeasure / (imageMeasure / this.imageTransform.scale - factor);
+          // determine the new scale value
+          let newScale = imageMeasure/(imageMeasure/this.transform.scale - scaleFactor);
 
           // restrict to scalling boundaries (1x to 10x)
           if (this.bounds.scale.min > newScale || this.bounds.scale.max < newScale) return;
@@ -314,47 +309,39 @@ cenozo.factory("CnImageFactory", [
           // determine the new transform coordinates
           let x = 0, y = 0;
           if (1 < newScale) {
-            x = this.imageTransform.x + cx * factor / this.canvas.width * (this.heightBased?this.canvasRatio:1);
-            y = this.imageTransform.y + cy * factor / this.canvas.height / (this.heightBased?1:this.canvasRatio);
+            x = this.transform.x + cx*scaleFactor/this.canvas.width*(this.heightBased?this.canvasRatio:1);
+            y = this.transform.y + cy*scaleFactor/this.canvas.height/(this.heightBased?1:this.canvasRatio);
           }
 
-          // recalculate the new bounds using the new scale
-          this.calculateBounds(newScale);
+          // recalculate the view based on the new scale
+          this.updateView(newScale);
 
           // apply the new scale and redraw the image
-          angular.extend(this.imageTransform, {
+          angular.extend(this.transform, {
             x: this.bounds.x.min > x ? this.bounds.x.min : this.bounds.x.max < x ? this.bounds.x.max : x,
             y: this.bounds.x.min > y ? this.bounds.x.min : this.bounds.y.max < y ? this.bounds.y.max : y,
             scale: newScale,
-          });
-          angular.extend(this.imageTransform, {
-            ix: this.imageTransform.x/this.icRatio,
-            iy: this.imageTransform.y/this.icRatio,
           });
 
           this.paint();
         },
 
         pan: function(dx, dy) {
-          let x = this.imageTransform.x + dx * this.icRatio / this.imageTransform.scale;
-          let y = this.imageTransform.y + dy * this.icRatio / this.imageTransform.scale;
-          angular.extend(this.imageTransform, {
+          let x = this.transform.x + dx*this.icRatio/this.transform.scale;
+          let y = this.transform.y + dy*this.icRatio/this.transform.scale;
+          angular.extend(this.transform, {
             x: this.bounds.x.min > x ? this.bounds.x.min : this.bounds.x.max < x ? this.bounds.x.max : x,
             y: this.bounds.x.min > y ? this.bounds.x.min : this.bounds.y.max < y ? this.bounds.y.max : y,
-          });
-          angular.extend(this.imageTransform, {
-            ix: this.imageTransform.x/this.icRatio,
-            iy: this.imageTransform.y/this.icRatio,
           });
 
           this.paint();
         },
 
         windowLevel: function(dc, db) {
-          let b = this.imageTransform.b + (this.bounds.b.max - this.bounds.b.min) * db / 600;
-          let c = this.imageTransform.c + (this.bounds.c.max - this.bounds.c.min) * dc / 600;
+          let b = this.transform.b + (this.bounds.b.max - this.bounds.b.min)*db/600;
+          let c = this.transform.c + (this.bounds.c.max - this.bounds.c.min)*dc/600;
 
-          angular.extend(this.imageTransform, {
+          angular.extend(this.transform, {
             b: b = b < this.bounds.b.min ? this.bounds.b.min : b > this.bounds.b.max ? this.bounds.b.max : b,
             c: c = c < this.bounds.c.min ? this.bounds.c.min : c > this.bounds.c.max ? this.bounds.c.max : c,
           });
@@ -593,13 +580,8 @@ cenozo.factory("CnImageFactory", [
 
         createEventListeners: function() {
           // redraw the image when the window is resized
-          var resizeWait = false;
           window.addEventListener("resize", () => {
-            if (!resizeWait) {
-              this.paint();
-              resizeWait = true;
-              $timeout(() => { this.paint(); resizeWait = false; }, 50);
-            }
+            this.paint();
           });
 
           // capture all key inputs when the mouse is on the canvas
@@ -642,7 +624,7 @@ cenozo.factory("CnImageFactory", [
               else if (1 == event.button) button = "middle";
               else if (2 == event.button) button = "right";
 
-              const point = this.getMousePoint(event);
+              const point = this.canvasToImage(event.clientX, event.clientY);
               if (event.altKey) {
                 // do nothing
               } else if (event.ctrlKey) {
@@ -675,7 +657,7 @@ cenozo.factory("CnImageFactory", [
               event.preventDefault();
               event.stopPropagation();
 
-              // use absolute coordinates
+              // scale expects canvas view coordinates
               const rect = this.canvas.getBoundingClientRect();
               this.scale( event.clientX - rect.left, event.clientY - rect.top, 0 < event.wheelDelta);
             },
@@ -686,7 +668,7 @@ cenozo.factory("CnImageFactory", [
               else if (4 == event.buttons) button = "middle";
               else if (2 == event.buttons) button = "right";
 
-              const point = this.getMousePoint(event);
+              const point = this.canvasToImage(event.clientX, event.clientY);
               if (null == button) {
                 // update which annotation is behing hovered over
                 if (!event.altKey && !event.ctrlKey && !event.shiftKey) {
@@ -707,19 +689,18 @@ cenozo.factory("CnImageFactory", [
         onView: async function() {
           this.loadingImage = true;
           try {
-            const dpRatio = window.devicePixelRatio;
-            const canvasRect = this.canvas.getBoundingClientRect();
-            this.canvas.width = canvasRect.width * dpRatio;
-            this.canvas.height = canvasRect.height * dpRatio;
+            const rect = this.canvas.getBoundingClientRect();
+            this.canvas.width = rect.width*window.devicePixelRatio;
+            this.canvas.height = rect.height*window.devicePixelRatio;
 
             this.context = this.canvas.getContext("2d")
-            this.context.scale(dpRatio, dpRatio);
-            this.context.font = "24px Arial";
+            this.context.scale(window.devicePixelRatio, window.devicePixelRatio);
+            this.context.font = "18px Arial";
             this.context.fillText("Loading image...", 20, 40);
 
             this.image = new Image();
             this.image.onload = () => {
-              this.imageRatio = this.image.width / this.image.height;
+              this.imageRatio = this.image.width/this.image.height;
               this.reset();
               this.paint();
             }
