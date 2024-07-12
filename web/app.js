@@ -24,7 +24,9 @@ cenozo.directive("cnRating", [
 
         // create the rating model
         $scope.ratingModel = CnRatingFactory.instance($scope.model);
-        $scope.ratingModel.onView();
+        $scope.model.viewModel.afterView(() => {
+          $scope.ratingModel.onView();
+        });
       }
     };
   },
@@ -60,8 +62,22 @@ cenozo.factory("CnRatingFactory", [
     var object = function (parentModel) {
       angular.extend(this, {
         parentModel: parentModel,
+        rating: 3, // temporary
+        onRatingBlur: () => { console.log(this.rating); }, // temporary
+        codeGroupList: [],
         onView: async function() {
-          console.log('TODO: implement onView()');
+          this.isLoading = true;
+
+          try {
+            const response = await CnHttpFactory.instance({
+              path: this.parentModel.getServiceResourcePath() + "/code?user_id=" + CnSession.user.id,
+            }).query();
+
+            this.codeGroupList = response.data;
+            console.log(this.codeGroupList);
+          } finally {
+            this.isLoading = false;
+          }
         },
       });
     };
@@ -624,6 +640,7 @@ cenozo.factory("CnImageFactory", [
               else if (1 == event.button) button = "middle";
               else if (2 == event.button) button = "right";
 
+              // TODO BUG: new arrows/ellipses aren't in the right place
               const point = this.canvasToImage(event.clientX, event.clientY);
               if (event.altKey) {
                 // do nothing
@@ -715,12 +732,12 @@ cenozo.factory("CnImageFactory", [
               CnHttpFactory.instance({
                 path: this.parentModel.getServiceResourcePath() + "/arrow",
                 data: { modifier: { where: { column: "user_id", operator: "=", value: CnSession.user.id } } },
-              }).get(),
+              }).query(),
 
               CnHttpFactory.instance({
                 path: this.parentModel.getServiceResourcePath() + "/ellipse",
                 data: { modifier: { where: { column: "user_id", operator: "=", value: CnSession.user.id } } },
-              }).get(),
+              }).query(),
             ]);
 
             this.image.src = imageResponse.data.image.data;

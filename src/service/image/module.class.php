@@ -24,8 +24,14 @@ class module extends \cenozo\service\module
   public function prepare_read( $select, $modifier )
   {
     parent::prepare_read( $select, $modifier );
+    $db_user = lib::create( 'business\session' )->get_user();
 
     $modifier->join( 'exam', 'image.exam_id', 'exam.id' );
+    $modifier->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
+    $join_mod = lib::create( 'database\modifier' );
+    $join_mod->where( 'image.id', '=', 'rating.image_id', false );
+    $join_mod->where( 'rating.user_id', '=', $db_user->id );
+    $modifier->join_modifier( 'rating', $join_mod, 'left' );
 
     if( $select->has_column( 'filename' ) )
     {

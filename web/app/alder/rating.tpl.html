@@ -1,3 +1,43 @@
-<div class="container-fluid">
-  
+<div class="rounded">
+  <div class="container-fluid bg-primary rounded-top">
+    <h4>
+      Image Rating
+      <span ng-if="!model.getEditEnabled()">(read only)</span>
+      <span ng-if="ratingModel.isLoading">(Loading&hellip;)</span>
+    </h4>
+  </div>
+  <form name="form" class="form-horizontal" novalidate>
+    <div class="form-body">
+      <div class="form-group">
+        <label for="rating" class="control-label col-sm-3">Rating</label>
+        <div class="row col-sm-9">
+          <div class="input-group" style="margin-top: 7px;">
+            <div class="col-sm-1" ng-bind-html="ratingModel.rating"></div>
+            <div class="col-sm-11">
+              <cn-slider
+                id="rating"
+                ng-disabled="!model.getEditEnabled() || ratingModel.isLoading"
+                on-blur="ratingModel.onRatingBlur()"
+                ng-model="ratingModel.rating"
+                floor=1
+                ceiling=5
+              ></cn-slider>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div ng-repeat="group in ratingModel.codeGroupList">
+        <div class="container-fluid bg-info">
+          <label class="control-label" ng-bind-html="group.name"></label>
+        </div>
+        <div class="container-fluid">
+          <div class="col-xs-2" ng-repeat="code in group.code_list">
+            <button class="btn btn-default">{{ code.name }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="form-footer text-right rounded-bottom bg-info">
+    </div>
+  </form>
 </div>
