@@ -20,8 +20,7 @@ class module extends \cenozo\service\module
   {
     parent::prepare_read( $select, $modifier );
 
-    $modifier->join( 'image', 'code.image_id', 'image.id' );
-    $modifier->join( 'user', 'code.user_id', 'user.id' );
+    $modifier->join( 'review', 'code.review_id', 'review.id' );
     $modifier->join( 'code_type', 'code.code_type_id', 'code_type.id' );
     $modifier->join( 'code_group', 'code_type.code_group_id', 'code_group.id' );
   }

@@ -39,15 +39,6 @@ cenozoApp.defineModule({
         title: "Note",
         type: "text",
       },
-      feedback: {
-        column: "image.feedback",
-        title: "Feedback",
-        type: "text",
-      },
-      rating: {
-        column: "rating.value",
-        type: "hidden",
-      },
       scan_type_id: {
         column: "exam.scan_type_id",
         type: "hidden",

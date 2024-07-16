@@ -15,14 +15,15 @@ SOURCE exam.sql
 SOURCE image.sql
 SOURCE code_group.sql
 SOURCE code_type.sql
+SOURCE review.sql
 SOURCE code.sql
-SOURCE rating.sql
 SOURCE arrow.sql
 SOURCE ellipse.sql
 
 SOURCE service.sql
 SOURCE role_has_service.sql
 
+SOURCE calculate_rating.sql
 SOURCE update_version_number.sql
 
 COMMIT;

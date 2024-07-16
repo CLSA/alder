@@ -47,8 +47,10 @@ cenozo.directive("cnImage", [
         $scope.imageModel = CnImageFactory.instance($scope.model);
 
         // connect the canvas in the element to the model, then view it
-        $scope.imageModel.canvas = $element.find("canvas.image")[0];
-        $scope.imageModel.onView();
+        $scope.model.viewModel.afterView(() => {
+          $scope.imageModel.canvas = $element.find("canvas.image")[0];
+          $scope.imageModel.onView();
+        });
       }
     };
   },
@@ -58,27 +60,84 @@ cenozo.directive("cnImage", [
 cenozo.factory("CnRatingFactory", [
   "CnSession",
   "CnHttpFactory",
-  function (CnSession, CnHttpFactory) {
+  "CnModalMessageFactory",
+  function (CnSession, CnHttpFactory, CnModalMessageFactory) {
     var object = function (parentModel) {
       angular.extend(this, {
         parentModel: parentModel,
-        rating: 3, // temporary
-        onRatingBlur: () => { console.log(this.rating); }, // temporary
+        onRatingBlur: () => {
+          // TODO: implement
+        },
         codeGroupList: [],
+        calculateRating: function () {
+          let rating = 5;
+          this.codeGroupList.forEach(group => {
+            if (group.code_list.some(code => code.selected)) rating += group.value;
+          });
+
+          if (1 > rating) rating = 1;
+          else if (5 < rating) rating = 5;
+          this.parentModel.viewModel.record.calculated_rating = rating;
+        },
         onView: async function() {
           this.isLoading = true;
 
           try {
             const response = await CnHttpFactory.instance({
-              path: this.parentModel.getServiceResourcePath() + "/code?user_id=" + CnSession.user.id,
+              path: this.parentModel.getServiceResourcePath() + "/code?full=1",
             }).query();
 
+            // add a working property to all codes
             this.codeGroupList = response.data;
-            console.log(this.codeGroupList);
+            this.codeGroupList.forEach(g => g.code_list.map(c => { c.working = false; return c }));
           } finally {
             this.isLoading = false;
           }
         },
+        toggleCode: async function(code) {
+          code.working = true;
+
+          try {
+            const self = this;
+            if (code.selected) {
+              // remove the code
+              const identifierList = [
+                "review_id=" + this.parentModel.viewModel.record.id,
+                "code_type_id=" + code.code_type_id,
+              ];
+              await CnHttpFactory.instance({
+                path: "code/" + identifierList.join(";"),
+                onError: function (error) {
+                  if (404 == error.status) {
+                    console.info("The above 404 error can be safely ignored.");
+                    code.selected = !code.selected;
+                    self.calculateRating();
+                  } else CnModalMessageFactory.httpError(error);
+                }
+              }).delete();
+            } else {
+              // add the code
+              await CnHttpFactory.instance({
+                path: this.parentModel.getServiceResourcePath() + "/code",
+                data: { image_id: this.parentModel.viewModel.record.id, code_type_id: code.code_type_id },
+                onError: function (error) {
+                  if (409 == error.status) {
+                    console.info("The above 409 error can be safely ignored.");
+                    code.selected = !code.selected;
+                    self.calculateRating();
+                  } else CnModalMessageFactory.httpError(error);
+                }
+              }).post();
+            }
+
+            code.selected = !code.selected;
+            this.calculateRating();
+          } catch (error) {
+            // errors are handled above in the onError functions
+          } finally {
+            code.working = false;
+          }
+        }
       });
     };
 
@@ -725,19 +784,12 @@ cenozo.factory("CnImageFactory", [
             // load the image and all annotation data
             const [imageResponse, arrowResponse, ellipseResponse] = await Promise.all([
               CnHttpFactory.instance({
-                path: this.parentModel.getServiceResourcePath(),
+                path: "image/" + this.parentModel.viewModel.record.image_id,
                 data: { select: { column: "image" } },
               }).get(),
 
-              CnHttpFactory.instance({
-                path: this.parentModel.getServiceResourcePath() + "/arrow",
-                data: { modifier: { where: { column: "user_id", operator: "=", value: CnSession.user.id } } },
-              }).query(),
-
-              CnHttpFactory.instance({
-                path: this.parentModel.getServiceResourcePath() + "/ellipse",
-                data: { modifier: { where: { column: "user_id", operator: "=", value: CnSession.user.id } } },
-              }).query(),
+              CnHttpFactory.instance({ path: this.parentModel.getServiceResourcePath() + "/arrow" }).query(),
+              CnHttpFactory.instance({ path: this.parentModel.getServiceResourcePath() + "/ellipse" }).query(),
             ]);
 
             this.image.src = imageResponse.data.image.data;

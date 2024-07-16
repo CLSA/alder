@@ -29,6 +29,9 @@ class ui extends \cenozo\ui\ui
     $module = $this->get_module( 'exam' );
     if( !is_null( $module ) ) $module->add_child( 'image' );
 
+    $module = $this->get_module( 'image' );
+    if( !is_null( $module ) ) $module->add_child( 'review' );
+
     $module = $this->get_module( 'scan_type' );
     if( !is_null( $module ) )
     {
@@ -58,10 +61,14 @@ class ui extends \cenozo\ui\ui
    */
   protected function build_listitem_list()
   {
+    $db_role = lib::create( 'business\session' )->get_role();
+
     parent::build_listitem_list();
 
     // add application-specific lists to the base list
     $this->add_listitem( 'Interviews', 'interview' );
     $this->add_listitem( 'Modalities', 'modality' );
+
+    if( 'typist' == $db_role->name ) $this->add_listitem( 'Reviews', 'review' );
   }
 }

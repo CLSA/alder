@@ -45,7 +45,7 @@ CREATE PROCEDURE patch_role_has_service()
       "SELECT role.id, service.id ",
       "FROM ", @cenozo, ".role, service ",
       "WHERE role.name = 'administrator' ",
-      "AND service.subject NOT IN ('arrow', 'ellipse') ",
+      "AND service.subject NOT IN ('arrow', 'code', 'ellipse', 'review') ",
       "AND service.restricted = 1"
     );
     PREPARE statement FROM @sql;
@@ -57,7 +57,7 @@ CREATE PROCEDURE patch_role_has_service()
       "SELECT role.id, service.id ",
       "FROM ", @cenozo, ".role, service ",
       "WHERE role.name = 'typist' ",
-      "AND service.subject IN ('arrow', 'ellipse') ",
+      "AND service.subject IN ('arrow', 'code', 'ellipse', 'review') ",
       "AND service.restricted = 1"
     );
     PREPARE statement FROM @sql;

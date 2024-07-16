@@ -1,9 +1,7 @@
-<div class="row">
-  <div class="col-sm-6">
-    <cn-record-view model="model"></cn-record-view>
-    <cn-rating model="model" class="spacer"></cn-rating>
-  </div>
-  <div class="col-slim col-sm-6">
-    <cn-image model="model"></cn-image>
-  </div>
+<cn-record-view model="model"></cn-record-view>
+<cn-list-selector model="model"></cn-list-selector>
+<div ng-show="null === model.viewModel.tab || child.subject.snake == model.viewModel.tab"
+     ng-repeat="child in model.viewModel.getChildList()"
+     class="vertical-spacer">
+  <cn-record-list model="model.viewModel[child.subject.camel+'Model']"></cn-record-list>
 </div>

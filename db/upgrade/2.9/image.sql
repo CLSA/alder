@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS image (
   exam_id INT(10) UNSIGNED NOT NULL,
   path VARCHAR(255) NOT NULL,
   note TEXT NULL DEFAULT NULL,
-  feedback TEXT NULL DEFAULT NULL,
   PRIMARY KEY (id),
   INDEX fk_exam_id (exam_id ASC),
   UNIQUE INDEX uq_path (path ASC),
