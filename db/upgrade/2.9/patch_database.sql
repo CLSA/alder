@@ -17,8 +17,7 @@ SOURCE code_group.sql
 SOURCE code_type.sql
 SOURCE review.sql
 SOURCE code.sql
-SOURCE arrow.sql
-SOURCE ellipse.sql
+SOURCE annotation.sql
 
 SOURCE service.sql
 SOURCE role_has_service.sql

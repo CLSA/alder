@@ -5,7 +5,7 @@
  * @author Patrick Emond <emondpd@mcmaster.ca>
  */
 
-namespace alder\service\ellipse;
+namespace alder\service\annotation;
 use cenozo\lib, cenozo\log, alder\util;
 
 /**

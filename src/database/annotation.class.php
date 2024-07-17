@@ -1,15 +1,15 @@
 <?php
 /**
- * ellipse.class.php
+ * annotation.class.php
  * 
  * @author Patrick Emond <emondpd@mcmaster.ca>
- * @fileellipse
+ * @fileannotation
  */
 
 namespace alder\database;
 use cenozo\lib, cenozo\log, cenozo\util;
 
 /**
- * ellipse: record
+ * annotation: record
  */
-class ellipse extends \cenozo\database\record {}
+class annotation extends \cenozo\database\record {}
