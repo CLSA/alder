@@ -483,23 +483,33 @@ cenozo.factory("CnImageFactory", [
             )
           );
 
-          if (valid && null != annotation) this.annotationList.push(annotation);
+          if (valid && null != annotation) {
+            try {
+              let httpObj = {
+                path: this.parentModel.getServiceResourcePath() + "/annotation",
+                data: data,
+                onError: function (error) {}, // do nothing
+              };
+
+              if (null == annotation.id) {
+                // create a new annotation
+                const response = await CnHttpFactory.instance(httpObj).post();
+                annotation.id = response.data;
+              } else {
+                // update an existing annotation
+                httpObj.path += "/" + annotation.id;
+                await CnHttpFactory.instance(httpObj).patch();
+              }
+
+              // only add the annotation to the list if it was successfully created
+              this.annotationList.push(annotation);
+            } catch (error) {
+              // errors are handled above in the onError functions
+            }
+          }
 
           this.activeAnnotation = null;
           this.paint();
-
-          if (valid && null != annotation) {
-            // TODO: handle server errors
-            let path = this.parentModel.getServiceResourcePath() + "/annotation";
-            if (null == annotation.id) {
-              // create a new annotation
-              const response = await CnHttpFactory.instance({ path: path, data: data }).post();
-              annotation.id = response.data;
-            } else {
-              // update an existing annotation
-              await CnHttpFactory.instance({ path: path + "/" + annotation.id, data: data }).patch();
-            }
-          }
         },
 
         updateHover: function(point) {
@@ -626,9 +636,6 @@ cenozo.factory("CnImageFactory", [
             oncontextmenu: (event) => {
               event.preventDefault();
               event.stopPropagation();
-            },
-
-            ondblclick: (event) => {
             },
 
             onmousedown: (event) => {
