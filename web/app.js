@@ -184,10 +184,9 @@ cenozo.factory("CnImageFactory", [
           this.canvas.height = rect.height*window.devicePixelRatio;
           this.canvasRatio = this.canvas.width/this.canvas.height;
           this.heightBased = this.canvasRatio > this.imageRatio;
+          this.irRatio = this.heightBased ? this.image.height/rect.height : this.image.width/rect.width;
           this.icRatio = (
-            this.heightBased ?
-            this.image.height/this.canvas.height :
-            this.image.width/this.canvas.width
+            this.heightBased ? this.image.height/this.canvas.height : this.image.width/this.canvas.width
           );
           this.canvasView = {
             x: 0,
@@ -199,11 +198,11 @@ cenozo.factory("CnImageFactory", [
           this.bounds.x.max = 0;
           this.bounds.y.max = 0;
           if (this.heightBased) {
-            this.bounds.x.max = (this.canvasView.width - this.canvas.width/scale)*this.icRatio;
-            this.bounds.y.max = this.image.height - this.canvasView.height*this.icRatio/scale;
+            this.bounds.x.max = this.image.width - this.image.height/scale*this.canvasRatio;
+            this.bounds.y.max = this.image.height - this.image.height/scale;
           } else {
-            this.bounds.x.max = this.image.width - this.canvasView.width*this.icRatio/scale;
-            this.bounds.y.max = (this.canvasView.height - this.canvas.height/scale)*this.icRatio;
+            this.bounds.x.max = this.image.width - this.image.width/scale;
+            this.bounds.y.max = this.image.height - this.image.width/scale/this.canvasRatio;
           }
           if (this.bounds.x.min > this.bounds.x.max) this.bounds.x.max = this.bounds.x.min;
           if (this.bounds.y.min > this.bounds.y.max) this.bounds.y.max = this.bounds.y.min;
@@ -212,8 +211,8 @@ cenozo.factory("CnImageFactory", [
         canvasToImage: function(x, y) {
           const rect = this.canvas.getBoundingClientRect();
           return {
-            x: (x - rect.x)*this.icRatio/this.transform.scale + this.transform.x,
-            y: (y - rect.y)*this.icRatio/this.transform.scale + this.transform.y,
+            x: (x - rect.x)*this.irRatio/this.transform.scale + this.transform.x,
+            y: (y - rect.y)*this.irRatio/this.transform.scale + this.transform.y,
           };
         },
 
@@ -280,8 +279,8 @@ cenozo.factory("CnImageFactory", [
 
         drawEllipse: function(ellipse) {
           let p = this.imageToCanvas(ellipse.x, ellipse.y);
-          let rx = ellipse.rx*this.transform.scale/this.icRatio;
-          let ry = ellipse.ry*this.transform.scale/this.icRatio;
+          let rx = ellipse.rx*this.transform.scale/this.irRatio;
+          let ry = ellipse.ry*this.transform.scale/this.irRatio;
 
           this.context.lineWidth = 1;
           this.context.strokeStyle = "blue";
@@ -402,8 +401,8 @@ cenozo.factory("CnImageFactory", [
         },
 
         pan: function(dx, dy) {
-          let x = this.transform.x + dx*this.icRatio/this.transform.scale;
-          let y = this.transform.y + dy*this.icRatio/this.transform.scale;
+          let x = this.transform.x + dx*this.irRatio/this.transform.scale;
+          let y = this.transform.y + dy*this.irRatio/this.transform.scale;
           angular.extend(this.transform, {
             x: this.bounds.x.min > x ? this.bounds.x.min : this.bounds.x.max < x ? this.bounds.x.max : x,
             y: this.bounds.x.min > y ? this.bounds.x.min : this.bounds.y.max < y ? this.bounds.y.max : y,
@@ -633,7 +632,6 @@ cenozo.factory("CnImageFactory", [
               }
             } else if ("ellipse" == this.activeAnnotation.type) {
               if (angular.isObject(this.activeAnnotation.grab)) {
-
                 // move the ellipse
                 this.activeAnnotation.x += point.x - this.activeAnnotation.grab.x;
                 this.activeAnnotation.y += point.y - this.activeAnnotation.grab.y;
@@ -699,7 +697,6 @@ cenozo.factory("CnImageFactory", [
               else if (1 == event.button) button = "middle";
               else if (2 == event.button) button = "right";
 
-              // TODO BUG: new arrows/ellipses aren't in the right place
               const point = this.canvasToImage(event.clientX, event.clientY);
               if (event.altKey) {
                 // do nothing
