@@ -175,7 +175,7 @@ cenozo.factory("CnImageFactory", [
           y: { min: 0, max: 1 },
           b: { min: 0.5, max: 2.0 },
           c: { min: 1.0, max: 10.0 },
-          scale: { min: 1, max: 10 },
+          scale: { min: 1, max: 16 },
         },
 
         updateView: function(scale) {
@@ -248,13 +248,13 @@ cenozo.factory("CnImageFactory", [
           if (this.hover.id == arrow.id && "arrow" == this.hover.type) {
             if (["all", "start"].includes(this.hover.handle)) {
               this.context.beginPath();
-              this.context.arc(p0.x, p0.y, 4, 0, 2*Math.PI);
+              this.context.arc(p0.x, p0.y, 6, 0, 2*Math.PI);
               this.context.stroke();
             }
 
             if (["all", "end"].includes(this.hover.handle)) {
               this.context.beginPath();
-              this.context.arc(p1.x, p1.y, 4, 0, 2*Math.PI);
+              this.context.arc(p1.x, p1.y, 6, 0, 2*Math.PI);
               this.context.stroke();
             }
           }
@@ -267,8 +267,8 @@ cenozo.factory("CnImageFactory", [
           // draw the arrow head
           this.context.beginPath();
           this.context.moveTo(p1.x + 1, p1.y);
-          this.context.lineTo(p1.x - 5, p1.y - 3);
-          this.context.lineTo(p1.x - 5, p1.y + 3);
+          this.context.lineTo(p1.x - 10, p1.y - 6);
+          this.context.lineTo(p1.x - 10, p1.y + 6);
           this.context.fill();
 
           // reverse the rotation
@@ -279,8 +279,8 @@ cenozo.factory("CnImageFactory", [
 
         drawEllipse: function(ellipse) {
           let p = this.imageToCanvas(ellipse.x, ellipse.y);
-          let rx = ellipse.rx*this.transform.scale/this.irRatio;
-          let ry = ellipse.ry*this.transform.scale/this.irRatio;
+          let rx = ellipse.rx*this.transform.scale/this.icRatio;
+          let ry = ellipse.ry*this.transform.scale/this.icRatio;
 
           this.context.lineWidth = 1;
           this.context.strokeStyle = "blue";
@@ -293,25 +293,25 @@ cenozo.factory("CnImageFactory", [
           if (this.hover.id == ellipse.id && "ellipse" == this.hover.type) {
             if (["all", "nw"].includes(this.hover.handle)) {
               this.context.beginPath();
-              this.context.arc(p.x - rx, p.y - ry, 4, 0, 2*Math.PI);
+              this.context.arc(p.x - rx, p.y - ry, 6, 0, 2*Math.PI);
               this.context.stroke();
             }
 
             if (["all", "sw"].includes(this.hover.handle)) {
               this.context.beginPath();
-              this.context.arc(p.x - rx, p.y + ry, 4, 0, 2*Math.PI);
+              this.context.arc(p.x - rx, p.y + ry, 6, 0, 2*Math.PI);
               this.context.stroke();
             }
 
             if (["all", "se"].includes(this.hover.handle)) {
               this.context.beginPath();
-              this.context.arc(p.x + rx, p.y + ry, 4, 0, 2*Math.PI);
+              this.context.arc(p.x + rx, p.y + ry, 6, 0, 2*Math.PI);
               this.context.stroke();
             }
 
             if (["all", "ne"].includes(this.hover.handle)) {
               this.context.beginPath();
-              this.context.arc(p.x + rx, p.y - ry, 4, 0, 2*Math.PI);
+              this.context.arc(p.x + rx, p.y - ry, 6, 0, 2*Math.PI);
               this.context.stroke();
             }
           }
@@ -367,6 +367,8 @@ cenozo.factory("CnImageFactory", [
           }
         },
 
+        // cx and cy must be between 0 and 1 based on the center of scaling
+        // inward should be true to zoom in, false to zoom out
         scale: function(cx, cy, inward) {
           // we either use the image height or width, depending on how it fits on the canvas
           let imageMeasure = this.heightBased ? this.image.height : this.image.width;
@@ -383,8 +385,8 @@ cenozo.factory("CnImageFactory", [
           // determine the new transform coordinates
           let x = 0, y = 0;
           if (1 < newScale) {
-            x = this.transform.x + cx*scaleFactor/this.canvas.width*(this.heightBased?this.canvasRatio:1);
-            y = this.transform.y + cy*scaleFactor/this.canvas.height/(this.heightBased?1:this.canvasRatio);
+            x = this.transform.x + scaleFactor*cx*(this.heightBased ? this.canvasRatio : 1);
+            y = this.transform.y + scaleFactor*cy*(this.heightBased ? 1 : 1/this.canvasRatio);
           }
 
           // recalculate the view based on the new scale
@@ -500,8 +502,8 @@ cenozo.factory("CnImageFactory", [
 
             // check if the ellipse is valid
             valid = (
-              null != this.activeAnnotation.rx && 4 <= this.activeAnnotation.rx &&
-              null != this.activeAnnotation.ry && 4 <= this.activeAnnotation.ry
+              null != this.activeAnnotation.rx && 6 <= this.activeAnnotation.rx &&
+              null != this.activeAnnotation.ry && 6 <= this.activeAnnotation.ry
             );
           }
 
@@ -538,14 +540,17 @@ cenozo.factory("CnImageFactory", [
         },
 
         updateHover: function(point) {
+          // distance to handle varies with scaling
+          const dh = 16/this.transform.scale;
+
           // 1. check if we're hovering over an arrow end
           let hover = this.arrowList.some((arrow) => {
-            if (4 > Math.abs(point.x - arrow.x0) && 4 > Math.abs(point.y - arrow.y0)) {
+            if (dh > Math.abs(point.x - arrow.x0) && dh > Math.abs(point.y - arrow.y0)) {
               angular.extend(this.hover, { type: "arrow", handle: "start", id: arrow.id });
               return true;
             }
 
-            if (4 > Math.abs(point.x - arrow.x1) && 4 > Math.abs(point.y - arrow.y1)) {
+            if (dh > Math.abs(point.x - arrow.x1) && dh > Math.abs(point.y - arrow.y1)) {
               angular.extend(this.hover, { type: "arrow", handle: "end", id: arrow.id });
               return true;
             }
@@ -578,9 +583,9 @@ cenozo.factory("CnImageFactory", [
                 ne: { x: ellipse.x + ellipse.rx, y: ellipse.y - ellipse.ry },
               };
 
-              for (var handle in corners) {
-                if (4 > Math.abs(point.x - corners[handle].x) && 4 > Math.abs(point.y - corners[handle].y)) {
-                  angular.extend(this.hover, { type: "ellipse", handle: handle, id: ellipse.id });
+              for (var h in corners) {
+                if (dh > Math.abs(point.x - corners[h].x) && dh > Math.abs(point.y - corners[h].y)) {
+                  angular.extend(this.hover, { type: "ellipse", handle: h, id: ellipse.id });
                   return true;
                 }
               }
@@ -730,9 +735,9 @@ cenozo.factory("CnImageFactory", [
               event.preventDefault();
               event.stopPropagation();
 
-              // scale expects canvas view coordinates
+              // send the center point that we are scaling in on in percent [0,1]
               const rect = this.canvas.getBoundingClientRect();
-              this.scale( event.clientX - rect.left, event.clientY - rect.top, 0 < event.wheelDelta);
+              this.scale(event.layerX/rect.width, event.layerY/rect.height, 0 < event.wheelDelta);
             },
 
             onmousemove: (event) => {
