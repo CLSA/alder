@@ -16,6 +16,29 @@ class module extends \cenozo\service\module
   /**
    * Extend parent method
    */
+  public function validate()
+  {
+    if( $this->service->may_continue() )
+    {
+      $db_review = $this->get_resource();
+
+      if( !is_null( $db_review ) )
+      {
+        // restrict typist access
+        $session = lib::create( 'business\session' );
+        $db_user = $session->get_user();
+        $db_role = $session->get_role();
+        if( 'typist' == $db_role->name && $db_review->user_id != $db_user->id )
+        {
+          $this->get_status()->set_code( 403 );
+        }
+      }
+    }
+  }
+
+  /**
+   * Extend parent method
+   */
   public function prepare_read( $select, $modifier )
   {
     parent::prepare_read( $select, $modifier );

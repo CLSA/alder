@@ -1,7 +1,47 @@
 <div class="row">
   <div class="col-sm-6">
     <cn-record-view model="model"></cn-record-view>
-    <cn-rating model="model" class="spacer"></cn-rating>
+    <div class="vertical-spacer">
+      <div class="record-view rounded">
+        <div class="container-fluid bg-primary rounded-top">
+          <h4>
+            Image Rating
+            <span ng-if="!model.getEditEnabled()">(read only)</span>
+            <span ng-if="model.viewModel.isLoading">(Loading&hellip;)</span>
+          </h4>
+        </div>
+        <form name="form" class="form-horizontal" novalidate>
+          <div ng-repeat="group in model.viewModel.codeGroupList">
+            <div class="container-fluid bg-info" uib-tooltip-html="group.description">
+              <label class="control-label" ng-bind-html="group.name"></label>
+            </div>
+            <div class="container-fluid vertical-spacer">
+              <div
+                style="
+                  position: relative;
+                  min-height: 1px;
+                  padding-right: 5px;
+                  padding-left: 5px;
+                  float: left;
+                  width: 20%;
+                "
+                ng-repeat="code in group.code_list"
+              >
+                <button
+                  class="btn full-width"
+                  ng-class="code.selected ? 'btn-success' : 'btn-default'"
+                  ng-click="model.viewModel.toggleCode(code)"
+                  ng-disabled="code.working"
+                  uib-tooltip-html="code.description"
+                >{{ code.name }}</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-footer text-right rounded-bottom bg-info">
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
   <div class="col-slim col-sm-6">
     <cn-image model="model"></cn-image>

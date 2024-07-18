@@ -14,7 +14,7 @@ BEGIN
     WHERE code.review_id = proc_review_id
     GROUP BY code_group.id
   ) AS temp;
-  UPDATE review SET calculated_rating = IF( 1 > @rating, 1, IF( 5 < @rating, 5, @rating) );
+  UPDATE review SET rating = IF( 1 > @rating, 1, IF( 5 < @rating, 5, @rating) );
 END$$
 
 DELIMITER ;

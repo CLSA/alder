@@ -19,10 +19,7 @@ cenozoApp.defineModule({
           column: "user.name",
           title: "Reviewer",
         },
-        manual_rating: {
-          title: "Manual Rating",
-        },
-        calculated_rating: {
+        rating: {
           title: "Calculated Rating",
         },
         code_list: {
@@ -65,6 +62,11 @@ cenozoApp.defineModule({
         type: "string",
         isConstant: true,
       },
+      rating: {
+        title: "Rating",
+        type: "string",
+        isConstant: true,
+      },
       note: {
         column: "image.note",
         title: "Image Notes",
@@ -75,9 +77,100 @@ cenozoApp.defineModule({
         type: "text",
       },
       image_id: { type: "hidden" },
-      calculated_rating: { type: "hidden" },
-      manual_rating: { type: "hidden" },
     });
+
+    /* ############################################################################################## */
+    cenozo.providers.factory("CnReviewViewFactory", [
+      "CnBaseViewFactory",
+      "CnSession",
+      "CnHttpFactory",
+      "CnModalMessageFactory",
+      function (CnBaseViewFactory, CnSession, CnHttpFactory, CnModalMessageFactory) {
+        var object = function (parentModel, root) {
+          CnBaseViewFactory.construct(this, parentModel, root);
+
+          angular.extend(this, {
+            codeGroupList: [],
+            onView: async function (force) {
+              await this.$$onView();
+
+              this.isLoading = true;
+
+              try {
+                const response = await CnHttpFactory.instance({
+                  path: this.parentModel.getServiceResourcePath() + "/code?full=1",
+                }).query();
+
+                // add a working property to all codes
+                this.codeGroupList = response.data;
+                this.codeGroupList.forEach(g => g.code_list.map(c => { c.working = false; return c }));
+              } finally {
+                this.isLoading = false;
+              }
+            },
+            calculateRating: function () {
+              let rating = 5;
+              this.codeGroupList.forEach(group => {
+                if (group.code_list.some(code => code.selected)) rating += group.value;
+              });
+
+              if (1 > rating) rating = 1;
+              else if (5 < rating) rating = 5;
+              this.record.rating = rating;
+            },
+            toggleCode: async function(code) {
+              code.working = true;
+
+              try {
+                const self = this;
+                if (code.selected) {
+                  // remove the code
+                  const identifierList = [
+                    "review_id=" + this.record.id,
+                    "code_type_id=" + code.code_type_id,
+                  ];
+                  await CnHttpFactory.instance({
+                    path: "code/" + identifierList.join(";"),
+                    onError: function (error) {
+                      if (404 == error.status) {
+                        console.info("The above 404 error can be safely ignored.");
+                        code.selected = !code.selected;
+                        self.calculateRating();
+                      } else CnModalMessageFactory.httpError(error);
+                    }
+                  }).delete();
+                } else {
+                  // add the code
+                  await CnHttpFactory.instance({
+                    path: this.parentModel.getServiceResourcePath() + "/code",
+                    data: { image_id: this.record.id, code_type_id: code.code_type_id },
+                    onError: function (error) {
+                      if (409 == error.status) {
+                        console.info("The above 409 error can be safely ignored.");
+                        code.selected = !code.selected;
+                        self.calculateRating();
+                      } else CnModalMessageFactory.httpError(error);
+                    }
+                  }).post();
+                }
+
+                code.selected = !code.selected;
+                this.calculateRating();
+              } catch (error) {
+                // errors are handled above in the onError functions
+              } finally {
+                code.working = false;
+              }
+            },
+          });
+        };
+        return {
+          instance: function (parentModel, root) {
+            return new object(parentModel, root);
+          },
+        };
+      },
+    ]);
 
     /* ############################################################################################## */
     cenozo.providers.factory("CnReviewModelFactory", [
