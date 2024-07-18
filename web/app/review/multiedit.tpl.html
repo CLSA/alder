@@ -1,0 +1,171 @@
+<div class="utility-view rounded">
+  <div class="container-fluid bg-primary rounded-top">
+    <h4>
+      <div class="pull-right">
+        <i
+          class="glyphicon glyphicon-question-sign"
+          ng-class="{'glyph-disabled':!model.parentModel.module.hasNotation()}"
+          ng-if="model.parentModel.isRole('administrator') || model.parentModel.module.hasNotation()"
+          uib-tooltip="Click to view documentation"
+          tooltip-placement="left"
+          ng-click="model.parentModel.showNotation(); $event.stopPropagation()"
+        ></i>
+      </div>
+      Review Multi-Edit
+    </h4>
+  </div>
+  <div class="container-fluid">
+    <cn-loading ng-if="isLoading"></cn-loading>
+    <div class="spacer" ng-if="!isLoading">
+      <p class="text-info" style="margin-top: 1em;">
+        Enter a list of unique identifiers (eg: A123456) of all exams you wish to assign or edit.
+        After confirming you will be provided with a list of all UIDs which have an exam to create a review for.
+      </p>
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <span class="allow-select">
+            <strong>Participant selection</strong>
+          </span>
+          <span class="pull-right">
+            <span ng-if="model.confirmInProgress">working, please wait...</span>
+            <span ng-if="!model.confirmInProgress">
+              {{ model.confirmedCount ?  model.confirmedCount + ' participants confirmed' : 'no confirmed participants' }}
+              <i class="glyphicon" ng-class="model.confirmedCount ? 'glyphicon-ok' : 'glyphicon-remove'"></i>
+            </span>
+          </span>
+        </div>
+        <div class="panel-body">
+          <form class="form-horizontal">
+            <div class="form-group first-form-group">
+              <label for="study_phase_id" class="col-sm-3 control-label text-right">Study Phase:</label>
+              <div class="col-sm-9">
+                <select
+                  id="study_phase_id"
+                  ng-model="model.study_phase_id"
+                  ng-options="item.value as item.name for item in model.studyPhaseList"
+                  class="form-control"
+                ></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="modality_id" class="col-sm-3 control-label text-right">Modality:</label>
+              <div class="col-sm-9">
+                <select
+                  id="modality_id"
+                  ng-model="model.modality_id"
+                  ng-options="item.value as item.name for item in model.modalityList"
+                  class="form-control"
+                ></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="uidListString" class="col-sm-3 control-label text-right">UID List:</label>
+              <div class="col-sm-9">
+                <textarea
+                  id="uidListString"
+                  name="uidListString"
+                  cn-elastic
+                  ng-change="model.selectionChanged()"
+                  ng-model="model.uidListString"
+                  ng-disabled="model.confirmInProgress"
+                  class="form-control no-rounding"
+                ></textarea>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="form-footer text-right rounded-bottom bg-info">
+          <button
+            type="button"
+            class="btn btn-primary"
+            ng-if="!model.confirmedCount"
+            ng-disabled="model.confirmInProgress"
+            ng-click="confirm()"
+          >Confirm List</button>
+        </div>
+      </div>
+      <div ng-if="model.confirmedCount">
+        <div class="panel panel-default">
+          <div class="panel-heading">
+            <strong>Apply Reviews</strong>
+          </div>
+          <div class="panel-body">
+            <div class="form-horizontal">
+              <div ng-repeat="(phase,modalityList) in model.imageDataList">
+                <h4 class="text-center">{{ phase }}</h4>
+                <div class="row" ng-repeat="(modality,totals) in modalityList">
+                  <label class="col-sm-6 control-label">{{ modality }}</label>
+                  <div class="col-sm-6 form-text">
+                    {{ totals.with }} images with reviews, {{ totals.without }} without
+                  </div>
+                </div>
+                <hr ng-if="!$last" />
+              </div>
+            </div>
+            <hr />
+            <form class="form-horizontal">
+              <div class="form-group first-form-group">
+                <label for="user_id" class="col-sm-3 control-label text-right">Assign to user:</label>
+                <div class="col-sm-9">
+                  <select
+                    id="user_id"
+                    ng-model="model.user_id"
+                    ng-options="item.value as item.name for item in model.userList"
+                    class="form-control"
+                  ></select>
+                  <div class="text-info">
+                    Please note that typists will only be assigned modalities that they have been assigned to.
+                  </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="completed" class="col-sm-3 control-label text-right">Set completed:</label>
+                <div class="col-sm-9">
+                  <select
+                    id="completed"
+                    ng-model="model.completed"
+                    ng-options="item.value as item.name for item in model.booleanList"
+                    class="form-control"
+                  ></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="coodinator_read" class="col-sm-3 control-label text-right">Set coodinator read:</label>
+                <div class="col-sm-9">
+                  <select
+                    id="coodinator_read"
+                    ng-model="model.coodinator_read"
+                    ng-options="item.value as item.name for item in model.booleanList"
+                    class="form-control"
+                  ></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="interviewer_read" class="col-sm-3 control-label text-right">Set interviewer read:</label>
+                <div class="col-sm-9">
+                  <select
+                    id="interviewer_read"
+                    ng-model="model.interviewer_read"
+                    ng-options="item.value as item.name for item in model.booleanList"
+                    class="form-control"
+                  ></select>
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="form-footer text-right rounded-bottom bg-info">
+            <button
+              type="button"
+              class="btn btn-primary"
+              ng-if="model.confirmedCount"
+              ng-click="model.processList()"
+            >Proceed</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="form-footer text-right rounded-bottom bg-info">
+    <a href="#" ui-sref="participant.list" class="btn btn-default">View Review List</a>
+  </div>
+</div>

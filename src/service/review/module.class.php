@@ -43,6 +43,10 @@ class module extends \cenozo\service\module
   {
     parent::prepare_read( $select, $modifier );
 
+    $session = lib::create( 'business\session' );
+    $db_user = $session->get_user();
+    $db_role = $session->get_role();
+
     $modifier->join( 'image', 'review.image_id', 'image.id' );
     $modifier->join( 'exam', 'image.exam_id', 'exam.id' );
     $modifier->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
@@ -53,6 +57,9 @@ class module extends \cenozo\service\module
     $modifier->join( 'site', 'interview.site_id', 'site.id' );
     $modifier->join( 'user', 'review.user_id', 'user.id' );
     $this->add_list_column( 'code_list', 'code_type', 'name', $select, $modifier, 'code' );
+
+    // only show typists their own reviews
+    if( 'typist' == $db_role->name ) $modifier->where( 'review.user_id', '=', $db_user->id );
 
     if( $select->has_column( 'image_type' ) )
     {

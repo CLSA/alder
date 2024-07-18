@@ -18,12 +18,16 @@ cenozo.directive("cnImage", [
     return {
       templateUrl: cenozoApp.getFileUrl("alder", "image.tpl.html"),
       restrict: "E",
-      scope: { model: "=", },
+      scope: {
+        model: "=",
+        readonly: "=",
+      },
       controller: async function ($scope, $element) {
         $scope.directive = "cnImage";
 
         // create the image model
         $scope.imageModel = CnImageFactory.instance($scope.model);
+        $scope.imageModel.getReadOnly = () => $scope.readonly;
 
         // connect the canvas in the element to the model, then view it
         $scope.model.viewModel.afterView(() => {
@@ -44,6 +48,7 @@ cenozo.factory("CnImageFactory", [
     var object = function (parentModel) {
       angular.extend(this, {
         parentModel: parentModel,
+        getReadOnly: () => true, // override if readonly mode is dynamic
         loadingImage: true,
         canvas: null,
         context: null,
@@ -304,6 +309,8 @@ cenozo.factory("CnImageFactory", [
         },
 
         createAnnotation: function(type, point) {
+          if (this.getReadOnly()) return;
+
           this.activeAnnotation = { id: null, type: type };
           angular.extend(this.activeAnnotation, {
             x0: point.x,
@@ -315,6 +322,8 @@ cenozo.factory("CnImageFactory", [
         },
 
         updateActiveAnnotation: function(point) {
+          if (this.getReadOnly()) return;
+
           let annotation = null;
           if (null != this.hover.id) {
 
@@ -333,6 +342,7 @@ cenozo.factory("CnImageFactory", [
         },
 
         deleteActiveAnnotation: async function() {
+          if (this.getReadOnly()) return;
           if (null == this.hover.id) return;
 
           let index = this.annotationList.findIndexByProperty("id", this.hover.id);
@@ -349,6 +359,7 @@ cenozo.factory("CnImageFactory", [
         },
 
         saveActiveAnnotation: async function() {
+          if (this.getReadOnly()) return;
           if (null == this.activeAnnotation) return;
 
           let annotation = this.activeAnnotation;
@@ -399,6 +410,8 @@ cenozo.factory("CnImageFactory", [
         },
 
         updateHover: function(point) {
+          if (this.getReadOnly()) return;
+
           // distance to handle varies with scaling
           const dh = 16/this.transform.scale;
 
@@ -445,6 +458,8 @@ cenozo.factory("CnImageFactory", [
         },
 
         transformActiveAnnotation: function(point) {
+          if (this.getReadOnly()) return;
+
           let aa = this.activeAnnotation;
           if (null != aa) {
             // change which ellipse handle is being grabbed, if necessary

@@ -68,7 +68,22 @@ class ui extends \cenozo\ui\ui
     // add application-specific lists to the base list
     $this->add_listitem( 'Interviews', 'interview' );
     $this->add_listitem( 'Modalities', 'modality' );
+    $this->add_listitem( 'Reviews', 'review' );
+  }
 
-    if( 'typist' == $db_role->name ) $this->add_listitem( 'Reviews', 'review' );
+  /**
+   * Extends the parent method
+   */
+
+  protected function get_utility_items()
+  {
+    $db_role = lib::create( 'business\session' )->get_role();
+    $list = parent::get_utility_items();
+    unset( $list['Participant Export'] );
+    unset( $list['Participant Multiedit'] );
+    unset( $list['Participant Search'] );
+    unset( $list['Tracing'] );
+    if( 2 < $db_role->tier ) $list['Review Multiedit'] = array( 'subject' => 'review', 'action' => 'multiedit' );
+    return $list;
   }
 }

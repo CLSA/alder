@@ -107,18 +107,25 @@ class post extends \cenozo\service\post
    */
   protected function execute()
   {
-    $image_class_name = lib::get_class_name( 'database\image' );
+    $participant_class_name = lib::get_class_name( 'database\participant' );
     $review_class_name = lib::get_class_name( 'database\review' );
     $file = $this->get_file_as_array();
 
     if( array_key_exists( 'uid_list', $file ) )
     {
-      $modifier = lib::create( 'database\modifier' );
-
+      $study_phase_id = array_key_exists( 'study_phase_id', $file ) ? $file['study_phase_id'] : NULL;
+      $modality_id = array_key_exists( 'modality_id', $file ) ? $file['modality_id'] : NULL;
       $user_id = array_key_exists( 'user_id', $file ) ? $file['user_id'] : NULL;
       $process = array_key_exists( 'process', $file ) && $file['process'];
 
-      $uid_list = $image_class_name::get_valid_uid_list( $file['uid_list'], $modifier );
+      $modifier = lib::create( 'database\modifier' );
+      $modifier->join( 'interview', 'participant.id', 'interview.participant_id' );
+      $modifier->join( 'exam', 'interview.id', 'exam.interview_id' );
+
+      if( !is_null( $study_phase_id ) ) $modifier->where( 'interview.study_phase_id', '=', $study_phase_id );
+      if( !is_null( $modality_id ) ) $modifier->where( 'exam.modality_id', '=', $modality_id );
+
+      $uid_list = $participant_class_name::get_valid_uid_list( $file['uid_list'], $modifier );
 
       if( $process )
       {
@@ -152,7 +159,43 @@ class post extends \cenozo\service\post
       }
       else
       {
-        $this->set_data( $uid_list );
+        // determine how many reviews (existing and missing) of each study phase and modality exist
+        $participant_sel = lib::create( 'database\select' );
+        $participant_sel->add_table_column( 'study_phase', 'name', 'study_phase' );
+        $participant_sel->add_table_column( 'modality', 'name', 'modality' );
+        $participant_sel->add_column( 'review.id IS NOT NULL', 'has_review', false );
+        $participant_sel->add_column( 'COUNT(*)', 'total', false );
+        $participant_mod = lib::create( 'database\modifier' );
+        $participant_mod->join( 'interview', 'participant.id', 'interview.participant_id' );
+        $participant_mod->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
+        $participant_mod->join( 'exam', 'interview.id', 'exam.interview_id' );
+        $participant_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
+        $participant_mod->join( 'modality', 'scan_type.modality_id', 'modality.id' );
+        $participant_mod->join( 'image', 'exam.id', 'image.exam_id' );
+        $participant_mod->left_join( 'review', 'image.id', 'review.image_id' );
+        $participant_mod->group( 'study_phase.id' );
+        $participant_mod->group( 'modality.id' );
+        $participant_mod->group( 'review.id IS NULL' );
+        $participant_mod->where( 'uid', 'IN', $uid_list );
+
+        $data = [
+          'uid_list' => $uid_list,
+          'image_list' => []
+        ];
+
+        // break down the number of images for each phase, modality and whether it has a review
+        foreach( $participant_class_name::select( $participant_sel, $participant_mod ) as $row )
+        {
+          $phase = $row['study_phase'];
+          $modality = $row['modality'];
+
+          if( !array_key_exists( $phase, $data['image_list'] ) ) $data['image_list'][$phase] = [];
+          if( !array_key_exists( $modality, $data['image_list'][$phase] ) )
+            $data['image_list'][$phase][$modality] = ['with' => 0, 'without' => 0];
+          $data['image_list'][$phase][$modality][$row['has_review'] ? 'with' : 'without'] = $row['total'];
+        }
+
+        $this->set_data( $data );
       }
     }
     else parent::execute();
