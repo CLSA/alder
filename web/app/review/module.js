@@ -5,8 +5,8 @@ cenozoApp.defineModule({
     angular.extend(module, {
       identifier: {
         parent: {
-          subject: "exam",
-          column: "exam.id",
+          subject: "image",
+          column: "image.id",
         },
       },
       name: {
@@ -23,13 +23,13 @@ cenozoApp.defineModule({
           title: "Completed",
           type: "boolean",
         },
-        coordinator_read: {
+        coordinator: {
           title: "Coordinator Read",
-          type: "boolean",
+          type: "string",
         },
-        interviewer_read: {
+        interviewer: {
           title: "Interviewer Read",
-          type: "boolean",
+          type: "string",
         },
         rating: {
           title: "Calculated Rating",
@@ -69,7 +69,7 @@ cenozoApp.defineModule({
         type: "string",
         isConstant: true,
       },
-      interviewer: {
+      exam_interviewer: {
         column: "exam.interviewer",
         title: "Interviewer",
         type: "string",
@@ -83,6 +83,23 @@ cenozoApp.defineModule({
       completed: {
         title: "Completed",
         type: "boolean",
+        isConstant: function ($state, model) {
+          return !model.viewModel.isTypist();
+        },
+      },
+      coordinator: {
+        title: "Coordinator notification",
+        type: "enum",
+        isExcluded: function ($state, model) {
+          return !model.isRole("administrator");
+        },
+      },
+      interviewer: {
+        title: "Interviewer notification",
+        type: "enum",
+        isExcluded: function ($state, model) {
+          return !model.isRole("administrator");
+        },
       },
       rating: {
         title: "Rating",
@@ -92,8 +109,8 @@ cenozoApp.defineModule({
       feedback: {
         title: "Feedback",
         type: "text",
-        isConstant: function( $state, model ) {
-          return model.viewModel.record.completed;
+        isConstant: function ($state, model) {
+          return !model.viewModel.isTypist();
         },
       },
       note: {
@@ -101,6 +118,7 @@ cenozoApp.defineModule({
         title: "Image Notes",
         type: "text",
       },
+      user_id: { type: "hidden" },
       image_id: { type: "hidden" },
     });
 
@@ -112,6 +130,94 @@ cenozoApp.defineModule({
         },
       });
     }
+
+    module.addExtraOperation("view", {
+      title: "Mark as Read",
+      operation: async function ($state, model) {
+        if (model.isRole("coordinator")) {
+          await model.viewModel.setNotification("coordinator", "read");
+        } else if (model.isRole("interviewer")) {
+          await model.viewModel.setNotification("interviewer", "read");
+        }
+      },
+      isDisabled: function ($state, model) {
+        return model.viewModel.changingNotifications;
+      },
+      isIncluded: function ($state, model) {
+        return (
+          (model.isRole("coordinator") && "alert" == model.viewModel.record.coordinator) ||
+          (model.isRole("interviewer") && "alert" == model.viewModel.record.interviewer)
+        );
+      },
+    });
+
+    module.addExtraOperation("view", {
+      title: "Mark as Unread",
+      operation: async function ($state, model) {
+        if (model.isRole("coordinator")) {
+          await model.viewModel.setNotification("coordinator", "alert");
+        } else if (model.isRole("interviewer")) {
+          await model.viewModel.setNotification("interviewer", "alert");
+        }
+      },
+      isDisabled: function ($state, model) {
+        return model.viewModel.changingNotifications;
+      },
+      isIncluded: function ($state, model) {
+        return (
+          (model.isRole("coordinator") && "read" == model.viewModel.record.coordinator) ||
+          (model.isRole("interviewer") && "read" == model.viewModel.record.interviewer)
+        );
+      },
+    });
+
+    module.addExtraOperationGroup("view", {
+      title: "Notifications",
+      operations: [
+        {
+          title: "Alert Coordinator",
+          operation: async function ($state, model) {
+            await model.viewModel.setNotification("coordinator", "alert");
+          },
+          isIncluded: function ($state, model) {
+            return !model.viewModel.record.coordinator;
+          },
+        },
+        {
+          title: "Remove Coordinator Alert",
+          operation: async function ($state, model) {
+            await model.viewModel.setNotification("coordinator", "");
+          },
+          isIncluded: function ($state, model) {
+            return model.viewModel.record.coordinator;
+          },
+        },
+        {
+          title: "Alert Interviewer",
+          operation: async function ($state, model) {
+            await model.viewModel.setNotification("interviewer", "alert");
+          },
+          isIncluded: function ($state, model) {
+            return !model.viewModel.record.interviewer;
+          },
+        },
+        {
+          title: "Remove Interviewer Alert",
+          operation: async function ($state, model) {
+            await model.viewModel.setNotification("interviewer", "");
+          },
+          isIncluded: function ($state, model) {
+            return model.viewModel.record.interviewer;
+          },
+        },
+      ],
+      isDisabled: function ($state, model) {
+        return model.viewModel.changingNotifications;
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("typist");
+      },
+    });
 
     /* ############################################################################################## */
     cenozo.providers.directive("cnReviewMultiedit", [
@@ -153,6 +259,8 @@ cenozoApp.defineModule({
           this.confirmInProgress = false;
           this.confirmedCount = null;
           this.imageDataList = null;
+          this.withTotal = 0;
+          this.withoutTotal = 0;
           this.uidListString = "";
           this.studyPhaseList = [];
           this.study_phase_id = undefined;
@@ -160,14 +268,14 @@ cenozoApp.defineModule({
           this.modality_id = undefined;
           this.userList = [];
           this.user_id = undefined;
-          this.booleanList = [
+          this.notificationList = [
             { name: "(leave unchanged)", value: undefined },
-            { name: "Yes", value: true },
-            { name: "No", value: false },
+            { name: "Remove alert", value: null },
+            { name: "Alert user", value: "alert" },
+            { name: "Mark as read", value: "read" },
           ];
-          this.completed = undefined;
-          this.coordinator_read = undefined;
-          this.interviewer_read = undefined;
+          this.coordinator = undefined;
+          this.interviewer = undefined;
 
           this.selectionChanged = function () {
             this.confirmedCount = null;
@@ -205,6 +313,16 @@ cenozoApp.defineModule({
                 this.confirmedCount = response.data.uid_list.length;
                 this.uidListString = response.data.uid_list.join(" ");
                 this.imageDataList = response.data.image_list;
+                
+                // count with/without totals
+                this.withTotal = 0;
+                this.withoutTotal = 0;
+                for(phase in this.imageDataList) {
+                  for(modality in this.imageDataList[phase]) {
+                    this.withTotal += Number(this.imageDataList[phase][modality].with);
+                    this.withoutTotal += Number(this.imageDataList[phase][modality].without);
+                  }
+                }
               } finally {
                 this.confirmInProgress = false;
               }
@@ -233,6 +351,7 @@ cenozoApp.defineModule({
                 list.push({
                   value: item.id,
                   name: item.first_name + " " + item.last_name + " (" + item.name + ")",
+                  user: item.name,
                 });
                 return list;
               }, []);
@@ -240,33 +359,45 @@ cenozoApp.defineModule({
             }
           };
 
-          this.processList = async function (type) {
+          this.proceed = async function (type) {
             // test the formats of all columns
-            var uidList = this.uidListString.split(" ");
+            let data = {
+              uid_list: this.uidListString.split(" "),
+              process: true,
+            };
+
+            if (angular.isDefined(this.study_phase_id)) data.study_phase_id = this.study_phase_id;
+            if (angular.isDefined(this.modality_id)) data.modality_id = this.modality_id;
+            if (0 < this.withoutTotal) {
+              if (angular.isDefined(this.user_id)) data.user_id = this.user_id;
+            }
+            if (0 < this.withTotal) {
+              if (angular.isDefined(this.coordinator)) data.coordinator = this.coordinator;
+              if (angular.isDefined(this.interviewer)) data.interviewer = this.interviewer;
+            }
 
             await CnHttpFactory.instance({
               path: "review",
-              data: {
-                uid_list: uidList,
-                user_id: this.user_id,
-                process: true,
-              },
+              data: data,
               onError: CnModalMessageFactory.httpError,
             }).post();
 
-            var userString = "";
-            if (angular.isDefined(this.user_id)) {
-              userString +=
-                ' and assigned to user "' + this.userList.findByProperty("value", this.user_id).user + '"';
-            }
-            userString += ".";
+            let reviewString =
+              uidList.length + " review" +
+              (1 != uidList.length ? "s have " : " has ") + "been processed";
+
+            let userString =
+              angular.isDefined(this.user_id) ?
+              (' and assigned to user "' + this.userList.findByProperty("value", this.user_id).user + '"') :
+              '';
 
             await CnModalMessageFactory.instance({
               title: "Review(s) Processed",
               message:
-                "A total of " + uidList.length + " review" +
-                (1 != uidList.length ? "s have " : " has ") +
-                "been processed" + userString,
+                "A total of " +
+                reviewString +
+                userString +
+                ".",
             }).show();
 
             this.confirmedCount = null;
@@ -339,6 +470,23 @@ cenozoApp.defineModule({
           CnBaseViewFactory.construct(this, parentModel, root);
 
           angular.extend(this, {
+            isTypist: function() {
+              return this.parentModel.isRole("typist") && this.record.user_id == CnSession.user.id;
+            },
+            changingNotifications: false,
+            setNotification: async function(type, value) {
+              try {
+                this.changingNotifications = true;
+                let patch = {};
+                patch[type] = value;
+                await this.onPatch(patch);
+                this.record[type] = value;
+              } catch (error) {
+              } finally {
+                this.changingNotifications = false;
+              }
+            },
+
             codeGroupList: [],
             onView: async function (force) {
               await this.$$onView();
@@ -443,6 +591,30 @@ cenozoApp.defineModule({
           angular.extend(this, {
             listModel: CnReviewListFactory.instance(this),
             viewModel: CnReviewViewFactory.instance(this, root),
+
+            // override the service collection path so that roles can see their own reviews on the home screen
+            getServiceCollectionPath: function () {
+              // ignore the parent if it is root
+              return this.$$getServiceCollectionPath("root" == this.getSubjectFromState());
+            },
+
+            // override the service data so that roles only see their own reviews from the home screen
+            getServiceData: function (type, columnRestrictLists) {
+              var data = this.$$getServiceData(type, columnRestrictLists);
+              if ("root" == this.getSubjectFromState() && this.isRole("coordinator", "interviewer", "typist")) {
+                if (angular.isUndefined(data.modifier.where)) data.modifier.where = []; 
+
+                if (this.isRole("coordinator")) {
+                  data.modifier.where.push({ column: "review.coordinator", operator: "=", value: "alert" });
+                } else if (this.isRole("interviewer")) {
+                  data.modifier.where.push({ column: "review.interviewer", operator: "=", value: "alert" });
+                } else if (this.isRole("typist")) {
+                  data.modifier.where.push({ column: "review.user_id", operator: "=", value: CnSession.user.id });
+                  data.modifier.where.push({ column: "review.completed", operator: "=", value: false });
+                }
+              }
+              return data;
+            },
 
             // override transitionToAddState
             transitionToAddState: async function () {

@@ -116,6 +116,8 @@ class post extends \cenozo\service\post
       $study_phase_id = array_key_exists( 'study_phase_id', $file ) ? $file['study_phase_id'] : NULL;
       $modality_id = array_key_exists( 'modality_id', $file ) ? $file['modality_id'] : NULL;
       $user_id = array_key_exists( 'user_id', $file ) ? $file['user_id'] : NULL;
+      $coordinator = array_key_exists( 'coordinator', $file ) ? $file['coordinator'] : NULL;
+      $interviewer = array_key_exists( 'interviewer', $file ) ? $file['interviewer'] : NULL;
       $process = array_key_exists( 'process', $file ) && $file['process'];
 
       $modifier = lib::create( 'database\modifier' );
@@ -129,7 +131,7 @@ class post extends \cenozo\service\post
 
       if( $process )
       {
-        // assign reviews to the user if requested
+        // create new reviews to the givin user
         if( !is_null( $user_id ) )
         {
           $image_sel = lib::create( 'database\select' );
@@ -137,9 +139,12 @@ class post extends \cenozo\service\post
           $image_sel->add_column( 'id' );
           $image_mod = lib::create( 'database\modifier' );
           $image_mod->join( 'exam', 'image.exam_id', 'exam.id' );
+          $image_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
+          $image_mod->join( 'user_has_modality', 'scan_type.modality_id', 'user_has_modality.modality_id' );
           $image_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
           $image_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
           $image_mod->where( 'uid', 'IN', $uid_list );
+          $image_mod->where( 'user_has_modality.user_id', '=', $user_id );
           foreach( $image_class_name::select( $image_sel, $image_mod ) as $image )
           {
             $db_review = $review_class_name::get_unique_record(
@@ -155,6 +160,12 @@ class post extends \cenozo\service\post
 
             $db_review->save();
           }
+        }
+
+        // modify existing reviews
+        if( !is_null( $coordinator ) || !is_null( $interviewer ) )
+        {
+          // TODO: implement
         }
       }
       else

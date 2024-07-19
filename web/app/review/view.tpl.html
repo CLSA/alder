@@ -6,7 +6,7 @@
         <div class="container-fluid bg-primary rounded-top">
           <h4>
             Image Rating
-            <span ng-if="!model.getEditEnabled() || model.viewModel.record.completed">(read only)</span>
+            <span ng-if="!model.getEditEnabled() || !model.viewModel.isTypist()">(read only)</span>
             <span ng-if="model.viewModel.isLoading">(Loading&hellip;)</span>
           </h4>
         </div>
@@ -31,7 +31,7 @@
                   class="btn full-width"
                   ng-class="code.selected ? 'btn-success' : 'btn-default'"
                   ng-click="model.viewModel.toggleCode(code)"
-                  ng-disabled="model.viewModel.record.completed || code.working"
+                  ng-disabled="!model.viewModel.isTypist() || code.working"
                   uib-tooltip-html="code.description"
                 >{{ code.name }}</button>
               </div>
@@ -44,6 +44,6 @@
     </div>
   </div>
   <div class="col-slim col-sm-6">
-    <cn-image model="model" readonly="!model.isRole('typist') || model.viewModel.record.completed"></cn-image>
+    <cn-image model="model" readonly="!model.viewModel.isTypist()"></cn-image>
   </div>
 </div>

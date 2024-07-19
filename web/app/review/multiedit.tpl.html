@@ -104,51 +104,51 @@
             </div>
             <hr />
             <form class="form-horizontal">
-              <div class="form-group first-form-group">
-                <label for="user_id" class="col-sm-3 control-label text-right">Assign to user:</label>
-                <div class="col-sm-9">
-                  <select
-                    id="user_id"
-                    ng-model="model.user_id"
-                    ng-options="item.value as item.name for item in model.userList"
-                    class="form-control"
-                  ></select>
-                  <div class="text-info">
-                    Please note that typists will only be assigned modalities that they have been assigned to.
+              <div ng-if="0 < model.withoutTotal">
+                <h4 class="text-center">Create new reviews ({{ model.withoutTotal }} total)</h4>
+                <div class="form-group first-form-group">
+                  <label for="user_id" class="col-sm-3 control-label text-right">Create user review for:</label>
+                  <div class="col-sm-9">
+                    <select
+                      id="user_id"
+                      ng-model="model.user_id"
+                      ng-options="item.value as item.name for item in model.userList"
+                      class="form-control"
+                    ></select>
+                    <div class="text-info">
+                      Please note that typists will only be assigned modalities that they have been assigned to.
+                    </div>
                   </div>
                 </div>
               </div>
-              <div class="form-group">
-                <label for="completed" class="col-sm-3 control-label text-right">Set completed:</label>
-                <div class="col-sm-9">
-                  <select
-                    id="completed"
-                    ng-model="model.completed"
-                    ng-options="item.value as item.name for item in model.booleanList"
-                    class="form-control"
-                  ></select>
+              <hr ng-if="0 < model.withoutTotal && 0 < model.withTotal"/>
+              <div ng-if="0 < model.withTotal">
+                <h4 class="text-center">Edit existing reviews ({{ model.withTotal }} total)</h4>
+                <div class="form-group">
+                  <label for="coodinatorg" class="col-sm-3 control-label text-right">
+                    Set coodinator read:
+                  </label>
+                  <div class="col-sm-9">
+                    <select
+                      id="coodinatorg"
+                      ng-model="model.coodinatorg"
+                      ng-options="item.value as item.name for item in model.notificationList"
+                      class="form-control"
+                    ></select>
+                  </div>
                 </div>
-              </div>
-              <div class="form-group">
-                <label for="coodinator_read" class="col-sm-3 control-label text-right">Set coodinator read:</label>
-                <div class="col-sm-9">
-                  <select
-                    id="coodinator_read"
-                    ng-model="model.coodinator_read"
-                    ng-options="item.value as item.name for item in model.booleanList"
-                    class="form-control"
-                  ></select>
-                </div>
-              </div>
-              <div class="form-group">
-                <label for="interviewer_read" class="col-sm-3 control-label text-right">Set interviewer read:</label>
-                <div class="col-sm-9">
-                  <select
-                    id="interviewer_read"
-                    ng-model="model.interviewer_read"
-                    ng-options="item.value as item.name for item in model.booleanList"
-                    class="form-control"
-                  ></select>
+                <div class="form-group">
+                  <label for="interviewerg" class="col-sm-3 control-label text-right">
+                    Set interviewer read:
+                  </label>
+                  <div class="col-sm-9">
+                    <select
+                      id="interviewerg"
+                      ng-model="model.interviewerg"
+                      ng-options="item.value as item.name for item in model.notificationList"
+                      class="form-control"
+                    ></select>
+                  </div>
                 </div>
               </div>
             </form>
@@ -158,7 +158,7 @@
               type="button"
               class="btn btn-primary"
               ng-if="model.confirmedCount"
-              ng-click="model.processList()"
+              ng-click="model.proceed()"
             >Proceed</button>
           </div>
         </div>
