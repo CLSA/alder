@@ -11,7 +11,7 @@ use cenozo\lib, cenozo\log, alder\util;
 /**
  * Performs operations which effect how this module is used in a service
  */
-class module extends \cenozo\service\module
+class module extends \cenozo\service\site_restricted_module
 {
   /**
    * Extend parent method
@@ -31,6 +31,18 @@ class module extends \cenozo\service\module
         if( 'typist' == $db_role->name && $db_review->user_id != $db_user->id )
         {
           $this->get_status()->set_code( 403 );
+          return;
+        }
+
+        // restrict by site
+        $db_restrict_site = $this->get_restricted_site();
+        if( !is_null( $db_restrict_site ) )
+        {
+          if( $db_restrict_site->id != $db_review->get_image()->get_exam()->get_interview()->site_id )
+          {
+            $this->get_status()->set_code( 403 );
+            return;
+          }
         }
       }
     }
@@ -60,6 +72,13 @@ class module extends \cenozo\service\module
 
     // only show typists their own reviews
     if( 'typist' == $db_role->name ) $modifier->where( 'review.user_id', '=', $db_user->id );
+
+    // restrict by site
+    $db_restrict_site = $this->get_restricted_site();
+    if( !is_null( $db_restrict_site ) )
+    {
+      $modifier->where( 'interview.site_id', '=', $db_restrict_site->id );
+    }
 
     if( $select->has_column( 'image_type' ) )
     {

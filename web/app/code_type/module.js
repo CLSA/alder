@@ -40,5 +40,31 @@ cenozoApp.defineModule({
         format: "identifier",
       },
     });
+
+    /* ############################################################################################## */
+    cenozo.providers.factory("CnCodeTypeViewFactory", [
+      "CnBaseViewFactory",
+      function (CnBaseViewFactory) {
+        var object = function (parentModel, root) {
+          CnBaseViewFactory.construct(this, parentModel, root, "review");
+
+          async function init(object) {
+            await object.deferred.promise;
+
+            // do not allow reviews to be edited from this view
+            if (angular.isDefined(object.reviewModel)) {
+              object.reviewModel.getChooseEnabled = function () { return false; }
+            }
+          }
+
+          init(this);
+        };
+        return {
+          instance: function (parentModel, root) {
+            return new object(parentModel, root);
+          },
+        };
+      },
+    ]);
   },
 });

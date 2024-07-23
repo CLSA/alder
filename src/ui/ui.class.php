@@ -53,7 +53,7 @@ class ui extends \cenozo\ui\ui
     if( !is_null( $module ) ) $module->add_child( 'code_type' );
 
     $module = $this->get_module( 'code_type' );
-    if( !is_null( $module ) ) $module->add_choose( 'image' );
+    if( !is_null( $module ) ) $module->add_choose( 'review' );
   }
 
   /**

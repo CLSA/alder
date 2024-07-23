@@ -125,26 +125,26 @@
               <div ng-if="0 < model.withTotal">
                 <h4 class="text-center">Edit existing reviews ({{ model.withTotal }} total)</h4>
                 <div class="form-group">
-                  <label for="coodinatorg" class="col-sm-3 control-label text-right">
-                    Set coodinator read:
+                  <label for="completed" class="col-sm-3 control-label text-right">
+                    Set completed:
                   </label>
                   <div class="col-sm-9">
                     <select
-                      id="coodinatorg"
-                      ng-model="model.coodinatorg"
-                      ng-options="item.value as item.name for item in model.notificationList"
+                      id="completed"
+                      ng-model="model.completed"
+                      ng-options="item.value as item.name for item in model.completedList"
                       class="form-control"
                     ></select>
                   </div>
                 </div>
                 <div class="form-group">
-                  <label for="interviewerg" class="col-sm-3 control-label text-right">
-                    Set interviewer read:
+                  <label for="notification" class="col-sm-3 control-label text-right">
+                    Set notification:
                   </label>
                   <div class="col-sm-9">
                     <select
-                      id="interviewerg"
-                      ng-model="model.interviewerg"
+                      id="notification"
+                      ng-model="model.notification"
                       ng-options="item.value as item.name for item in model.notificationList"
                       class="form-control"
                     ></select>

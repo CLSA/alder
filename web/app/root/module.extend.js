@@ -19,7 +19,7 @@ cenozoApp.extendModule({
         var oldController = $delegate[0].controller;
         var oldLink = $delegate[0].link;
 
-        if (["coordinator", "interviewer", "typist"].includes(CnSession.role.name)) {
+        if (["coordinator", "typist"].includes(CnSession.role.name)) {
           // show typists their active reviews on their home page
           angular.extend($delegate[0], {
             compile: function () {

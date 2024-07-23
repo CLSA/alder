@@ -109,6 +109,7 @@ class post extends \cenozo\service\post
   {
     $participant_class_name = lib::get_class_name( 'database\participant' );
     $review_class_name = lib::get_class_name( 'database\review' );
+    $image_class_name = lib::get_class_name( 'database\image' );
     $file = $this->get_file_as_array();
 
     if( array_key_exists( 'uid_list', $file ) )
@@ -116,22 +117,43 @@ class post extends \cenozo\service\post
       $study_phase_id = array_key_exists( 'study_phase_id', $file ) ? $file['study_phase_id'] : NULL;
       $modality_id = array_key_exists( 'modality_id', $file ) ? $file['modality_id'] : NULL;
       $user_id = array_key_exists( 'user_id', $file ) ? $file['user_id'] : NULL;
-      $coordinator = array_key_exists( 'coordinator', $file ) ? $file['coordinator'] : NULL;
-      $interviewer = array_key_exists( 'interviewer', $file ) ? $file['interviewer'] : NULL;
+      $completed = array_key_exists( 'completed', $file ) ? $file['completed'] : NULL;
+      $notification = array_key_exists( 'notification', $file ) ? $file['notification'] : NULL;
       $process = array_key_exists( 'process', $file ) && $file['process'];
 
       $modifier = lib::create( 'database\modifier' );
       $modifier->join( 'interview', 'participant.id', 'interview.participant_id' );
       $modifier->join( 'exam', 'interview.id', 'exam.interview_id' );
+      $modifier->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
 
       if( !is_null( $study_phase_id ) ) $modifier->where( 'interview.study_phase_id', '=', $study_phase_id );
-      if( !is_null( $modality_id ) ) $modifier->where( 'exam.modality_id', '=', $modality_id );
+      if( !is_null( $modality_id ) ) $modifier->where( 'scan_type.modality_id', '=', $modality_id );
 
       $uid_list = $participant_class_name::get_valid_uid_list( $file['uid_list'], $modifier );
 
       if( $process )
       {
-        // create new reviews to the givin user
+        $data = ['new' => 0, 'edit' => 0];
+
+        // modify existing reviews (do this first so the new reviews created below are not affected)
+        if( !is_null( $completed ) || !is_null( $notification ) )
+        {
+          $review_mod = lib::create( 'database\modifier' );
+          $review_mod->join( 'image', 'review.image_id', 'image.id' );
+          $review_mod->join( 'exam', 'image.exam_id', 'exam.id' );
+          $review_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
+          $review_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
+          $review_mod->where( 'uid', 'IN', $uid_list );
+          foreach( $review_class_name::select_objects( $review_mod ) as $db_review )
+          {
+            if( !is_null( $completed ) ) $db_review->completed = $completed;
+            if( !is_null( $notification ) ) $db_review->notification = $notification;
+            $db_review->save();
+            $data['edit']++;
+          }
+        }
+
+        // create new reviews to the given user
         if( !is_null( $user_id ) )
         {
           $image_sel = lib::create( 'database\select' );
@@ -156,17 +178,13 @@ class post extends \cenozo\service\post
               $db_review = lib::create( 'database\review' );
               $db_review->image_id = $image['id'];
               $db_review->user_id = $user_id;
+              $db_review->save();
+              $data['new']++;
             }
-
-            $db_review->save();
           }
         }
 
-        // modify existing reviews
-        if( !is_null( $coordinator ) || !is_null( $interviewer ) )
-        {
-          // TODO: implement
-        }
+        $this->set_data( $data );
       }
       else
       {

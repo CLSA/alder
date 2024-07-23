@@ -11,8 +11,33 @@ use cenozo\lib, cenozo\log, alder\util;
 /**
  * Performs operations which effect how this module is used in a service
  */
-class module extends \cenozo\service\module
+class module extends \cenozo\service\site_restricted_module
 {
+  /**
+   * Extend parent method
+   */
+  public function validate()
+  {
+    if( $this->service->may_continue() )
+    {
+      $db_exam = $this->get_resource();
+
+      if( !is_null( $db_exam ) )
+      {
+        // restrict by site
+        $db_restrict_site = $this->get_restricted_site();
+        if( !is_null( $db_restrict_site ) )
+        {
+          if( $db_restrict_site->id != $db_exam->get_interview()->site_id )
+          {
+            $this->get_status()->set_code( 403 );
+            return;
+          }
+        }
+      }
+    }
+  }
+
   /**
    * Extend parent method
    */
@@ -26,5 +51,12 @@ class module extends \cenozo\service\module
     $modifier->join( 'site', 'interview.site_id', 'site.id' );
     $modifier->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
     $modifier->join( 'modality', 'scan_type.modality_id', 'modality.id' );
+
+    // restrict by site
+    $db_restrict_site = $this->get_restricted_site();
+    if( !is_null( $db_restrict_site ) )
+    {
+      $modifier->where( 'interview.site_id', '=', $db_restrict_site->id );
+    }
   }
 }

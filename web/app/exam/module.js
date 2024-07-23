@@ -61,22 +61,5 @@ cenozoApp.defineModule({
         type: "string",
       },
     });
-
-    /* ############################################################################################## */
-    cenozo.providers.factory("CnExamViewFactory", [
-      "CnBaseViewFactory",
-      function (CnBaseViewFactory) {
-        var object = function (parentModel, root) {
-          CnBaseViewFactory.construct(this, parentModel, root);
-          console.log(this.getChildList());
-        };
-        return {
-          instance: function (parentModel, root) {
-            return new object(parentModel, root);
-          },
-        };
-      },
-    ]);
-
   },
 });
