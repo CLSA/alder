@@ -21,8 +21,20 @@ class image extends \cenozo\database\record
   {
     $b64_string = NULL;
 
-    $path = sprintf( '%s/%s', IMAGES_PATH, $this->path );
-    if( preg_match( "/\.(jpg|jpeg)$/", basename( $this->path ) ) )
+    $db_exam = $this->get_exam();
+    $db_modality = $db_exam->get_scan_type()->get_modality();
+    $db_interview = $db_exam->get_interview();
+    $db_study_phase = $db_interview->get_study_phase();
+    $db_participant = $db_interview->get_participant();
+    $path = sprintf(
+      '%s/%d/%s/%s/%s',
+      IMAGES_PATH,
+      $db_study_phase->rank,
+      $db_modality->name,
+      $db_participant->uid,
+      $this->filename
+    );
+    if( preg_match( "/\.(jpg|jpeg)$/", $this->filename ) )
     {
       // load the jpeg and encode it
       $b64_string = base64_encode( file_get_contents( $path ) );
@@ -124,16 +136,26 @@ class image extends \cenozo\database\record
       ')'
     );
 
-    $image_type_list = ['carotid_intima', 'dxa', 'retinal'];
+    $image_type_list = [
+      'carotid_intima' => '-type f,l -name "still*"',
+      'dxa' =>
+        '-type f,l \( '.
+          '-name "dxa_forearm*.dcm" -o '.
+          '-name "dxa_hip*.dcm" -o '.
+          '-name "dxa_lateral.dcm" -o '.
+          '-name "dxa_wbody_bca.dcm" '.
+        '\)',
+      'retinal' => '-type f,l -name "retinal*.jpeg"'
+    ];
 
-    foreach( $image_type_list as $image_type )
+    foreach( $image_type_list as $image_type => $find )
     {
       // If the last sync file is present then only get files which were created after it was
       $command = sprintf(
-        'find %s/[0-9]/%s -type f,l %s -printf "%s"',
+        'find %s/[0-9]/%s %s -printf "%s"',
         IMAGES_PATH,
         $image_type,
-        file_exists( $last_sync_file ) ? sprintf( '-newer %s', $last_sync_file ) : '',
+        $find,
         '%p\t%l\t%y\n'
       );
       $file_list = array();
@@ -287,7 +309,6 @@ class image extends \cenozo\database\record
     $select->add_column( 'temp_image.scan_type_id' );
     $select->add_column( 'temp_image.side' );
     $select->add_column( 'response_stage.username' );
-    $select->add_column( 'response_stage.start_datetime' );
     $select->add_column( 'response_stage.end_datetime' );
 
     // join to the interview record (created above)
@@ -313,7 +334,7 @@ class image extends \cenozo\database\record
     static::db()->execute(
       sprintf(
         'INSERT IGNORE INTO exam( '.
-          'interview_id, scan_type_id, side, interviewer, start_datetime, end_datetime '.
+          'interview_id, scan_type_id, side, interviewer, datetime '.
         ') ',
         '%s %s',
         $select->get_sql(),

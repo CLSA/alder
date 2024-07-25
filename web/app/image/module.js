@@ -26,10 +26,6 @@ cenozoApp.defineModule({
     });
 
     module.addInputGroup("", {
-      path: {
-        column: "image.path",
-        type: "hidden",
-      },
       filename: {
         title: "Filename",
         type: "string",

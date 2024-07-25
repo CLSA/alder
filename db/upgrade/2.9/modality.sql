@@ -9,4 +9,4 @@ CREATE TABLE IF NOT EXISTS modality (
   UNIQUE INDEX uq_name (name ASC))
 ENGINE = InnoDB;
 
-INSERT IGNORE INTO modality (name) VALUES ("dexa"), ("retinal"), ("ultrasound");
+INSERT IGNORE INTO modality (name) VALUES ("dxa"), ("retinal"), ("carotid_intima");

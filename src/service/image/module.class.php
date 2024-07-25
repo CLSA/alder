@@ -55,11 +55,6 @@ class module extends \cenozo\service\site_restricted_module
     $modifier->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
     $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
 
-    if( $select->has_column( 'filename' ) )
-    {
-      $select->add_column( 'RIGHT(path, LOCATE("/", REVERSE(path))-1)', 'filename', false );
-    }
-
     // restrict by site
     $db_restrict_site = $this->get_restricted_site();
     if( !is_null( $db_restrict_site ) )

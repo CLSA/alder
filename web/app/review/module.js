@@ -500,12 +500,24 @@ cenozoApp.defineModule({
             calculateRating: function () {
               let rating = 5;
               this.codeGroupList.forEach(group => {
-                if (group.code_list.some(code => code.selected)) rating += group.value;
+                let inGroup = false;
+                group.code_list.filter(code => code.selected).forEach(code => {
+                  console.log(code);
+                  rating += code.value;
+                  inGroup = true;
+                });
+                if (inGroup) rating += group.value;
               });
 
               if (1 > rating) rating = 1;
               else if (5 < rating) rating = 5;
               this.record.rating = rating;
+            },
+            getCodeDescription: function(code) {
+              return (
+                (code.description ? (code.description + " ") : "") + 
+                (0 == code.value ? "" : "(" + code.value + ")")
+              );
             },
             toggleCode: async function(code) {
               code.working = true;

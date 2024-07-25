@@ -24,7 +24,11 @@ cenozoApp.defineModule({
         },
         value: {
           title: "Value",
-        }
+        },
+        description: {
+          title: "Description",
+          align: "left",
+        },
       },
       defaultOrder: {
         column: "rank",
@@ -40,6 +44,15 @@ cenozoApp.defineModule({
       name: {
         title: "Name",
         type: "string",
+      },
+      value: {
+        title: "Value",
+        type: "string",
+        format: "integer",
+      },
+      description: {
+        title: "Description",
+        type: "text",
       },
     });
   },

@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS code_group (
   scan_type_id INT(10) UNSIGNED NOT NULL,
   rank INT(10) NOT NULL,
   name VARCHAR(45) NOT NULL,
-  value INT(10) NULL DEFAULT -1,
+  value INT(10) NOT NULL DEFAULT 0,
   description TEXT NULL,
   PRIMARY KEY (id),
   INDEX fk_scan_type_id (scan_type_id ASC),
@@ -65,3 +65,11 @@ INSERT IGNORE INTO code_group( scan_type_id, rank, name, value, description ) VA
 (@id, 5, "Metal on Scan", -1, "Metal is present on the scan but not obstructing the field of view."),
 (@id, 6, "Motion on Scan", -1, "Motion is present on the scan."),
 (@id, 7, "Not Usable", -5, "Reasons that the scan is not usable.");
+
+SELECT id INTO @id FROM scan_type WHERE name = "carotid_intima";
+INSERT IGNORE INTO code_group( scan_type_id, rank, name ) VALUES
+(@id, 1, "Carotid Artery Scanned"),
+(@id, 2, "Position of Carotid Artery"),
+(@id, 3, "IMT Visualization"),
+(@id, 4, "Analysis Box Placement"),
+(@id, 5, "cIMT Analysis Accuracy");

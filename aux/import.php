@@ -297,15 +297,15 @@ class import
       }
 
       // Create the exam records
-      foreach( $exam['scan_list'] as $index => $scan )
+      foreach( $exam['scan_list'] as $scan )
       {
         if( 0 < strlen( $scan['side'] ) )
         {
           $sql = sprintf(
             'INSERT IGNORE INTO exam '.
-              '(interview_id, scan_type_id, rank, side, interviewer, start_datetime, end_datetime) '.
+              '(interview_id, scan_type_id, side, interviewer, start_datetime, end_datetime) '.
             'SELECT '.
-              'interview.id, %d, %d, "%s", "%s", '.
+              'interview.id, %d, "%s", "%s", '.
               'CONVERT_TZ("%s", "Canada/Eastern", "UTC"), '.
               'CONVERT_TZ("%s", "Canada/Eastern", "UTC") '.
             'FROM interview '.
@@ -313,7 +313,6 @@ class import
             'WHERE participant.uid = "%s" '.
             'AND interview.study_phase_id = %d',
             $scan_type_id,
-            $index + 1,
             $scan['side'],
             $scan['interviewer'],
             $exam['start'],
@@ -373,7 +372,6 @@ class import
         'interview_id INT(10) UNSIGNED NULL DEFAULT NULL, '.
         'scan_type_id INT(10) UNSIGNED NOT NULL, '.
         'side ENUM("right", "left", "none") NOT NULL, '.
-        'rank INT(10) NULL NOT NULL, '.
         'filename VARCHAR(127) NOT NULL, '.
         'link_source VARCHAR(127) NULL, '.
         'path VARCHAR(511) NOT NULL, '.
@@ -504,51 +502,6 @@ class import
     ) );
     if( false === $result ) $this->fatal_error( $this->db->error, __LINE__ );
 
-    // loop through all temp image records to determine their ranks
-    printf( "Determining image ranks\n" );
-    $result = $this->db->query( 'SELECT COUNT(*) FROM temp_image' );
-    if( false === $result ) $this->fatal_error( $this->db->error, __LINE__ );
-    $row = $result->fetch_array();
-    $temp_image_total = $row[0];
-    $result->free();
-
-    $result = $this->db->query( 'SELECT id, interview_id, scan_type_id, side FROM temp_image' );
-    if( false === $result ) $this->fatal_error( $this->db->error, __LINE__ );
-
-    $last_interview_id = NULL;
-    $last_scan_type_id = NULL;
-    $last_side = NULL;
-    $rank = NULL;
-    $current_row = 0;
-    while( $row = $result->fetch_assoc() )
-    {
-      $current_row++;
-      printf( "\rProcessing image %d of %d", $current_row, $temp_image_total );
-      flush();
-
-      if( $row['interview_id'] == $last_interview_id && $row['scan_type_id'] == $last_scan_type_id )
-      {
-        if( $row['side'] != $last_side ) $rank++;
-      }
-      else
-      {
-        $rank = 1;
-      }
-
-      $sub_result = $this->db->query( sprintf( 
-        'UPDATE temp_image SET rank = %d WHERE id = %d',
-        $rank,
-        $row['id']
-      ) );
-      if( false === $sub_result ) $this->fatal_error( $this->db->error, __LINE__ );
-
-      $last_interview_id = $row['interview_id'];
-      $last_scan_type_id = $row['scan_type_id'];
-      $last_side = $row['side'];
-    }
-    $result->free();
-    print "\n";
-
     // transfer the remaining data from the temp_image table to the image table
     printf( "Writing new image records\n" );
     $result = $this->db->query(
@@ -558,8 +511,7 @@ class import
       'JOIN interview ON temp_image.interview_id = interview.id '.
       'JOIN exam '.
         'ON interview.id = exam.interview_id '.
-        'AND temp_image.scan_type_id = exam.scan_type_id '.
-        'AND temp_image.rank = exam.rank'
+        'AND temp_image.scan_type_id = exam.scan_type_id'
     );
     if( false === $result ) $this->fatal_error( $this->db->error, __LINE__ );
 

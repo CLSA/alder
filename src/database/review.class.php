@@ -37,6 +37,7 @@ class review extends \cenozo\database\record
       $code_type_sel->add_table_column( 'code_type', 'id', 'code_type_id' );
       $code_type_sel->add_column( 'rank' );
       $code_type_sel->add_column( 'name' );
+      $code_type_sel->add_column( 'value' );
       $code_type_sel->add_column( 'description' );
       $code_type_sel->add_column( 'code.id IS NOT NULL', 'selected', false, 'boolean' );
       $code_type_mod = lib::create( 'database\modifier' );
@@ -51,6 +52,7 @@ class review extends \cenozo\database\record
           'code_type_id' => $code_type['code_type_id'],
           'rank' => $code_type['rank'],
           'name' => $code_type['name'],
+          'value' => $code_type['value'],
           'description' => $code_type['description'],
           'selected' => $code_type['selected']
         ];

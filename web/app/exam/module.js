@@ -27,6 +27,13 @@ cenozoApp.defineModule({
           column: "exam.side",
           title: "Side",
         },
+        interviewer: {
+          title: "Interviewer",
+        },
+        datetime: {
+          title: "Date & Time",
+          type: "datetime",
+        },
       },
       defaultOrder: {
         column: "participant.uid",
@@ -59,6 +66,14 @@ cenozoApp.defineModule({
         column: "exam.side",
         title: "Side",
         type: "string",
+      },
+      interviewer: {
+        title: "Interviewer",
+        type: "string",
+      },
+      datetime: {
+        title: "Date & Time",
+        type: "datetime",
       },
     });
   },

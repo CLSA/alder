@@ -16,15 +16,15 @@ CREATE TABLE IF NOT EXISTS scan_type (
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
-SELECT id INTO @dexa_id FROM modality WHERE name = "dexa";
+SELECT id INTO @dxa_id FROM modality WHERE name = "dxa";
 SELECT id INTO @retinal_id FROM modality WHERE name = "retinal";
-SELECT id INTO @ultrasound_id FROM modality WHERE name = "ultrasound";
+SELECT id INTO @carotid_intima_id FROM modality WHERE name = "carotid_intima";
 
 INSERT IGNORE INTO scan_type( modality_id, name ) VALUES
-(@dexa_id, "forearm"),
-(@dexa_id, "hip"),
-(@dexa_id, "lateral"),
-(@dexa_id, "spine"),
-(@dexa_id, "wbody"),
+(@dxa_id, "forearm"),
+(@dxa_id, "hip"),
+(@dxa_id, "lateral"),
+(@dxa_id, "spine"),
+(@dxa_id, "wbody"),
 (@retinal_id, "retinal"),
-(@ultrasound_id, "carotid_intima");
+(@carotid_intima_id, "carotid_intima");

@@ -12,7 +12,7 @@
         </div>
         <form name="form" class="form-horizontal" novalidate>
           <div ng-repeat="group in model.viewModel.codeGroupList">
-            <div class="container-fluid bg-info" uib-tooltip-html="group.description">
+            <div class="container-fluid bg-info" uib-tooltip-html="model.viewModel.getCodeDescription(group)">
               <label class="control-label" ng-bind-html="group.name"></label>
             </div>
             <div class="container-fluid vertical-spacer">
@@ -32,7 +32,7 @@
                   ng-class="code.selected ? 'btn-success' : 'btn-default'"
                   ng-click="model.viewModel.toggleCode(code)"
                   ng-disabled="!model.viewModel.isTypist() || code.working"
-                  uib-tooltip-html="code.description"
+                  uib-tooltip-html="model.viewModel.getCodeDescription(code)"
                 >{{ code.name }}</button>
               </div>
             </div>

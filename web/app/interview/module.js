@@ -22,9 +22,22 @@ cenozoApp.defineModule({
           column: "site.name",
           title: "Site",
         },
+        token: {
+          title: "Token/Barcode",
+        },
+        start_datetime: {
+          column: "interview.start_datetime",
+          title: "Start Date & Time",
+          type: "datetime",
+        },
+        end_datetime: {
+          column: "interview.end_datetime",
+          title: "End Date & Time",
+          type: "datetime",
+        },
       },
       defaultOrder: {
-        column: "participant.uid",
+        column: "uid",
         reverse: false,
       },
     });
@@ -44,6 +57,20 @@ cenozoApp.defineModule({
         column: "site.name",
         title: "Site",
         type: "string",
+      },
+      token: {
+        title: "Token/Barcode",
+        type: "string",
+      },
+      start_datetime: {
+        column: "interview.start_datetime",
+        title: "Start Date & Time",
+        type: "datetime",
+      },
+      end_datetime: {
+        column: "interview.end_datetime",
+        title: "End Date & Time",
+        type: "datetime",
       },
     });
   },

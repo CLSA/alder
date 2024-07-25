@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS code_type (
   create_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
   code_group_id INT(10) UNSIGNED NOT NULL,
   rank INT(10) NOT NULL,
-  name VARCHAR(45) NULL,
+  name VARCHAR(45) NOT NULL,
+  value INT(10) NOT NULL DEFAULT 0,
   description TEXT NULL,
   PRIMARY KEY (id),
   INDEX fk_code_group_id (code_group_id ASC),
@@ -189,3 +190,38 @@ SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name =
 INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
 (@id, 1, "ART", "artifact is obstructing the field of view"),
 (@id, 2, "NU", "the scan is not useable");
+
+
+SELECT id INTO @scan_type_id FROM scan_type WHERE name = "carotid_intima";
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Carotid Artery Scanned";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, value, description ) VALUES
+(@id, 1, "AR", 0, "Artery imaged"),
+(@id, 2, "AS", -1, "Artery imaged but sliced and only half visible"),
+(@id, 3, "NA", -5, "No artery visible, jugular vein imaged"),
+(@id, 4, "NO", -5, "Nothing identifiable imaged");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Position of Carotid Artery";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, value, description ) VALUES
+(@id, 1, "PI", 0, "Perpendicular to sound beam"),
+(@id, 2, "AN", -1, "On an angle");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "IMT Visualization";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, value, description ) VALUES
+(@id, 1, "CE", 0, "Clear cIMT on far wall - entire length"),
+(@id, 2, "CS", -1, "Clear cIMT on far wall - reduced section"),
+(@id, 3, "PC", -1, "cIMT present but poor contrast and therefore blurry image"),
+(@id, 4, "NI", -5, "No far wall cIMT visible");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Analysis Box Placement";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, value, description ) VALUES
+(@id, 1, "SB", -4, "Analysis box is in correct location but is not a minimum of 250 points"),
+(@id, 2, "SK", -1, "Analysis box is in correct location and has greater than 250 points but not 500 points"),
+(@id, 3, "GB", 0, "Analysis box is in correct location and includes 500 points"),
+(@id, 4, "LO", -1, "Location of analysis box is incorrect, should be moved to right or left");
+
+SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "cIMT Analysis Accuracy";
+INSERT IGNORE INTO code_type( code_group_id, rank, name, value, description ) VALUES
+(@id, 1, "AM", 0, "Edge detection appears to be accurately following far wall cIMT"),
+(@id, 2, "ME", -4, "Lines drop out at a small section therefore inaccurately measuring the cIMT"),
+(@id, 3, "ZE", -5, "");
