@@ -527,7 +527,6 @@ cenozoApp.defineModule({
                 }
 
                 // load the image and all annotation data
-                this.image.src = null;
                 this.annotationList = [];
                 this.codeGroupList = [];
 

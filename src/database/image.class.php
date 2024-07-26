@@ -47,20 +47,21 @@ class image extends \cenozo\database\record
     {
       $unzipped_path = sprintf( '%s/image_%d.%s', TEMP_PATH, $this->id, $this->filename );
       copy( $path, $unzipped_path );
-      $command = sprintf( 'gunzip %s', $unzipped_path );
-      $identify_response = util::exec_timeout( $command );
-      if( 0 != $identify_response['exitcode'] ) return NULL; // don't proceed if gunzip failed
+      $command = sprintf( 'gunzip -f %s', $unzipped_path );
+      $response = util::exec_timeout( $command );
+      if( 0 != $response['exitcode'] ) return NULL; // don't proceed if gunzip failed
       $path = preg_replace( '/\.gz$/', '', $unzipped_path );
     }
 
     // determine if this is a valid image, and encode the first slice
     $command = sprintf( 'identify %s', $path );
-    $identify_response = util::exec_timeout( $command );
-    if( 0 == $identify_response['exitcode'] )
+    $response = util::exec_timeout( $command );
+    if( 0 == $response['exitcode'] )
     {
       $temp_path = sprintf( '%s/image_%d.jpeg', TEMP_PATH, $this->id );
-      $convert_response = 1; // start assuming no image is found
-      $lines = count( explode( "\n", $identify_response['output'] ) );
+      $lines = count( explode( "\n", $response['output'] ) );
+
+      $response = NULL;
       if( 2 < $lines )
       {
         // try converting each image until a valid one is found
@@ -68,24 +69,25 @@ class image extends \cenozo\database\record
         {
           // convert the image to a temporary jpeg file
           $command = sprintf( 'convert %s[%d] %s', $path, $sub_image, $temp_path );
-          $convert_response = util::exec_timeout( $command );
-          if( 0 == $convert_response['exitcode'] ) break;
+          $response = util::exec_timeout( $command );
+          if( 0 == $response['exitcode'] ) break;
         }
       }
       else
       {
         // convert the image to a temporary jpeg file
         $command = sprintf( 'convert %s %s', $path, $temp_path );
-        $convert_response = util::exec_timeout( $command );
+        $response = util::exec_timeout( $command );
       }
 
-      if( 0 == $convert_response['exitcode'] )
+      if( 0 == $response['exitcode'] )
       {
         // load the jpeg and encode it
         $b64_string = base64_encode( file_get_contents( $temp_path ) );
 
         // clean up before returning the data
         unlink( $temp_path );
+        if( preg_match( "/\.gz$/", $this->filename ) ) unlink( $path );
       }
     }
 
