@@ -34,48 +34,58 @@ class image extends \cenozo\database\record
       $db_participant->uid,
       $this->filename
     );
+
+    // return jpeg files as is
     if( preg_match( "/\.(jpg|jpeg)$/", $this->filename ) )
     {
       // load the jpeg and encode it
-      $b64_string = base64_encode( file_get_contents( $path ) );
+      return base64_encode( file_get_contents( $path ) );
     }
-    else
+
+    // unzip gz files
+    if( preg_match( "/\.gz$/", $this->filename ) )
+    {
+      $unzipped_path = sprintf( '%s/image_%d.%s', TEMP_PATH, $this->id, $this->filename );
+      copy( $path, $unzipped_path );
+      $command = sprintf( 'gunzip %s', $unzipped_path );
+      $identify_response = util::exec_timeout( $command );
+      if( 0 != $identify_response['exitcode'] ) return NULL; // don't proceed if gunzip failed
+      $path = preg_replace( '/\.gz$/', '', $unzipped_path );
+    }
+
+    // determine if this is a valid image, and encode the first slice
+    $command = sprintf( 'identify %s', $path );
+    $identify_response = util::exec_timeout( $command );
+    if( 0 == $identify_response['exitcode'] )
     {
       $temp_path = sprintf( '%s/image_%d.jpeg', TEMP_PATH, $this->id );
-
-      // determine if this is a valid image, and encode the first slice
-      $command = sprintf( 'identify %s', $path );
-      $identify_response = util::exec_timeout( $command );
-      if( 0 == $identify_response['exitcode'] )
+      $convert_response = 1; // start assuming no image is found
+      $lines = count( explode( "\n", $identify_response['output'] ) );
+      if( 2 < $lines )
       {
-        $convert_response = 1; // start assuming no image is found
-        $lines = count( explode( "\n", $identify_response['output'] ) );
-        if( 2 < $lines )
-        {
-          // try converting each image until a valid one is found
-          for( $sub_image = 1; $sub_image <= $lines; $sub_image++ )
-          {
-            // convert the image to a temporary jpeg file
-            $command = sprintf( 'convert %s[%d] %s', $path, $sub_image, $temp_path );
-            $convert_response = util::exec_timeout( $command );
-            if( 0 == $convert_response['exitcode'] ) break;
-          }
-        }
-        else
+        // try converting each image until a valid one is found
+        for( $sub_image = 1; $sub_image <= $lines; $sub_image++ )
         {
           // convert the image to a temporary jpeg file
-          $command = sprintf( 'convert %s %s', $path, $temp_path );
+          $command = sprintf( 'convert %s[%d] %s', $path, $sub_image, $temp_path );
           $convert_response = util::exec_timeout( $command );
+          if( 0 == $convert_response['exitcode'] ) break;
         }
+      }
+      else
+      {
+        // convert the image to a temporary jpeg file
+        $command = sprintf( 'convert %s %s', $path, $temp_path );
+        $convert_response = util::exec_timeout( $command );
+      }
 
-        if( 0 == $convert_response['exitcode'] )
-        {
-          // load the jpeg and encode it
-          $b64_string = base64_encode( file_get_contents( $temp_path ) );
+      if( 0 == $convert_response['exitcode'] )
+      {
+        // load the jpeg and encode it
+        $b64_string = base64_encode( file_get_contents( $temp_path ) );
 
-          // clean up before returning the data
-          unlink( $temp_path );
-        }
+        // clean up before returning the data
+        unlink( $temp_path );
       }
     }
 
