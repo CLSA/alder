@@ -82,7 +82,15 @@ class module extends \cenozo\service\site_restricted_module
 
     if( $select->has_column( 'image_type' ) )
     {
-      $select->add_column( 'CONCAT( modality.name, ": ", scan_type.name )', 'image_type', false );
+      $select->add_column(
+        'IF( '.
+          'modality.name = scan_type.name, '.
+          'modality.name, '.
+          'CONCAT( modality.name, ": ", scan_type.name )'.
+        ')',
+        'image_type',
+        false
+      );
     }
   }
 }
