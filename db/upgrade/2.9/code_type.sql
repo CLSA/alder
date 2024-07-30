@@ -32,19 +32,19 @@ INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
 SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Femur Angulation";
 INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
 (@id, 1, "Fad", "femur is adducted"),
-(@id, 1, "Fab", "femur is abducted");
+(@id, 2, "Fab", "femur is abducted");
 
 SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Analysis";
 INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
 (@id, 1, "AM", "medial line needs adjustment"),
-(@id, 1, "AL", "lateral line needs adjustment"),
-(@id, 1, "AS", "superior line needs adjustment"),
-(@id, 1, "AI", "inferior line needs adjustment");
+(@id, 2, "AL", "lateral line needs adjustment"),
+(@id, 3, "AS", "superior line needs adjustment"),
+(@id, 4, "AI", "inferior line needs adjustment");
 
 SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Neck Box";
 INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
 (@id, 1, "CA", "corner not anchored in the trochanteric notch properly"),
-(@id, 1, "CS", "one or all of the corners that should be touching soft tissue only are touching bone");
+(@id, 2, "CS", "one or all of the corners that should be touching soft tissue only are touching bone");
 
 SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Metal on Scan";
 INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
