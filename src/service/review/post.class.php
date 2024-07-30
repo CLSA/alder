@@ -166,6 +166,8 @@ class post extends \cenozo\service\post
           $image_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
           $image_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
           $image_mod->where( 'uid', 'IN', $uid_list );
+          if( !is_null( $study_phase_id ) ) $image_mod->where( 'interview.study_phase_id', '=', $study_phase_id );
+          if( !is_null( $modality_id ) ) $image_mod->where( 'scan_type.modality_id', '=', $modality_id );
           $image_mod->where( 'user_has_modality.user_id', '=', $user_id );
           foreach( $image_class_name::select( $image_sel, $image_mod ) as $image )
           {
@@ -194,11 +196,8 @@ class post extends \cenozo\service\post
         $participant_sel->add_table_column( 'modality', 'name', 'modality' );
         $participant_sel->add_column( 'review.id IS NOT NULL', 'has_review', false );
         $participant_sel->add_column( 'COUNT(*)', 'total', false );
-        $participant_mod = lib::create( 'database\modifier' );
-        $participant_mod->join( 'interview', 'participant.id', 'interview.participant_id' );
+        $participant_mod = clone $modifier;
         $participant_mod->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
-        $participant_mod->join( 'exam', 'interview.id', 'exam.interview_id' );
-        $participant_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
         $participant_mod->join( 'modality', 'scan_type.modality_id', 'modality.id' );
         $participant_mod->join( 'image', 'exam.id', 'image.exam_id' );
         $participant_mod->left_join( 'review', 'image.id', 'review.image_id' );

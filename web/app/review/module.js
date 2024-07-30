@@ -1,6 +1,6 @@
 cenozoApp.defineModule({
   name: "review",
-  models: ["list", "view"],
+  models: ["add", "list", "view"],
   create: (module) => {
     angular.extend(module, {
       identifier: {},
@@ -65,42 +65,54 @@ cenozoApp.defineModule({
         title: "Participant",
         type: "string",
         isConstant: true,
+        isExcluded: function($state, model) { return "add"; },
       },
       phase: {
         column: "study_phase.name",
         title: "Phase",
         type: "string",
         isConstant: true,
+        isExcluded: function($state, model) { return "add"; },
       },
       site: {
         column: "site.name",
         title: "Site",
         type: "string",
         isConstant: true,
+        isExcluded: function($state, model) { return "add"; },
       },
       side: {
         column: "exam.side",
         title: "Side",
         type: "string",
         isConstant: true,
+        isExcluded: function($state, model) { return "add"; },
       },
       interviewer: {
         column: "exam.interviewer",
         title: "Interviewer",
         type: "string",
         isConstant: true,
+        isExcluded: function($state, model) { return "add"; },
       },
       image_type: {
         title: "Type",
         type: "string",
         isConstant: true,
+        isExcluded: function($state, model) { return "add"; },
       },
-      user: {
-        column: "user.name",
+      user_id: {
         title: "Reviewer",
-        type: "string",
-        isConstant: true,
-        isExcluded: function ($state, model) { return model.isRole("typist"); },
+        type: "lookup-typeahead",
+        typeahead: {
+          table: "user",
+          select: 'CONCAT( user.first_name, " ", user.last_name, " (", user.name, ")" )',
+          where: ["user.first_name", "user.last_name", "user.name"],
+        },
+        isConstant: "view",
+        isExcluded: function ($state, model) {
+          return model.isRole("typist");
+        },
       },
       completed: {
         title: "Completed",
@@ -108,6 +120,7 @@ cenozoApp.defineModule({
         isConstant: function ($state, model) {
           return !model.viewModel.isTypist();
         },
+        isExcluded: function($state, model) { return "add"; },
       },
       notification: {
         title: "Notification",
@@ -115,11 +128,13 @@ cenozoApp.defineModule({
         isExcluded: function ($state, model) {
           return !model.isRole("administrator");
         },
+        isExcluded: function($state, model) { return "add"; },
       },
       rating: {
         title: "Rating",
         type: "string",
         isConstant: true,
+        isExcluded: function($state, model) { return "add"; },
       },
       feedback: {
         title: "Feedback",
@@ -127,13 +142,14 @@ cenozoApp.defineModule({
         isConstant: function ($state, model) {
           return !model.viewModel.isTypist();
         },
+        isExcluded: function($state, model) { return "add"; },
       },
       note: {
         column: "image.note",
         title: "Image Notes",
         type: "text",
+        isExcluded: function($state, model) { return "add"; },
       },
-      user_id: { type: "hidden" },
       image_id: { type: "hidden" },
     });
 
@@ -1182,8 +1198,30 @@ cenozoApp.defineModule({
     ]);
 
     /* ############################################################################################## */
+    cenozo.providers.factory("CnReviewAddFactory", [
+      "CnBaseAddFactory",
+      "CnHttpFactory",
+      function (CnBaseAddFactory, CnHttpFactory) {
+        var object = function (parentModel) {
+          CnBaseAddFactory.construct(this, parentModel);
+          this.onNew = async function (record) {
+            this.heading =
+              "Create " + parentModel.module.name.singular.ucWords() +
+              " for Image " + this.parentModel.getParentIdentifier().identifier;
+          };
+        };
+        return {
+          instance: function (parentModel) {
+            return new object(parentModel);
+          },
+        };
+      },
+    ]);
+
+    /* ############################################################################################## */
     cenozo.providers.factory("CnReviewModelFactory", [
       "CnBaseModelFactory",
+      "CnReviewAddFactory",
       "CnReviewListFactory",
       "CnReviewViewFactory",
       "CnSession",
@@ -1191,6 +1229,7 @@ cenozoApp.defineModule({
       "CnModalMessageFactory",
       function (
         CnBaseModelFactory,
+        CnReviewAddFactory,
         CnReviewListFactory,
         CnReviewViewFactory,
         CnSession,
@@ -1201,6 +1240,7 @@ cenozoApp.defineModule({
           CnBaseModelFactory.construct(this, module);
 
           angular.extend(this, {
+            addModel: CnReviewAddFactory.instance(this),
             listModel: CnReviewListFactory.instance(this),
             viewModel: CnReviewViewFactory.instance(this, root),
 
@@ -1224,6 +1264,32 @@ cenozoApp.defineModule({
                 }
               }
               return data;
+            },
+
+            // only include typists when selecting review users
+            getTypeaheadData: function (input, viewValue) {
+              let data = this.$$getTypeaheadData(input, viewValue);
+
+              if ("user" == input.typeahead.table) {
+                if (angular.isUndefined(data.modifier.join)) data.modifier.join = [];
+                data.modifier.join.push({ table: "access", onleft: "user.id", onright: "access.user_id" });
+                data.modifier.join.push({ table: "role", onleft: "access.role_id", onright: "role.id" });
+                data.modifier.where.push({ column: "role.name", operator: "=", value: "typist" });
+              }
+
+              return data;
+            },
+
+            // only allow typists to create a new review
+            getAddEnabled: function() {
+              if ("review" == this.getSubjectFromState() && "list" == this.getActionFromState()) {
+                // only typists can add a new review when they are looking at the review list
+                return this.isRole("typist");
+              } else if ("image" == this.getSubjectFromState()) {
+                // only admins can add a new review when viewing and image
+                return this.isRole("administrator");
+              }
+              return false;
             },
 
             // override transitionToAddState
