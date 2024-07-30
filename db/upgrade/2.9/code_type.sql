@@ -151,7 +151,7 @@ INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
 (@id, 2, "NU", "the scan is not useable");
 
 
-SELECT id INTO @scan_type_id FROM scan_type WHERE name = "forearm";
+SELECT id INTO @scan_type_id FROM scan_type WHERE name = "spine";
 
 SELECT id INTO @id FROM code_group WHERE scan_type_id = @scan_type_id AND name = "Lumbar Spine Position";
 INSERT IGNORE INTO code_type( code_group_id, rank, name, description ) VALUES
