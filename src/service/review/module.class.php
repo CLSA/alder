@@ -68,7 +68,6 @@ class module extends \cenozo\service\site_restricted_module
     $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
     $modifier->join( 'site', 'interview.site_id', 'site.id' );
     $modifier->join( 'user', 'review.user_id', 'user.id' );
-    $this->add_list_column( 'code_list', 'code_type', 'name', $select, $modifier, 'code' );
 
     // only show typists their own reviews
     if( 'typist' == $db_role->name ) $modifier->where( 'review.user_id', '=', $db_user->id );

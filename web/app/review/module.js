@@ -48,9 +48,6 @@ cenozoApp.defineModule({
         },
         rating: {
           title: "Calculated Rating",
-        },
-        code_list: {
-          title: "Code List",
         }
       },
       defaultOrder: {
