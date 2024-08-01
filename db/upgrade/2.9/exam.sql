@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS exam (
   PRIMARY KEY (id),
   INDEX fk_interview_id (interview_id ASC),
   INDEX fk_scan_type_id (scan_type_id ASC),
+  UNIQUE INDEX uq_interview_id_scan_type_id_side (interview_id ASC, scan_type_id ASC, side ASC),
   CONSTRAINT fk_exam_interview_id
     FOREIGN KEY (interview_id)
     REFERENCES interview (id)
