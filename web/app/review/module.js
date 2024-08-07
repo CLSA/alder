@@ -123,9 +123,8 @@ cenozoApp.defineModule({
         title: "Notification",
         type: "enum",
         isExcluded: function ($state, model) {
-          return !model.isRole("administrator");
+          return "add_review" == model.getActionFromState() || !model.isRole("administrator");
         },
-        isExcluded: function($state, model) { return "add"; },
       },
       rating: {
         title: "Rating",
