@@ -344,6 +344,7 @@ cenozoApp.defineModule({
                       { table: "role", onleft: "access.role_id", onright: "role.id" },
                     ],
                     where: [
+                      { column: "user.active", operator: "=", value: "true" },
                       { column: "role.name", operator: "=", value: "typist" },
                     ],
                     order: "user.name",
