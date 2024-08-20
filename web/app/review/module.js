@@ -250,173 +250,276 @@ cenozoApp.defineModule({
       "CnReviewModelFactory",
       "CnSession",
       "CnHttpFactory",
+      "CnModalDatetimeFactory",
       "CnModalMessageFactory",
-      function (CnReviewModelFactory, CnSession, CnHttpFactory, CnModalMessageFactory) {
+      function (CnReviewModelFactory, CnSession, CnHttpFactory, CnModalDatetimeFactory, CnModalMessageFactory) {
         var object = function () {
-          this.parentModel = CnReviewModelFactory.root;
-          this.module = module;
-          this.confirmInProgress = false;
-          this.confirmedCount = null;
-          this.imageDataList = null;
-          this.withTotal = 0;
-          this.withoutTotal = 0;
-          this.uidListString = "";
-          this.studyPhaseList = [];
-          this.study_phase_id = undefined;
-          this.modalityList = [];
-          this.modality_id = undefined;
-          this.userList = [];
-          this.user_id = undefined;
-          this.completedList = [
-            { name: "(leave unchanged)", value: undefined },
-            { name: "Yes", value: 1 },
-            { name: "No", value: 0 },
-          ];
-          this.completed = undefined;
-          this.notificationList = [
-            { name: "(leave unchanged)", value: undefined },
-            { name: "Remove alert", value: null },
-            { name: "Alert user", value: "alert" },
-            { name: "Mark as read", value: "read" },
-          ];
-          this.notification = undefined;
+          angular.extend(this, {
+            parentModel: CnReviewModelFactory.root,
+            module: module,
+            confirmInProgress: false,
+            randomData: {
+              canProceed: false,
+              startDate: null,
+              endDate: null,
+              examsPerInterviewer: null,
+              examDataList: null,
+            },
+            uidData: {
+              canProceed: false,
+              uidListString: "",
+              imageDataList: null,
+              withTotal: 0,
+              withoutTotal: 0,
+            },
+            studyPhaseList: [],
+            studyPhaseId: null,
+            modalityList: [],
+            modalityId: null,
+            selectionTypeList: [
+              { name: "Random", value: "random" },
+              { name: "UID", value: "uid" },
+            ],
+            selectionType: "random",
+            formattedStartDate: null,
+            formattedEndDate: null,
+            userList: null,
+            userId: null,
+            completedList: [
+              { name: "(leave unchanged)", value: null },
+              { name: "Yes", value: 1 },
+              { name: "No", value: 0 },
+            ],
+            completed: null,
+            notificationList: [
+              { name: "(leave unchanged)", value: null },
+              { name: "Remove alert", value: "" },
+              { name: "Alert user", value: "alert" },
+              { name: "Mark as read", value: "read" },
+            ],
+            notification: null,
 
-          this.selectionChanged = function () {
-            this.confirmedCount = null;
-            this.user_id = undefined;
-            this.userList = [];
-          };
+            selectDate: async function (type) {
+              const response = await CnModalDatetimeFactory.instance({
+                title: "start" == type ? "Start Date" : "End Date",
+                date: "start" == type ? this.randomData.startDate : this.randomData.endDate,
+                minDate: "end" == type ? this.randomData.startDate : null,
+                maxDate: "start" == type ? this.randomData.endDate : null,
+                pickerType: "date",
+                emptyAllowed: false,
+              }).show();
 
-          this.confirm = async function () {
-            this.confirmInProgress = true;
-            this.confirmedCount = null;
-            var uidRegex = new RegExp(CnSession.application.uidRegex);
+              if (false !== response) {
+                if ("start" == type) {
+                  this.randomData.startDate = response;
+                  this.formattedStartDate = CnSession.formatValue(response, "date", true);
+                } else {
+                  this.randomData.endDate = response;
+                  this.formattedEndDate = CnSession.formatValue(response, "date", true);
+                }
+                await this.selectionChanged("random");
+              }
+            },
 
-            // clean up the uid list
-            var fixedList = this.uidListString
-              .toUpperCase() // convert to uppercase
-              .replace(/[\s,;|\/]/g, " ") // replace whitespace and separation chars with a space
-              .replace(/[^a-zA-Z0-9 ]/g, "") // remove anything that isn't a letter, number of space
-              .split(" ") // delimite string by spaces and create array from result
-              .filter((uid) => null != uid.match(uidRegex)) // match UIDs (eg: A123456)
-              .filter((uid, index, array) => index <= array.indexOf(uid)) // make array unique
-              .sort(); // sort the array
+            sanitizeExamsPerInterviewer: function () {
+              this.randomData.examsPerInterviewer =
+                Number(this.randomData.examsPerInterviewer.replace(/[^0-9]/g, ""));
+            },
 
-            // now confirm UID list with server
-            if (0 == fixedList.length) {
-              this.imageDataList = null;
-              this.uidListString = "";
-              this.confirmInProgress = false;
-            } else {
+            selectionChanged: async function (type) {
+              if ((
+                "random" == this.selectionType &&
+                this.randomData.startDate &&
+                this.randomData.endDate
+              ) || (
+                "uid" == this.selectionType &&
+                angular.isDefined(this.uidData.uidListString) &&
+                0 < this.uidData.uidListString.length
+              )) {
+                await this.confirm();
+              }
+            },
+
+            confirm: async function () {
+              this.confirmInProgress = true;
+              if ("random" == this.selectionType) this.randomData.canProceed = false;
+              else if ("uid" == this.selectionType) this.uidData.canProceed = false;
+
+              let data = {};
+              if (this.studyPhaseId) data.study_phase_id = this.studyPhaseId;
+              if (this.modalityId) data.modality_id = this.modalityId;
+
               try {
-                let data = { uid_list: fixedList };
-                if (this.study_phase_id) data.study_phase_id = this.study_phase_id;
-                if (this.modality_id) data.modality_id = this.modality_id;
-                this.confirmedCount = null;
-                var response = await CnHttpFactory.instance({ path: "review", data: data }).post();
-                this.confirmedCount = response.data.uid_list.length;
-                this.uidListString = response.data.uid_list.join(" ");
-                this.imageDataList = response.data.image_list;
-                
-                // count with/without totals
-                this.withTotal = 0;
-                this.withoutTotal = 0;
-                for(phase in this.imageDataList) {
-                  for(modality in this.imageDataList[phase]) {
-                    this.withTotal += Number(this.imageDataList[phase][modality].with);
-                    this.withoutTotal += Number(this.imageDataList[phase][modality].without);
+                // make sure the user list has been downloaded
+                if (null == this.userList) {
+                  var response = await CnHttpFactory.instance({
+                    path: "user",
+                    data: {
+                      select: {
+                        distinct: true,
+                        column: ["id", "name", "first_name", "last_name"],
+                      },
+                      modifier: {
+                        join: [
+                          { table: "access", onleft: "user.id", onright: "access.user_id" },
+                          { table: "role", onleft: "access.role_id", onright: "role.id" },
+                        ],
+                        where: [
+                          { column: "user.active", operator: "=", value: true },
+                          { column: "role.name", operator: "=", value: "typist" },
+                        ],
+                        order: "user.name",
+                      },
+                    },
+                  }).query();
+
+                  this.userList = response.data.reduce((list, item) => {
+                    list.push({
+                      value: item.id,
+                      name: item.first_name + " " + item.last_name + " (" + item.name + ")",
+                      user: item.name,
+                    });
+                    return list;
+                  }, []);
+                  this.userList.unshift({ name: "(empty)", value: null });
+                }
+
+                if ("random" == this.selectionType) {
+                  angular.extend(data, {
+                    start_date: this.randomData.startDate.replace(/T.*/, ""),
+                    end_date: this.randomData.endDate.replace(/T.*/, ""),
+                  });
+                  var response = await CnHttpFactory.instance({ path: "review", data: data }).post();
+                  this.randomData.examDataList = response.data;
+                  this.randomData.canProceed = 0 < Object.keys(this.randomData.examDataList).length;
+                } else {
+                  var uidRegex = new RegExp(CnSession.application.uidRegex);
+
+                  // clean up the uid list
+                  var fixedList = this.uidData.uidListString
+                    .toUpperCase() // convert to uppercase
+                    .replace(/[\s,;|\/]/g, " ") // replace whitespace and separation chars with a space
+                    .replace(/[^a-zA-Z0-9 ]/g, "") // remove anything that isn't a letter, number of space
+                    .split(" ") // delimite string by spaces and create array from result
+                    .filter((uid) => null != uid.match(uidRegex)) // match UIDs (eg: A123456)
+                    .filter((uid, index, array) => index <= array.indexOf(uid)) // make array unique
+                    .sort(); // sort the array
+
+                  // now confirm UID list with server
+                  if (0 == fixedList.length) {
+                    angular.extend(this.uidData, {
+                      uidListString: "",
+                      imageDataList: null,
+                      withTotal: 0,
+                      withoutTotal: 0,
+                    });
+                  } else {
+                    data.uid_list = fixedList;
+                    var response = await CnHttpFactory.instance({ path: "review", data: data }).post();
+                    angular.extend(this.uidData, {
+                      uidListString: response.data.uid_list.join(" "),
+                      imageDataList: response.data.image_list,
+                    });
+                    this.uidData.canProceed = 0 < this.uidData.uidListString.length;
+                    
+                    // count with/without totals
+                    angular.extend(this.uidData, { withTotal: 0, withoutTotal: 0 });
+                    for(phase in this.uidData.imageDataList) {
+                      for(modality in this.uidData.imageDataList[phase]) {
+                        this.uidData.withTotal += Number(this.uidData.imageDataList[phase][modality].with);
+                        this.uidData.withoutTotal += Number(this.uidData.imageDataList[phase][modality].without);
+                      }
+                    }
                   }
                 }
               } finally {
                 this.confirmInProgress = false;
               }
+            },
 
-              var response = await CnHttpFactory.instance({
-                path: "user",
-                data: {
-                  select: {
-                    distinct: true,
-                    column: ["id", "name", "first_name", "last_name"],
-                  },
-                  modifier: {
-                    join: [
-                      { table: "access", onleft: "user.id", onright: "access.user_id" },
-                      { table: "role", onleft: "access.role_id", onright: "role.id" },
-                    ],
-                    where: [
-                      { column: "user.active", operator: "=", value: "true" },
-                      { column: "role.name", operator: "=", value: "typist" },
-                    ],
-                    order: "user.name",
-                  },
-                },
-              }).query();
+            proceed: async function (type) {
+              if ("random" == this.selectionType) {
+                let data = {
+                  exams_per_interviewer: this.randomData.examsPerInterviewer,
+                  start_date: this.randomData.startDate.replace(/T.*/, ""),
+                  end_date: this.randomData.endDate.replace(/T.*/, ""),
+                  user_id: this.userId,
+                  process: true,
+                };
 
-              this.userList = response.data.reduce((list, item) => {
-                list.push({
-                  value: item.id,
-                  name: item.first_name + " " + item.last_name + " (" + item.name + ")",
-                  user: item.name,
+                if (angular.isDefined(this.studyPhaseId)) data.study_phase_id = this.studyPhaseId;
+                if (angular.isDefined(this.modalityId)) data.modality_id = this.modalityId;
+
+                const response = await CnHttpFactory.instance({
+                  path: "review",
+                  data: data,
+                  onError: CnModalMessageFactory.httpError,
+                }).post();
+
+                await CnModalMessageFactory.instance({
+                  title: "Review(s) Processed",
+                  message: "A total of " + response.data + " new reviews have been assigned.",
+                }).show();
+
+                this.userId = null;
+              } else if ("uid" == this.selectionType) {
+                let uidList = this.uidData.uidListString.split(" ");
+
+                // test the formats of all columns
+                let data = {
+                  uid_list: uidList,
+                  process: true,
+                };
+
+                if (angular.isDefined(this.studyPhaseId)) data.study_phase_id = this.studyPhaseId;
+                if (angular.isDefined(this.modalityId)) data.modality_id = this.modalityId;
+                if (0 < this.uidData.withoutTotal) {
+                  if (angular.isDefined(this.userId)) data.user_id = this.userId;
+                }
+                if (0 < this.uidData.withTotal) {
+                  if (angular.isDefined(this.completed)) data.completed = this.completed;
+                  if (angular.isDefined(this.notification)) data.notification = this.notification;
+                }
+
+                const response = await CnHttpFactory.instance({
+                  path: "review",
+                  data: data,
+                  onError: CnModalMessageFactory.httpError,
+                }).post();
+
+                let message =
+                  "A total of " + uidList.length + " participant" +
+                  (1 != uidList.length ? "s have " : " has ") + "been processed";
+
+                if (0 < response.data.new || 0 < response.data.edit) {
+                  message += " (";
+                  if (0 < response.data.new) {
+                    message += (
+                      response.data.new + " new review" + (1 != response.data.new ? "s" : "") + " assigned"
+                    );
+                  }
+                  if (0 < response.data.new && 0 < response.data.edit) message += " and ";
+                  if (0 < response.data.edit) {
+                    message += (
+                      response.data.edit + " review" + (1 != response.data.edit ? "s" : "") + " edited"
+                    );
+                  }
+                  message += ")"
+                }
+                message += ".";
+
+                await CnModalMessageFactory.instance({ title: "Review(s) Processed", message: message }).show();
+
+                angular.extend(this.uidData, {
+                  canProceed: false,
+                  uidListString: "",
+                  imageDataList: null,
+                  withTotal: 0,
+                  withoutTotal: 0,
                 });
-                return list;
-              }, []);
-              this.userList.unshift({ name: "(empty)", value: undefined });
-            }
-          };
-
-          this.proceed = async function (type) {
-            let uidList = this.uidListString.split(" ");
-
-            // test the formats of all columns
-            let data = {
-              uid_list: uidList,
-              process: true,
-            };
-
-            if (angular.isDefined(this.study_phase_id)) data.study_phase_id = this.study_phase_id;
-            if (angular.isDefined(this.modality_id)) data.modality_id = this.modality_id;
-            if (0 < this.withoutTotal) {
-              if (angular.isDefined(this.user_id)) data.user_id = this.user_id;
-            }
-            if (0 < this.withTotal) {
-              if (angular.isDefined(this.completed)) data.completed = this.completed;
-              if (angular.isDefined(this.notification)) data.notification = this.notification;
-            }
-
-            const response = await CnHttpFactory.instance({
-              path: "review",
-              data: data,
-              onError: CnModalMessageFactory.httpError,
-            }).post();
-
-            let message =
-              "A total of " + uidList.length + " participant" +
-              (1 != uidList.length ? "s have " : " has ") + "been processed";
-
-            if (0 < response.data.new || 0 < response.data.edit) {
-              message += " (";
-              if (0 < response.data.new) {
-                message += (
-                  response.data.new + " new review" + (1 != response.data.new ? "s" : "") + " assigned"
-                );
               }
-              if (0 < response.data.new && 0 < response.data.edit) message += " and ";
-              if (0 < response.data.edit) {
-                message += (
-                  response.data.edit + " review" + (1 != response.data.edit ? "s" : "") + " edited"
-                );
-              }
-              message += ")"
-            }
-            message += ".";
-
-            await CnModalMessageFactory.instance({ title: "Review(s) Processed", message: message }).show();
-
-            this.confirmedCount = null;
-            this.uidListString = "";
-            this.userList = [];
-            this.user_id = undefined;
-          };
+            },
+          });
 
           async function init(object) {
             const [studyPhaseResponse, modalityResponse] = await Promise.all([
@@ -451,13 +554,13 @@ cenozoApp.defineModule({
               list.push({ value: item.id, name: item.name });
               return list;
             }, []);
-            object.studyPhaseList.unshift({ name: "(all)", value: undefined });
+            object.studyPhaseList.unshift({ name: "(all)", value: null });
 
             object.modalityList = modalityResponse.data.reduce((list, item) => {
               list.push({ value: item.id, name: item.name });
               return list;
             }, []);
-            object.modalityList.unshift({ name: "(all)", value: undefined });
+            object.modalityList.unshift({ name: "(all)", value: null });
           }
 
           init(this);
