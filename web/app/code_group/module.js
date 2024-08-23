@@ -6,7 +6,7 @@ cenozoApp.defineModule({
       identifier: {
         parent: {
           subject: "scan_type",
-          column: "scan_type.name",
+          column: "scan_type.id",
         },
       },
       name: {

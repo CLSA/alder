@@ -43,9 +43,36 @@
       </div>
     </div>
   </div>
-  <div class="col-slim col-sm-6">
-    <div class="container-fluid" style="height: 85vh; padding-left: 0">
-      <canvas id="canvas" class="image" style="height:100%; width:100%;"></canvas>
+  <div class="col-sm-6" style="padding-left: 0px">
+    <div class="record-view rounded">
+      <div class="container-fluid bg-primary rounded-top">
+        <h4>
+          <div class="pull-right">
+            <i
+              class="glyphicon glyphicon-chevron-left glyph-hover btn-primary btn-header"
+              ng-style="{'color': !model.viewModel.analysisIndex ? '#aaa' : '#fff'}"
+              ng-disabled="!model.viewModel.analysisIndex"
+              ng-click="model.viewModel.prevAnalysis()"
+            ></i>
+            <i
+              class="glyphicon glyphicon-chevron-right glyph-hover btn-primary btn-header"
+              ng-style="{'color':
+                null != model.viewModel.analysisIndex &&
+                model.viewModel.analysisList.length-1 <= model.viewModel.analysisIndex ? '#aaa' : '#fff'
+              }"
+              ng-disabled="
+                null != model.viewModel.analysisIndex &&
+                model.viewModel.analysisList.length-1 <= model.viewModel.analysisIndex
+              "
+              ng-click="model.viewModel.nextAnalysis()"
+            ></i>
+          </div>
+          Image View
+        </h4>
+      </div>
+      <div style="height: 85vh; padding-left: 0">
+        <canvas id="canvas" class="image" style="height:100%; width:100%;"></canvas>
+      </div>
     </div>
   </div>
 </div>

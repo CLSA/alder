@@ -20,7 +20,17 @@ CREATE TABLE IF NOT EXISTS code_group (
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
-SELECT id INTO @id FROM scan_type WHERE name = "hip";
+SELECT id INTO @id FROM scan_type WHERE name = "hip" AND side = "left";
+INSERT IGNORE INTO code_group( scan_type_id, rank, name, value, description ) VALUES
+(@id, 1, "Positioning of Hip", -1, "Positioning of the hip within the field of view."),
+(@id, 2, "Femur Angulation", -1, "Straightness of the shaft of the femur."),
+(@id, 3, "Analysis", -1, "Positioning of the analysis box around the femur."),
+(@id, 4, "Neck Box", -1, "Positioning of the corners of the neck box."),
+(@id, 5, "Metal on Scan", -1, "Metal is present on the scan but not obstructing the field of view."),
+(@id, 6, "Motion on Scan", -1, "Motion is present on the scan."),
+(@id, 7, "Not Usable", -5, "Reasons that the scan is not usable.");
+
+SELECT id INTO @id FROM scan_type WHERE name = "hip" AND side = "right";
 INSERT IGNORE INTO code_group( scan_type_id, rank, name, value, description ) VALUES
 (@id, 1, "Positioning of Hip", -1, "Positioning of the hip within the field of view."),
 (@id, 2, "Femur Angulation", -1, "Straightness of the shaft of the femur."),
@@ -47,7 +57,16 @@ INSERT IGNORE INTO code_group( scan_type_id, rank, name, value, description ) VA
 (@id, 5, "Motion on Scan", -1, "Motion is present on the scan."),
 (@id, 6, "Not Usable", -5, "Reasons that the scan is not usable.");
 
-SELECT id INTO @id FROM scan_type WHERE name = "forearm";
+SELECT id INTO @id FROM scan_type WHERE name = "forearm" AND side = "left";
+INSERT IGNORE INTO code_group( scan_type_id, rank, name, value, description ) VALUES
+(@id, 1, "Position of Radius and Ulna", -1, "Radius and ulna need to be straight and centered."),
+(@id, 2, "Carpal Bones", -1, "Image shows the first row of carpal bones."),
+(@id, 3, "Analysis", -1, "Forearm analysis lines and points, are all placed correctly."),
+(@id, 4, "Metal on Scan", -1, "Metal is present on the scan but not obstructing the field of view."),
+(@id, 5, "Motion on Scan", -1, "Motion is present on the scan."),
+(@id, 6, "Not Usable", -5, "Reasons that the scan is not usable.");
+
+SELECT id INTO @id FROM scan_type WHERE name = "forearm" AND side = "right";
 INSERT IGNORE INTO code_group( scan_type_id, rank, name, value, description ) VALUES
 (@id, 1, "Position of Radius and Ulna", -1, "Radius and ulna need to be straight and centered."),
 (@id, 2, "Carpal Bones", -1, "Image shows the first row of carpal bones."),
@@ -66,7 +85,15 @@ INSERT IGNORE INTO code_group( scan_type_id, rank, name, value, description ) VA
 (@id, 6, "Motion on Scan", -1, "Motion is present on the scan."),
 (@id, 7, "Not Usable", -5, "Reasons that the scan is not usable.");
 
-SELECT id INTO @id FROM scan_type WHERE name = "carotid_intima";
+SELECT id INTO @id FROM scan_type WHERE name = "carotid_intima" AND side = "left";
+INSERT IGNORE INTO code_group( scan_type_id, rank, name ) VALUES
+(@id, 1, "Carotid Artery Scanned"),
+(@id, 2, "Position of Carotid Artery"),
+(@id, 3, "IMT Visualization"),
+(@id, 4, "Analysis Box Placement"),
+(@id, 5, "cIMT Analysis Accuracy");
+
+SELECT id INTO @id FROM scan_type WHERE name = "carotid_intima" AND side = "right";
 INSERT IGNORE INTO code_group( scan_type_id, rank, name ) VALUES
 (@id, 1, "Carotid Artery Scanned"),
 (@id, 2, "Position of Carotid Artery"),

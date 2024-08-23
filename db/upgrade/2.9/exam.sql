@@ -6,13 +6,12 @@ CREATE TABLE IF NOT EXISTS exam (
   create_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
   interview_id INT(10) UNSIGNED NOT NULL,
   scan_type_id INT(10) UNSIGNED NOT NULL,
-  side ENUM("right", "left", "unknown", "none") NOT NULL,
   interviewer VARCHAR(45) NULL DEFAULT NULL,
   datetime DATETIME NULL DEFAULT NULL,
   PRIMARY KEY (id),
   INDEX fk_interview_id (interview_id ASC),
   INDEX fk_scan_type_id (scan_type_id ASC),
-  UNIQUE INDEX uq_interview_id_scan_type_id_side (interview_id ASC, scan_type_id ASC, side ASC),
+  UNIQUE INDEX uq_interview_id_scan_type_id (interview_id ASC, scan_type_id ASC),
   CONSTRAINT fk_exam_interview_id
     FOREIGN KEY (interview_id)
     REFERENCES interview (id)

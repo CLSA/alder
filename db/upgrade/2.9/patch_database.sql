@@ -16,6 +16,7 @@ SOURCE image.sql
 SOURCE code_group.sql
 SOURCE code_type.sql
 SOURCE review.sql
+SOURCE analysis.sql
 SOURCE code.sql
 SOURCE annotation.sql
 

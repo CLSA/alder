@@ -27,10 +27,11 @@ class ui extends \cenozo\ui\ui
     if( !is_null( $module ) ) $module->add_child( 'exam' );
 
     $module = $this->get_module( 'exam' );
-    if( !is_null( $module ) ) $module->add_child( 'image' );
-
-    $module = $this->get_module( 'image' );
-    if( !is_null( $module ) ) $module->add_child( 'review' );
+    if( !is_null( $module ) )
+    {
+      $module->add_child( 'review' );
+      $module->add_child( 'image' );
+    }
 
     $module = $this->get_module( 'scan_type' );
     if( !is_null( $module ) )

@@ -5,7 +5,7 @@
  * @author Patrick Emond <emondpd@mcmaster.ca>
  */
 
-namespace alder\service\code_type\review;
+namespace alder\service\code_type\analysis;
 use cenozo\lib, cenozo\log, alder\util;
 
 /**
@@ -29,15 +29,15 @@ class query extends \cenozo\service\query
    */
   protected function get_record_count()
   {
-    $review_class_name = lib::create( 'database\review' );
+    $analysis_class_name = lib::create( 'database\analysis' );
 
     $db_code_type = $this->get_parent_record();
     $modifier = clone $this->modifier;
-    $modifier->join( 'code', 'review.id', 'code.review_id' );
+    $modifier->join( 'code', 'analysis.id', 'code.analysis_id' );
     $modifier->where( 'code.code_type_id', '=', $db_code_type->id );
     $this->select->apply_aliases_to_modifier( $modifier );
 
-    return $review_class_name::count( $modifier, true ); // distinct
+    return $analysis_class_name::count( $modifier, true ); // distinct
   }
 
   /**
@@ -45,16 +45,16 @@ class query extends \cenozo\service\query
    */
   protected function get_record_list()
   {
-    $review_class_name = lib::create( 'database\review' );
+    $analysis_class_name = lib::create( 'database\analysis' );
 
     $db_code_type = $this->get_parent_record();
     $select = clone $this->select;
     $select->set_distinct( true );
     $modifier = clone $this->modifier;
-    $modifier->join( 'code', 'review.id', 'code.review_id' );
+    $modifier->join( 'code', 'analysis.id', 'code.analysis_id' );
     $modifier->where( 'code.code_type_id', '=', $db_code_type->id );
     $this->select->apply_aliases_to_modifier( $modifier );
 
-    return $review_class_name::select( $select, $modifier );
+    return $analysis_class_name::select( $select, $modifier );
   }
 }

@@ -38,7 +38,7 @@ class module extends \cenozo\service\site_restricted_module
         $db_restrict_site = $this->get_restricted_site();
         if( !is_null( $db_restrict_site ) )
         {
-          if( $db_restrict_site->id != $db_review->get_image()->get_exam()->get_interview()->site_id )
+          if( $db_restrict_site->id != $db_review->get_exam()->get_interview()->site_id )
           {
             $this->get_status()->set_code( 403 );
             return;
@@ -59,8 +59,7 @@ class module extends \cenozo\service\site_restricted_module
     $db_user = $session->get_user();
     $db_role = $session->get_role();
 
-    $modifier->join( 'image', 'review.image_id', 'image.id' );
-    $modifier->join( 'exam', 'image.exam_id', 'exam.id' );
+    $modifier->join( 'exam', 'review.exam_id', 'exam.id' );
     $modifier->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
     $modifier->join( 'modality', 'scan_type.modality_id', 'modality.id' );
     $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
@@ -79,15 +78,18 @@ class module extends \cenozo\service\site_restricted_module
       $modifier->where( 'interview.site_id', '=', $db_restrict_site->id );
     }
 
-    if( $select->has_column( 'image_type' ) )
+    if( $select->has_column( 'scan_type' ) )
     {
       $select->add_column(
-        'IF( '.
-          'modality.name = scan_type.name, '.
-          'modality.name, '.
-          'CONCAT( modality.name, ": ", scan_type.name )'.
+        'CONCAT( '.
+          'scan_type.name, '.
+          'IF( '.
+            '"none" = scan_type.side, '.
+            'NULL, '.
+            'CONCAT( " (", scan_type.side, ")" ) '.
+          ') '.
         ')',
-        'image_type',
+        'scan_type',
         false
       );
     }

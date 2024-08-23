@@ -18,6 +18,7 @@ cenozoApp.defineModule({
       columnList: {
         modality: { column: "modality.name", title: "Modality" },
         name: { title: "Name" },
+        side: { title: "Side" },
         exam_count: { title: "Exams" },
       },
       defaultOrder: {

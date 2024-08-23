@@ -5,7 +5,7 @@
  * @author Patrick Emond <emondpd@mcmaster.ca>
  */
 
-namespace alder\service\review;
+namespace alder\service\analysis;
 use cenozo\lib, cenozo\log, alder\util;
 
 class patch extends \cenozo\service\patch

@@ -5,7 +5,7 @@
  * @author Patrick Emond <emondpd@mcmaster.ca>
  */
 
-namespace alder\service\review\code;
+namespace alder\service\analysis\code;
 use cenozo\lib, cenozo\log, alder\util;
 
 /**
@@ -22,7 +22,7 @@ class query extends \cenozo\service\query
 
     if( $this->get_argument( "full", false ) )
     {
-      // cache the full list of codes (selected or not) for this review
+      // cache the full list of codes (selected or not) for this analysis
       $this->codes = $this->get_parent_record()->get_codes();
     }
   }
@@ -53,7 +53,7 @@ class query extends \cenozo\service\query
   }
 
   /**
-   * A cache of all possible codes for this review
+   * A cache of all possible codes for this analysis
    * @var array(array)
    * @access private
    */

@@ -20,12 +20,7 @@ cenozoApp.defineModule({
           title: "Modality",
         },
         scan_type: {
-          column: "scan_type.name",
           title: "Scan Type",
-        },
-        side: {
-          column: "exam.side",
-          title: "Side",
         },
         interviewer: {
           title: "Interviewer",
@@ -46,34 +41,34 @@ cenozoApp.defineModule({
         column: "participant.uid",
         title: "Participant",
         type: "string",
+        isConstant: true,
       },
       phase: {
         column: "study_phase.name",
         title: "Phase",
         type: "string",
+        isConstant: true,
       },
       modality: {
         column: "modality.name",
         title: "Modality",
         type: "string",
+        isConstant: true,
       },
       scan_type: {
-        column: "scan_type.name",
         title: "Scan Type",
         type: "string",
-      },
-      side: {
-        column: "exam.side",
-        title: "Side",
-        type: "string",
+        isConstant: true,
       },
       interviewer: {
         title: "Interviewer",
         type: "string",
+        isConstant: true,
       },
       datetime: {
         title: "Date & Time",
         type: "datetime",
+        isConstant: true,
       },
     });
   },

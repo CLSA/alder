@@ -22,15 +22,11 @@ cenozoApp.defineModule({
           column: "site.name",
           title: "Site",
         },
-        side: {
-          column: "exam.side",
-          title: "Side",
-        },
         interviewer: {
           column: "exam.interviewer",
           title: "Interviewer",
         },
-        image_type: {
+        scan_type: {
           title: "Type",
         },
         user: {
@@ -46,9 +42,6 @@ cenozoApp.defineModule({
           title: "Notification",
           type: "string",
         },
-        rating: {
-          title: "Calculated Rating",
-        }
       },
       defaultOrder: {
         column: "user.name",
@@ -78,13 +71,6 @@ cenozoApp.defineModule({
         isConstant: true,
         isExcluded: function($state, model) { return "add"; },
       },
-      side: {
-        column: "exam.side",
-        title: "Side",
-        type: "string",
-        isConstant: true,
-        isExcluded: function($state, model) { return "add"; },
-      },
       interviewer: {
         column: "exam.interviewer",
         title: "Interviewer",
@@ -92,7 +78,7 @@ cenozoApp.defineModule({
         isConstant: true,
         isExcluded: function($state, model) { return "add"; },
       },
-      image_type: {
+      scan_type: {
         title: "Type",
         type: "string",
         isConstant: true,
@@ -126,12 +112,7 @@ cenozoApp.defineModule({
           return "add_review" == model.getActionFromState() || !model.isRole("administrator");
         },
       },
-      rating: {
-        title: "Rating",
-        type: "string",
-        isConstant: true,
-        isExcluded: function($state, model) { return "add"; },
-      },
+      /* TODO: re-implement
       feedback: {
         title: "Feedback",
         type: "text",
@@ -146,7 +127,7 @@ cenozoApp.defineModule({
         type: "text",
         isExcluded: function($state, model) { return "add"; },
       },
-      image_id: { type: "hidden" },
+      */
     });
 
     if (angular.isDefined(module.actions.multiedit)) {
@@ -585,6 +566,23 @@ cenozoApp.defineModule({
           CnBaseViewFactory.construct(this, parentModel, root);
 
           angular.extend(this, {
+            analysisList: [],
+            analysisIndex: null,
+
+            nextAnalysis: function () {
+              if (this.analysisList.length-1 > this.analysisIndex) {
+                this.analysisIndex++;
+                this.loadAnalysis();
+              }
+            },
+
+            prevAnalysis: function () {
+              if (0 < this.analysisIndex) {
+                this.analysisIndex--;
+                this.loadAnalysis();
+              }
+            },
+
             canvas: null,
             context: null,
             image: null,
@@ -625,6 +623,18 @@ cenozoApp.defineModule({
               this.isLoading = true;
 
               try {
+                // get a list of all analysis records
+                const response = await CnHttpFactory.instance({
+                  path: this.parentModel.getServiceResourcePath() + '/analysis',
+                }).query();
+
+                this.analysisList = response.data.map((record) => ({
+                  record: record,
+                  imageSrc: null,
+                  annotationList: [],
+                  codeGroupList: [],
+                }));
+
                 // prepare the canvas
                 this.canvas = document.getElementById("canvas");
                 const rect = this.canvas.getBoundingClientRect();
@@ -633,7 +643,7 @@ cenozoApp.defineModule({
 
                 this.context = this.canvas.getContext("2d")
                 this.context.scale(window.devicePixelRatio, window.devicePixelRatio);
-                this.drawNotice("loading image...");
+                this.drawNotice("loading image(s)...");
 
                 this.image = new Image();
                 this.image.onload = () => {
@@ -642,41 +652,51 @@ cenozoApp.defineModule({
                   this.paint();
                 }
 
-                // load the image and all annotation data
-                this.annotationList = [];
-                this.codeGroupList = [];
+                // load the image and all annotation data for all analyses
+                await Promise.all(
+                  this.analysisList.map(async (analysis) => {
+                    const [codeResponse, imageResponse, annotationResponse] = await Promise.all([
+                      CnHttpFactory.instance({
+                        path: ["analysis", analysis.record.id, "code?full=1"].join("/"),
+                      }).query(),
 
-                const [codeResponse, imageResponse, annotationResponse] = await Promise.all([
-                  CnHttpFactory.instance({
-                    path: this.parentModel.getServiceResourcePath() + "/code?full=1",
-                  }).query(),
+                      CnHttpFactory.instance({
+                        path: ["image", analysis.record.image_id].join("/"),
+                        data: { select: { column: "image" } },
+                      }).get(),
 
-                  CnHttpFactory.instance({
-                    path: "image/" + this.parentModel.viewModel.record.image_id,
-                    data: { select: { column: "image" } },
-                  }).get(),
+                      CnHttpFactory.instance({
+                        path: ["analysis", analysis.record.id, "annotation"].join("/"),
+                      }).query(),
+                    ]);
 
-                  CnHttpFactory.instance({
-                    path: this.parentModel.getServiceResourcePath() + "/annotation"
-                  }).query(),
-                ]);
+                    angular.extend(analysis, {
+                      imageSrc: 0 == imageResponse.data.image.size ? null : imageResponse.data.image.data,
+                      annotationList: annotationResponse.data.reduce((list, a) => {
+                        list.push({ id: a.id, type: a.type, x0: a.x0, y0: a.y0, x1: a.x1, y1: a.y1 });
+                        return list;
+                      }, []),
+                      codeGroupList: codeResponse.data,
+                    });
 
-                if (0 == imageResponse.data.image.size) {
-                  this.drawNotice("No image found");
-                } else {
-                  this.image.src = imageResponse.data.image.data;
-                  this.annotationList = annotationResponse.data.reduce((list, a) => {
-                    list.push({ id: a.id, type: a.type, x0: a.x0, y0: a.y0, x1: a.x1, y1: a.y1 });
-                    return list;
-                  }, []);
-                  this.createEventListeners();
-                }
+                    // add a working property to all codes
+                    analysis.codeGroupList.forEach(g => g.code_list.map(c => { c.working = false; return c }));
+                  })
+                );
 
-                // add a working property to all codes
-                this.codeGroupList = codeResponse.data;
-                this.codeGroupList.forEach(g => g.code_list.map(c => { c.working = false; return c }));
+                this.analysisIndex = 0 < response.data.length ? 0 : null;
+                this.loadAnalysis();
               } finally {
                 this.isLoading = false;
+              }
+            },
+            loadAnalysis: function () {
+              const analysis = null == this.analysisIndex ? null : this.analysisList[this.analysisIndex];
+              if (null == analysis || null == analysis.imageSrc) {
+                this.drawNotice("No image found");
+              } else {
+                this.image.src = analysis.imageSrc; 
+                this.createEventListeners();
               }
             },
             calculateRating: function () {
