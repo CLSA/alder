@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS analysis (
   review_id INT(10) UNSIGNED NOT NULL,
   image_id INT(10) UNSIGNED NOT NULL,
   rating INT(10) NOT NULL DEFAULT 5,
-  feedback TEXT NULL DEFAULT NULL,
   PRIMARY KEY (id),
   INDEX fk_review_id (review_id ASC),
   INDEX fk_image_id (image_id ASC),

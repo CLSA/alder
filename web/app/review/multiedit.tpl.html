@@ -178,12 +178,12 @@
             
             <div ng-if="'uid' == model.selectionType">
               <div class="form-horizontal">
-                <div ng-repeat="(phase,modalityList) in model.uidData.imageDataList">
+                <div ng-repeat="(phase,modalityList) in model.uidData.examDataList">
                   <h3 class="text-center">{{ phase }}</h3>
                   <div class="row" ng-repeat="(modality,totals) in modalityList">
                     <label class="col-sm-6 control-label">{{ modality }}</label>
                     <div class="col-sm-6 form-text">
-                      {{ totals.with }} images with reviews, {{ totals.without }} without
+                      {{ totals.with }} exams with reviews, {{ totals.without }} without
                     </div>
                   </div>
                   <hr ng-if="!$last" />

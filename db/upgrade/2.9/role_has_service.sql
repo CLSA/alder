@@ -57,7 +57,20 @@ CREATE PROCEDURE patch_role_has_service()
       "SELECT role.id, service.id ",
       "FROM ", @cenozo, ".role, service ",
       "WHERE role.name = 'typist' ",
-      "AND service.subject IN ('annotation', 'code', 'review') ",
+      "AND service.subject IN ('annotation', 'code') ",
+      "AND service.restricted = 1"
+    );
+    PREPARE statement FROM @sql;
+    EXECUTE statement;
+    DEALLOCATE PREPARE statement;
+
+    SET @sql = CONCAT(
+      "INSERT IGNORE INTO role_has_service( role_id, service_id ) ",
+      "SELECT role.id, service.id ",
+      "FROM ", @cenozo, ".role, service ",
+      "WHERE role.name = 'typist' ",
+      "AND service.subject = 'review' ",
+      "AND service.method = 'PATCH' ",
       "AND service.restricted = 1"
     );
     PREPARE statement FROM @sql;

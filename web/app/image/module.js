@@ -30,11 +30,6 @@ cenozoApp.defineModule({
         title: "Filename",
         type: "string",
       },
-      note: {
-        column: "image.note",
-        title: "Note",
-        type: "text",
-      },
       scan_type_id: {
         column: "exam.scan_type_id",
         type: "hidden",

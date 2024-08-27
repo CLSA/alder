@@ -22,6 +22,7 @@ CREATE PROCEDURE patch_review()
         "user_id INT(10) UNSIGNED NOT NULL, ",
         "completed TINYINT(1) NOT NULL DEFAULT 0, ",
         "notification ENUM('alert', 'read') NULL DEFAULT NULL, ",
+        "feedback TEXT NULL DEFAULT NULL, ",
         "PRIMARY KEY (id), ",
         "INDEX fk_user_id (user_id ASC), ",
         "INDEX fk_exam_id (exam_id ASC), ",

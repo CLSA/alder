@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS exam (
   scan_type_id INT(10) UNSIGNED NOT NULL,
   interviewer VARCHAR(45) NULL DEFAULT NULL,
   datetime DATETIME NULL DEFAULT NULL,
+  note TEXT NULL DEFAULT NULL,
   PRIMARY KEY (id),
   INDEX fk_interview_id (interview_id ASC),
   INDEX fk_scan_type_id (scan_type_id ASC),

@@ -68,7 +68,7 @@ class module extends \cenozo\service\site_restricted_module
     $modifier->join( 'user', 'review.user_id', 'user.id' );
 
     // only show typists their own analyses
-    if( 'typist' == $db_role->name ) $modifier->where( 'exam.user_id', '=', $db_user->id );
+    if( 'typist' == $db_role->name ) $modifier->where( 'review.user_id', '=', $db_user->id );
 
     // restrict by site
     $db_restrict_site = $this->get_restricted_site();

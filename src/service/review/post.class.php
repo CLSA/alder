@@ -22,83 +22,14 @@ class post extends \cenozo\service\post
 
     if( $this->may_continue() )
     {
-      $image_class_name = lib::get_class_name( 'database\image' );
-      $session = lib::create( 'business\session' );
-      $db_user = $session->get_user();
-      $db_role = $session->get_role();
+      $db_role = lib::create( 'business\session' )->get_role();
       $file = $this->get_file_as_array();
 
       if( array_key_exists( 'uid_list', $file ) || array_key_exists( 'start_date', $file ) )
       {
-        // only tier-3 roles can process uid-lists or random image assignments
+        // only tier-3 roles can process uid-lists or random exam assignments
         if( 3 > $db_role->tier ) $this->status->set_code( 403 );
       }
-      else
-      {
-        // only typists can create reviews directly
-        if( 'typist' != $db_role->name )
-        {
-          $this->status->set_code( 403 );
-        }
-        else
-        {
-          $image_sel = lib::create( 'database\select' );
-          $image_sel->set_distinct( true );
-          $image_sel->add_column( 'id' );
-          $image_mod = lib::create( 'database\modifier' );
-          $image_mod->join( 'exam', 'image.exam_id', 'exam.id' );
-          $image_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
-
-          // the image belongs to a modality that the user had access to
-          $image_mod->join(
-            'user_has_modality',
-            'scan_type.modality_id',
-            'user_has_modality.modality_id'
-          );
-          $image_mod->where( 'user_has_modality.user_id', '=', $db_user->id );
-
-          // join to the review table to make sure the image doesn't have an existing review
-          $join_mod = lib::create( 'database\modifier' );
-          $join_mod->where( 'image.id', '=', 'review.image_id', false );
-          $join_mod->where( 'review.user_id', '=', $db_user->id );
-          $image_mod->join_modifier( 'review', $join_mod, 'left' );
-          $image_mod->where( 'review.id', '=', NULL );
-
-          $image_list = $image_class_name::select( $image_sel, $image_mod );
-
-          if( 0 == count( $image_list ) )
-          {
-            $this->set_data( 'There are no images available for a review at this time, please try again later.' );
-            $this->status->set_code( 408 );
-          }
-          else
-          {
-            $image = current( $image_list );
-            $this->image_id = $image['id'];
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Extends parent method
-   */
-  protected function setup()
-  {
-    parent::setup();
-
-    $session = lib::create( 'business\session' );
-    $db_user = $session->get_user();
-    $file = $this->get_file_as_array();
-
-    if( !array_key_exists( 'uid_list', $file ) && !array_key_exists( 'start_date', $file ) )
-    {
-      $db_review = $this->get_leaf_record();
-
-      // set the user and image based on what was determined in the validate method
-      $db_review->user_id = $db_user->id;
-      $db_review->image_id = $this->image_id;
     }
   }
 
@@ -109,7 +40,7 @@ class post extends \cenozo\service\post
   {
     $participant_class_name = lib::get_class_name( 'database\participant' );
     $review_class_name = lib::get_class_name( 'database\review' );
-    $image_class_name = lib::get_class_name( 'database\image' );
+    $exam_class_name = lib::get_class_name( 'database\exam' );
     $file = $this->get_file_as_array();
 
     if( array_key_exists( 'uid_list', $file ) || array_key_exists( 'start_date', $file ) )
@@ -178,34 +109,28 @@ class post extends \cenozo\service\post
             {
               $interview_id = $interview_id_list[$interview_index];
 
-              // get a list of all of images done by the interviewer for the given modality grouped by scan-type
-              $image_sel = lib::create( 'database\select' );
-              $image_sel->add_table_column( 'scan_type', 'name' );
-              $image_sel->add_column( 'GROUP_CONCAT( image.id )', 'image_id_list', false );
-              $image_mod = lib::create( 'database\modifier' );
-              $image_mod->join( 'exam', 'image.exam_id', 'exam.id' );
-              $image_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
-              $image_mod->join( 'modality', 'scan_type.modality_id', 'modality.id' );
-              $image_mod->where( 'modality.name', '=', $interview['modality'] );
-              $image_mod->where( 'exam.interview_id', '=', $interview_id );
-              $image_mod->group( 'scan_type.id' );
+              // get a list of all of exams done by the interviewer for the given modality
+              $exam_sel = lib::create( 'database\select' );
+              $exam_sel->add_table_column( 'exam', 'id' );
+              $exam_mod = lib::create( 'database\modifier' );
+              $exam_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
+              $exam_mod->join( 'modality', 'scan_type.modality_id', 'modality.id' );
+              $exam_mod->where( 'modality.name', '=', $interview['modality'] );
+              $exam_mod->where( 'exam.interview_id', '=', $interview_id );
 
-              // pick a random image belonging to each scan-type
-              foreach( $image_class_name::select( $image_sel, $image_mod ) as $scan_type )
+              // pick a random exam belonging to each scan-type
+              foreach( $exam_class_name::select( $exam_sel, $exam_mod ) as $exam )
               {
-                $image_id_list = explode( ',', $scan_type['image_id_list'] );
-                $image_id = $image_id_list[rand( 0, count($image_id_list)-1 )];
-                
                 // make sure a review doesn't already exist
                 $db_review = $review_class_name::get_unique_record(
-                  ['image_id', 'user_id'],
-                  [$image_id, $user_id]
+                  ['exam_id', 'user_id'],
+                  [$exam['id'], $user_id]
                 );
 
                 if( is_null( $db_review ) )
                 {
                   $db_review = lib::create( 'database\review' );
-                  $db_review->image_id = $image_id;
+                  $db_review->exam_id = $exam['id'];
                   $db_review->user_id = $user_id;
                   $db_review->save();
                   $data++;
@@ -216,7 +141,7 @@ class post extends \cenozo\service\post
         }
         else
         {
-          // break down the number of images for each phase, modality, site and interviewer
+          // break down the number of exams for each phase, modality, site and interviewer
           foreach( $interviewer_list as $interview )
           {
             $phase = $interview['study_phase'];
@@ -245,8 +170,7 @@ class post extends \cenozo\service\post
           if( !is_null( $completed ) || !is_null( $notification ) )
           {
             $review_mod = lib::create( 'database\modifier' );
-            $review_mod->join( 'image', 'review.image_id', 'image.id' );
-            $review_mod->join( 'exam', 'image.exam_id', 'exam.id' );
+            $review_mod->join( 'exam', 'review.exam_id', 'exam.id' );
             $review_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
             $review_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
             $review_mod->where( 'uid', 'IN', $uid_list );
@@ -262,29 +186,28 @@ class post extends \cenozo\service\post
           // create new reviews
           if( !is_null( $user_id ) )
           {
-            $image_sel = lib::create( 'database\select' );
-            $image_sel->from( 'image' );
-            $image_sel->add_column( 'id' );
-            $image_mod = lib::create( 'database\modifier' );
-            $image_mod->join( 'exam', 'image.exam_id', 'exam.id' );
-            $image_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
-            $image_mod->join( 'user_has_modality', 'scan_type.modality_id', 'user_has_modality.modality_id' );
-            $image_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
-            $image_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
-            $image_mod->where( 'uid', 'IN', $uid_list );
-            if( !is_null( $study_phase_id ) ) $image_mod->where( 'interview.study_phase_id', '=', $study_phase_id );
-            if( !is_null( $modality_id ) ) $image_mod->where( 'scan_type.modality_id', '=', $modality_id );
-            $image_mod->where( 'user_has_modality.user_id', '=', $user_id );
-            foreach( $image_class_name::select( $image_sel, $image_mod ) as $image )
+            $exam_sel = lib::create( 'database\select' );
+            $exam_sel->from( 'exam' );
+            $exam_sel->add_column( 'id' );
+            $exam_mod = lib::create( 'database\modifier' );
+            $exam_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
+            $exam_mod->join( 'user_has_modality', 'scan_type.modality_id', 'user_has_modality.modality_id' );
+            $exam_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
+            $exam_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
+            $exam_mod->where( 'uid', 'IN', $uid_list );
+            if( !is_null( $study_phase_id ) ) $exam_mod->where( 'interview.study_phase_id', '=', $study_phase_id );
+            if( !is_null( $modality_id ) ) $exam_mod->where( 'scan_type.modality_id', '=', $modality_id );
+            $exam_mod->where( 'user_has_modality.user_id', '=', $user_id );
+            foreach( $exam_class_name::select( $exam_sel, $exam_mod ) as $exam )
             {
               $db_review = $review_class_name::get_unique_record(
-                ['image_id', 'user_id'],
-                [$image['id'], $user_id]
+                ['exam_id', 'user_id'],
+                [$exam['id'], $user_id]
               );
               if( is_null( $db_review ) )
               {
                 $db_review = lib::create( 'database\review' );
-                $db_review->image_id = $image['id'];
+                $db_review->exam_id = $exam['id'];
                 $db_review->user_id = $user_id;
                 $db_review->save();
                 $data['new']++;
@@ -303,8 +226,8 @@ class post extends \cenozo\service\post
           $participant_mod = clone $modifier;
           $participant_mod->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
           $participant_mod->join( 'modality', 'scan_type.modality_id', 'modality.id' );
-          $participant_mod->join( 'image', 'exam.id', 'image.exam_id' );
-          $participant_mod->left_join( 'review', 'image.id', 'review.image_id' );
+          $participant_mod->join( 'exam', 'interview.id', 'exam.interview_id' );
+          $participant_mod->left_join( 'review', 'exam.id', 'review.exam_id' );
           $participant_mod->group( 'study_phase.id' );
           $participant_mod->group( 'modality.id' );
           $participant_mod->group( 'review.id IS NULL' );
@@ -315,19 +238,19 @@ class post extends \cenozo\service\post
 
           $data = [
             'uid_list' => $uid_list,
-            'image_list' => []
+            'exam_list' => []
           ];
 
-          // break down the number of images for each phase, modality and whether it has a review
+          // break down the number of exams for each phase, modality and whether it has a review
           foreach( $participant_class_name::select( $participant_sel, $participant_mod ) as $row )
           {
             $phase = $row['study_phase'];
             $modality = $row['modality'];
 
-            if( !array_key_exists( $phase, $data['image_list'] ) ) $data['image_list'][$phase] = [];
-            if( !array_key_exists( $modality, $data['image_list'][$phase] ) )
-              $data['image_list'][$phase][$modality] = ['with' => 0, 'without' => 0];
-            $data['image_list'][$phase][$modality][$row['has_review'] ? 'with' : 'without'] = $row['total'];
+            if( !array_key_exists( $phase, $data['exam_list'] ) ) $data['exam_list'][$phase] = [];
+            if( !array_key_exists( $modality, $data['exam_list'][$phase] ) )
+              $data['exam_list'][$phase][$modality] = ['with' => 0, 'without' => 0];
+            $data['exam_list'][$phase][$modality][$row['has_review'] ? 'with' : 'without'] = $row['total'];
           }
         }
       }
@@ -336,10 +259,4 @@ class post extends \cenozo\service\post
     }
     else parent::execute();
   }
-
-  /**
-   * A caching variable
-   * @var integer
-   */
-  protected $image_id = NULL;
 }

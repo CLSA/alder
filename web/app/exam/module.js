@@ -25,6 +25,9 @@ cenozoApp.defineModule({
         interviewer: {
           title: "Interviewer",
         },
+        user_list: {
+          title: "Reviewers",
+        },
         datetime: {
           title: "Date & Time",
           type: "datetime",
@@ -69,6 +72,11 @@ cenozoApp.defineModule({
         title: "Date & Time",
         type: "datetime",
         isConstant: true,
+      },
+      note: {
+        column: "exam.note",
+        title: "Note",
+        type: "text",
       },
     });
   },

@@ -3,7 +3,12 @@ cenozoApp.defineModule({
   models: ["add", "list", "view"],
   create: (module) => {
     angular.extend(module, {
-      identifier: {},
+      identifier: {
+        parent: {
+          subject: "exam",
+          column: "exam.id",
+        },
+      },
       name: {
         singular: "review",
         plural: "reviews",
@@ -112,7 +117,6 @@ cenozoApp.defineModule({
           return "add_review" == model.getActionFromState() || !model.isRole("administrator");
         },
       },
-      /* TODO: re-implement
       feedback: {
         title: "Feedback",
         type: "text",
@@ -122,12 +126,11 @@ cenozoApp.defineModule({
         isExcluded: function($state, model) { return "add"; },
       },
       note: {
-        column: "image.note",
-        title: "Image Notes",
+        column: "exam.note",
+        title: "Exam Notes",
         type: "text",
         isExcluded: function($state, model) { return "add"; },
       },
-      */
     });
 
     if (angular.isDefined(module.actions.multiedit)) {
@@ -249,7 +252,7 @@ cenozoApp.defineModule({
             uidData: {
               canProceed: false,
               uidListString: "",
-              imageDataList: null,
+              examDataList: null,
               withTotal: 0,
               withoutTotal: 0,
             },
@@ -390,7 +393,7 @@ cenozoApp.defineModule({
                   if (0 == fixedList.length) {
                     angular.extend(this.uidData, {
                       uidListString: "",
-                      imageDataList: null,
+                      examDataList: null,
                       withTotal: 0,
                       withoutTotal: 0,
                     });
@@ -399,16 +402,16 @@ cenozoApp.defineModule({
                     var response = await CnHttpFactory.instance({ path: "review", data: data }).post();
                     angular.extend(this.uidData, {
                       uidListString: response.data.uid_list.join(" "),
-                      imageDataList: response.data.image_list,
+                      examDataList: response.data.exam_list,
                     });
                     this.uidData.canProceed = 0 < this.uidData.uidListString.length;
                     
                     // count with/without totals
                     angular.extend(this.uidData, { withTotal: 0, withoutTotal: 0 });
-                    for(phase in this.uidData.imageDataList) {
-                      for(modality in this.uidData.imageDataList[phase]) {
-                        this.uidData.withTotal += Number(this.uidData.imageDataList[phase][modality].with);
-                        this.uidData.withoutTotal += Number(this.uidData.imageDataList[phase][modality].without);
+                    for(phase in this.uidData.examDataList) {
+                      for(modality in this.uidData.examDataList[phase]) {
+                        this.uidData.withTotal += Number(this.uidData.examDataList[phase][modality].with);
+                        this.uidData.withoutTotal += Number(this.uidData.examDataList[phase][modality].without);
                       }
                     }
                   }
@@ -494,7 +497,7 @@ cenozoApp.defineModule({
                 angular.extend(this.uidData, {
                   canProceed: false,
                   uidListString: "",
-                  imageDataList: null,
+                  examDataList: null,
                   withTotal: 0,
                   withoutTotal: 0,
                 });
@@ -569,6 +572,39 @@ cenozoApp.defineModule({
             analysisList: [],
             analysisIndex: null,
 
+            canvas: null,
+            context: null,
+            image: null,
+            canvasRatio: null,
+            imageRatio: null,
+            transform: { x: 0, y: 0, b: 1, c: 1, scale: 1 },
+            activeAnnotation: null,
+            hover: { type: null, handle: null, id: null },
+
+            bounds: {
+              x: { min: 0, max: 1 },
+              y: { min: 0, max: 1 },
+              b: { min: 0.5, max: 2.0 },
+              c: { min: 1.0, max: 10.0 },
+              scale: { min: 1, max: 16 },
+            },
+
+            changingNotification: false,
+            setNotification: async function(value) {
+              try {
+                this.changingNotification = true;
+                await this.onPatch({ notification: value });
+                this.record.notification = value;
+              } catch (error) {
+              } finally {
+                this.changingNotification = false;
+              }
+            },
+
+            isTypist: function() {
+              return this.parentModel.isRole("typist") && this.record.user_id == CnSession.user.id;
+            },
+
             nextAnalysis: function () {
               if (this.analysisList.length-1 > this.analysisIndex) {
                 this.analysisIndex++;
@@ -583,40 +619,6 @@ cenozoApp.defineModule({
               }
             },
 
-            canvas: null,
-            context: null,
-            image: null,
-            canvasRatio: null,
-            imageRatio: null,
-            transform: { x: 0, y: 0, b: 1, c: 1, scale: 1 },
-            annotationList: [],
-            activeAnnotation: null,
-            hover: { type: null, handle: null, id: null },
-
-            bounds: {
-              x: { min: 0, max: 1 },
-              y: { min: 0, max: 1 },
-              b: { min: 0.5, max: 2.0 },
-              c: { min: 1.0, max: 10.0 },
-              scale: { min: 1, max: 16 },
-            },
-
-            isTypist: function() {
-              return this.parentModel.isRole("typist") && this.record.user_id == CnSession.user.id;
-            },
-            changingNotification: false,
-            setNotification: async function(value) {
-              try {
-                this.changingNotification = true;
-                await this.onPatch({ notification: value });
-                this.record.notification = value;
-              } catch (error) {
-              } finally {
-                this.changingNotification = false;
-              }
-            },
-
-            codeGroupList: [],
             onView: async function (force) {
               await this.$$onView();
 
@@ -630,6 +632,7 @@ cenozoApp.defineModule({
 
                 this.analysisList = response.data.map((record) => ({
                   record: record,
+                  filename: null,
                   imageSrc: null,
                   annotationList: [],
                   codeGroupList: [],
@@ -662,7 +665,7 @@ cenozoApp.defineModule({
 
                       CnHttpFactory.instance({
                         path: ["image", analysis.record.image_id].join("/"),
-                        data: { select: { column: "image" } },
+                        data: { select: { column: ["filename", "image"] } },
                       }).get(),
 
                       CnHttpFactory.instance({
@@ -671,6 +674,7 @@ cenozoApp.defineModule({
                     ]);
 
                     angular.extend(analysis, {
+                      filename: imageResponse.data.filename,
                       imageSrc: 0 == imageResponse.data.image.size ? null : imageResponse.data.image.data,
                       annotationList: annotationResponse.data.reduce((list, a) => {
                         list.push({ id: a.id, type: a.type, x0: a.x0, y0: a.y0, x1: a.x1, y1: a.y1 });
@@ -701,7 +705,7 @@ cenozoApp.defineModule({
             },
             calculateRating: function () {
               let rating = 5;
-              this.codeGroupList.forEach(group => {
+              this.analysisList[this.analysisIndex].codeGroupList.forEach(group => {
                 let inGroup = false;
                 group.code_list.filter(code => code.selected).forEach(code => {
                   rating += code.value;
@@ -743,8 +747,9 @@ cenozoApp.defineModule({
                   }).delete();
                 } else {
                   // add the code
+                  const analysis = this.analysisList[this.analysisIndex];
                   await CnHttpFactory.instance({
-                    path: this.parentModel.getServiceResourcePath() + "/code",
+                    path: ["analysis", analysis.record.id, "code"].join("/"),
                     data: { image_id: this.record.id, code_type_id: code.code_type_id },
                     onError: function (error) {
                       if (409 == error.status) {
@@ -944,7 +949,8 @@ cenozoApp.defineModule({
               this.context.scale(1/this.transform.scale, 1/this.transform.scale);
 
               // draw all annotations
-              this.annotationList.forEach(annotation => this.drawAnnotation(annotation));
+              const annotationList = this.analysisList[this.analysisIndex].annotationList;
+              annotationList.forEach(annotation => this.drawAnnotation(annotation));
 
               // draw the active annotation
               if (null != this.activeAnnotation) {
@@ -1029,10 +1035,11 @@ cenozoApp.defineModule({
               if (null != this.hover.id) {
 
                 // if the annotation is found then remove it from the list
-                let index = this.annotationList.findIndexByProperty("id", this.hover.id);
+                const annotationList = this.analysisList[this.analysisIndex].annotationList;
+                let index = annotationList.findIndexByProperty("id", this.hover.id);
                 if (null != index) {
-                  annotation = this.annotationList[index];
-                  this.annotationList.splice(index, 1);
+                  annotation = annotationList[index];
+                  annotationList.splice(index, 1);
 
                   // set where we've grabbed the annotation
                   annotation.grab = "all" == this.hover.handle ? point : this.hover.handle;
@@ -1046,15 +1053,17 @@ cenozoApp.defineModule({
               if (!this.isTypist()) return;
               if (null == this.hover.id) return;
 
-              let index = this.annotationList.findIndexByProperty("id", this.hover.id);
+              const annotationList = this.analysisList[this.analysisIndex].annotationList;
+              let index = annotationList.findIndexByProperty("id", this.hover.id);
               if (null != index) {
                 let id = this.hover.id;
-                this.annotationList.splice(index, 1);
+                annotationList.splice(index, 1);
                 this.hover = { handle: null, id: null };
                 this.paint();
 
+                const analysis = this.analysisList[this.analysisIndex];
                 await CnHttpFactory.instance({
-                  path: [this.parentModel.getServiceResourcePath(), "annotation", id].join("/")
+                  path: ["analysis", analysis.record.id, "annotation", id].join("/"),
                 }).delete();
               }
             },
@@ -1083,8 +1092,9 @@ cenozoApp.defineModule({
 
               if (valid && null != annotation) {
                 try {
+                  const analysis = this.analysisList[this.analysisIndex];
                   let httpObj = {
-                    path: this.parentModel.getServiceResourcePath() + "/annotation",
+                    path: ["analysis", analysis.record.id, "annotation"].join("/"),
                     data: data,
                     onError: function (error) {}, // do nothing
                   };
@@ -1100,7 +1110,7 @@ cenozoApp.defineModule({
                   }
 
                   // only add the annotation to the list if it was successfully created
-                  this.annotationList.push(annotation);
+                  this.analysisList[this.analysisIndex].annotationList.push(annotation);
                 } catch (error) {
                   // errors are handled above in the onError functions
                 }
@@ -1117,7 +1127,8 @@ cenozoApp.defineModule({
               const dh = 16/this.transform.scale;
 
               // 1. check if we're hovering over an annotation handle
-              let hover = this.annotationList.some((annotation) => {
+              const annotationList = this.analysisList[this.analysisIndex].annotationList;
+              let hover = annotationList.some((annotation) => {
                 let handle = null;
                 if (dh > Math.abs(point.x - annotation.x0) && dh > Math.abs(point.y - annotation.y0)) {
                   handle = "arrow" == annotation.type ? "start" : "nw";
@@ -1137,7 +1148,7 @@ cenozoApp.defineModule({
 
               // 2. check if we're hovering over an annotation body
               if (!hover) {
-                hover = this.annotationList.some((annotation) => {
+                hover = annotationList.some((annotation) => {
                   let b = {
                     x0: annotation.x0 < annotation.x1 ? annotation.x0 : annotation.x1,
                     x1: annotation.x0 < annotation.x1 ? annotation.x1 : annotation.x0,
@@ -1400,16 +1411,13 @@ cenozoApp.defineModule({
               return data;
             },
 
-            // only allow typists to create a new review
             getAddEnabled: function() {
-              if ("review" == this.getSubjectFromState() && "list" == this.getActionFromState()) {
-                // only typists can add a new review when they are looking at the review list
-                return this.isRole("typist");
-              } else if ("image" == this.getSubjectFromState()) {
-                // only admins can add a new review when viewing and image
-                return this.isRole("administrator");
-              }
-              return false;
+              // only allow new reviews when looking at an exam
+              return (
+                this.$$getAddEnabled() &&
+                "exam" == this.getSubjectFromState() &&
+                ["add_review", "view"].includes( this.getActionFromState() )
+              );
             },
 
             // override transitionToAddState
