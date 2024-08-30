@@ -1,17 +1,24 @@
 <div class="row">
   <div class="col-sm-6">
     <cn-record-view model="model"></cn-record-view>
-    <div class="vertical-spacer" ng-if="0 < model.viewModel.codeGroupList.length">
+    <div
+      class="vertical-spacer"
+      ng-if="0 < model.viewModel.currentAnalysis.codeGroupList.length"
+    >
       <div class="record-view rounded">
         <div class="container-fluid bg-primary rounded-top">
           <h4>
-            Image Rating
+            Image Rating{{
+              null == model.viewModel.currentAnalysis.rating ?
+              "" :
+              " (" + model.viewModel.currentAnalysis.rating + ")"
+            }}
             <span ng-if="!model.getEditEnabled() || !model.viewModel.isTypist()">(read only)</span>
             <span ng-if="model.viewModel.isLoading">(Loading&hellip;)</span>
           </h4>
         </div>
         <form name="form" class="form-horizontal" novalidate>
-          <div ng-repeat="group in model.viewModel.codeGroupList">
+          <div ng-repeat="group in model.viewModel.currentAnalysis.codeGroupList">
             <div class="container-fluid bg-info" uib-tooltip-html="model.viewModel.getCodeDescription(group)">
               <label class="control-label" ng-bind-html="group.name"></label>
             </div>
@@ -50,24 +57,32 @@
           <div class="pull-right">
             <i
               class="glyphicon glyphicon-chevron-left glyph-hover btn-primary btn-header"
-              ng-style="{'color': !model.viewModel.analysisIndex ? '#aaa' : '#fff'}"
-              ng-disabled="!model.viewModel.analysisIndex"
+              ng-style="{'color':
+                null == model.viewModel.currentAnalysis ||
+                0 == model.viewModel.currentAnalysis.index ?
+                '#aaa' : '#fff'
+              }"
+              ng-disabled="
+                null == model.viewModel.currentAnalysis ||
+                0 == model.viewModel.currentAnalysis.index
+              "
               ng-click="model.viewModel.prevAnalysis()"
             ></i>
             <i
               class="glyphicon glyphicon-chevron-right glyph-hover btn-primary btn-header"
               ng-style="{'color':
-                null != model.viewModel.analysisIndex &&
-                model.viewModel.analysisList.length-1 <= model.viewModel.analysisIndex ? '#aaa' : '#fff'
+                null == model.viewModel.currentAnalysis ||
+                model.viewModel.analysisList.length == model.viewModel.currentAnalysis.index+1 ?
+                '#aaa' : '#fff'
               }"
               ng-disabled="
-                null != model.viewModel.analysisIndex &&
-                model.viewModel.analysisList.length-1 <= model.viewModel.analysisIndex
+                null == model.viewModel.currentAnalysis ||
+                model.viewModel.analysisList.length == model.viewModel.currentAnalysis.index+1
               "
               ng-click="model.viewModel.nextAnalysis()"
             ></i>
           </div>
-          {{ model.viewModel.analysisList[model.viewModel.analysisIndex].filename }}
+          {{ model.viewModel.currentAnalysis.filename }}&nbsp;
         </h4>
       </div>
       <div style="height: 85vh; padding-left: 0">
