@@ -56,39 +56,36 @@ class image extends \cenozo\database\record
     // determine if this is a valid image, and encode the first slice
     $command = sprintf( 'identify %s', $path );
     $response = util::exec_timeout( $command );
-    if( 0 == $response['exitcode'] )
-    {
-      $temp_path = sprintf( '%s/image_%d.jpeg', TEMP_PATH, $this->id );
-      $lines = count( explode( "\n", $response['output'] ) );
+    $temp_path = sprintf( '%s/image_%d.jpeg', TEMP_PATH, $this->id );
+    $lines = count( explode( "\n", $response['output'] ) );
 
-      $response = NULL;
-      if( 2 < $lines )
-      {
-        // try converting each image until a valid one is found
-        for( $sub_image = 1; $sub_image <= $lines; $sub_image++ )
-        {
-          // convert the image to a temporary jpeg file
-          $command = sprintf( 'convert %s[%d] %s', $path, $sub_image, $temp_path );
-          $response = util::exec_timeout( $command );
-          if( 0 == $response['exitcode'] ) break;
-        }
-      }
-      else
+    $response = NULL;
+    if( 2 < $lines )
+    {
+      // try converting each image until a valid one is found
+      for( $sub_image = 1; $sub_image <= $lines; $sub_image++ )
       {
         // convert the image to a temporary jpeg file
-        $command = sprintf( 'convert %s %s', $path, $temp_path );
+        $command = sprintf( 'convert %s[%d] %s', $path, $sub_image, $temp_path );
         $response = util::exec_timeout( $command );
+        if( 0 == $response['exitcode'] ) break;
       }
+    }
+    else
+    {
+      // convert the image to a temporary jpeg file
+      $command = sprintf( 'convert %s %s', $path, $temp_path );
+      $response = util::exec_timeout( $command );
+    }
 
-      if( 0 == $response['exitcode'] )
-      {
-        // load the jpeg and encode it
-        $b64_string = base64_encode( file_get_contents( $temp_path ) );
+    if( 0 == $response['exitcode'] )
+    {
+      // load the jpeg and encode it
+      $b64_string = base64_encode( file_get_contents( $temp_path ) );
 
-        // clean up before returning the data
-        unlink( $temp_path );
-        if( preg_match( "/\.gz$/", $this->filename ) ) unlink( $path );
-      }
+      // clean up before returning the data
+      unlink( $temp_path );
+      if( preg_match( "/\.gz$/", $this->filename ) ) unlink( $path );
     }
 
     return $b64_string;
