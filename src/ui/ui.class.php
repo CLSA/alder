@@ -30,7 +30,7 @@ class ui extends \cenozo\ui\ui
     if( !is_null( $module ) )
     {
       $module->add_child( 'review' );
-      $module->add_child( 'image' );
+      $module->add_action( 'display', '/{identifier}' );
     }
 
     $module = $this->get_module( 'scan_type' );

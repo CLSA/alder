@@ -1,0 +1,38 @@
+<div class="record-view rounded">
+  <div class="container-fluid bg-primary rounded-top">
+    <h4>
+      <div class="pull-right">
+        <i
+          class="glyphicon glyphicon-chevron-left glyph-hover btn-primary btn-header"
+          ng-style="{'color':
+            null == model.currentImage ||
+            0 == model.currentImage.index ?
+            '#aaa' : '#fff'
+          }"
+          ng-disabled="
+            null == model.currentImage ||
+            0 == model.currentImage.index
+          "
+          ng-click="model.prevImage()"
+        ></i>
+        <i
+          class="glyphicon glyphicon-chevron-right glyph-hover btn-primary btn-header"
+          ng-style="{'color':
+            null == model.currentImage ||
+            model.imageList.length == model.currentImage.index+1 ?
+            '#aaa' : '#fff'
+          }"
+          ng-disabled="
+            null == model.currentImage ||
+            model.imageList.length == model.currentImage.index+1
+          "
+          ng-click="model.nextImage()"
+        ></i>
+      </div>
+      {{ model.currentImage.filename }}&nbsp;
+    </h4>
+  </div>
+  <div style="height: 85vh; padding-left: 0">
+    <canvas id="canvas" class="image" style="height:100%; width:100%;"></canvas>
+  </div>
+</div>

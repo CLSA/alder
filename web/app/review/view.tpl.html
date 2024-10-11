@@ -51,43 +51,6 @@
     </div>
   </div>
   <div class="col-sm-6" style="padding-left: 0px">
-    <div class="record-view rounded">
-      <div class="container-fluid bg-primary rounded-top">
-        <h4>
-          <div class="pull-right">
-            <i
-              class="glyphicon glyphicon-chevron-left glyph-hover btn-primary btn-header"
-              ng-style="{'color':
-                null == model.viewModel.currentAnalysis ||
-                0 == model.viewModel.currentAnalysis.index ?
-                '#aaa' : '#fff'
-              }"
-              ng-disabled="
-                null == model.viewModel.currentAnalysis ||
-                0 == model.viewModel.currentAnalysis.index
-              "
-              ng-click="model.viewModel.prevAnalysis()"
-            ></i>
-            <i
-              class="glyphicon glyphicon-chevron-right glyph-hover btn-primary btn-header"
-              ng-style="{'color':
-                null == model.viewModel.currentAnalysis ||
-                model.viewModel.analysisList.length == model.viewModel.currentAnalysis.index+1 ?
-                '#aaa' : '#fff'
-              }"
-              ng-disabled="
-                null == model.viewModel.currentAnalysis ||
-                model.viewModel.analysisList.length == model.viewModel.currentAnalysis.index+1
-              "
-              ng-click="model.viewModel.nextAnalysis()"
-            ></i>
-          </div>
-          {{ model.viewModel.currentAnalysis.filename }}&nbsp;
-        </h4>
-      </div>
-      <div style="height: 85vh; padding-left: 0">
-        <canvas id="canvas" class="image" style="height:100%; width:100%;"></canvas>
-      </div>
-    </div>
+    <cn-image-display model="model.viewModel.imageDisplayModel"></cn-image-display>
   </div>
 </div>
