@@ -49,7 +49,7 @@ class image extends \cenozo\database\record
       copy( $path, $unzipped_path );
       $command = sprintf( 'gunzip -f %s', $unzipped_path );
       $response = util::exec_timeout( $command );
-      if( 0 != $response['exitcode'] ) return NULL; // don't proceed if gunzip failed
+      if( 0 < $response['exitcode'] ) return NULL; // don't proceed if gunzip failed
       $path = preg_replace( '/\.gz$/', '', $unzipped_path );
     }
 
@@ -68,7 +68,7 @@ class image extends \cenozo\database\record
         // convert the image to a temporary jpeg file
         $command = sprintf( 'convert %s[%d] %s', $path, $sub_image, $temp_path );
         $response = util::exec_timeout( $command );
-        if( 0 == $response['exitcode'] ) break;
+        if( 0 >= $response['exitcode'] ) break;
       }
     }
     else
@@ -78,15 +78,15 @@ class image extends \cenozo\database\record
       $response = util::exec_timeout( $command );
     }
 
-    if( in_array( $response['exitcode'], [-1, 0] ) )
+    if( 0 >= $response['exitcode'] )
     {
       // load the jpeg and encode it
       $b64_string = base64_encode( file_get_contents( $temp_path ) );
-
-      // clean up before returning the data
-      unlink( $temp_path );
-      if( preg_match( "/\.gz$/", $this->filename ) ) unlink( $path );
     }
+
+    // clean up before returning the data
+    if( file_exists( $temp_path ) ) unlink( $temp_path );
+    if( preg_match( "/\.gz$/", $this->filename ) && file_exists( $path ) ) unlink( $path );
 
     return $b64_string;
   }
