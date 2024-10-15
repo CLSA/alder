@@ -78,7 +78,7 @@ class image extends \cenozo\database\record
       $response = util::exec_timeout( $command );
     }
 
-    if( 0 == $response['exitcode'] )
+    if( in_array( $response['exitcode'], [-1, 0] ) )
     {
       // load the jpeg and encode it
       $b64_string = base64_encode( file_get_contents( $temp_path ) );
