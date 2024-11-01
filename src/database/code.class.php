@@ -3,7 +3,6 @@
  * code.class.php
  * 
  * @author Patrick Emond <emondpd@mcmaster.ca>
- * @filecode
  */
 
 namespace alder\database;

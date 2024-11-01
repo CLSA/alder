@@ -3,7 +3,6 @@
  * review.class.php
  * 
  * @author Patrick Emond <emondpd@mcmaster.ca>
- * @filereview
  */
 
 namespace alder\database;

@@ -1,18 +1,13 @@
 cenozoApp.defineModule({
-  name: "code_type",
+  name: "apex_code",
   models: ["list", "view"],
   create: (module) => {
     angular.extend(module, {
-      identifier: {
-        parent: {
-          subject: "code_group",
-          column: "code_group.id",
-        },
-      },
+      identifier: { column: "name" },
       name: {
-        singular: "code type",
-        plural: "code types",
-        possessive: "code type's",
+        singular: "apex code",
+        plural: "apex codes",
+        possessive: "apex code's",
       },
       columnList: {
         rank: {
@@ -21,9 +16,6 @@ cenozoApp.defineModule({
         },
         name: {
           title: "Name",
-        },
-        value: {
-          title: "Value",
         },
         description: {
           title: "Description",
@@ -46,11 +38,6 @@ cenozoApp.defineModule({
         type: "string",
         format: "identifier",
       },
-      value: {
-        title: "Value",
-        type: "string",
-        format: "integer",
-      },
       description: {
         title: "Description",
         type: "text",
@@ -58,18 +45,18 @@ cenozoApp.defineModule({
     });
 
     /* ############################################################################################## */
-    cenozo.providers.factory("CnCodeTypeViewFactory", [
+    cenozo.providers.factory("CnApexCodeViewFactory", [
       "CnBaseViewFactory",
       function (CnBaseViewFactory) {
         var object = function (parentModel, root) {
-          CnBaseViewFactory.construct(this, parentModel, root, "review");
+          CnBaseViewFactory.construct(this, parentModel, root, "apex_review");
 
           async function init(object) {
             await object.deferred.promise;
 
             // do not allow reviews to be edited from this view
-            if (angular.isDefined(object.reviewModel)) {
-              object.reviewModel.getChooseEnabled = function () { return false; }
+            if (angular.isDefined(object.apexReviewModel)) {
+              object.apexReviewModel.getChooseEnabled = function () { return false; }
             }
           }
 

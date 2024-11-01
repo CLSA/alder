@@ -1,5 +1,5 @@
 cenozoApp.defineModule({
-  name: "review",
+  name: "apex_review",
   models: ["add", "list", "view"],
   create: (module) => {
     angular.extend(module, {
@@ -10,9 +10,9 @@ cenozoApp.defineModule({
         },
       },
       name: {
-        singular: "review",
-        plural: "reviews",
-        possessive: "review's",
+        singular: "apex review",
+        plural: "apex reviews",
+        possessive: "apex review's",
       },
       columnList: {
         uid: {
@@ -149,11 +149,11 @@ cenozoApp.defineModule({
       module.addExtraOperation("list", {
         title: "Review Multi-Edit",
         operation: async function ($state, model) {
-          await $state.go("review.multiedit");
+          await $state.go("apex_review.multiedit");
         },
         isIncluded: function ($state, model) {
-          // only show when viewing the base review list
-          return "review" == model.getSubjectFromState();
+          // only show when viewing the base apex_review list
+          return "apex_review" == model.getSubjectFromState();
         },
       });
     }
@@ -215,19 +215,19 @@ cenozoApp.defineModule({
     });
 
     /* ############################################################################################## */
-    cenozo.providers.directive("cnReviewMultiedit", [
-      "CnReviewMultieditFactory",
+    cenozo.providers.directive("cnApexReviewMultiedit", [
+      "CnApexReviewMultieditFactory",
       "CnSession",
       "$state",
-      function (CnReviewMultieditFactory, CnSession, $state) {
+      function (CnApexReviewMultieditFactory, CnSession, $state) {
         return {
           templateUrl: module.getFileUrl("multiedit.tpl.html"),
           restrict: "E",
           controller: function ($scope) {
-            $scope.model = CnReviewMultieditFactory.instance();
-            $scope.tab = "review";
+            $scope.model = CnApexReviewMultieditFactory.instance();
+            $scope.tab = "apex_review";
             CnSession.setBreadcrumbTrail([
-              { title: "Reviews", go: async function () { await $state.go("review.list"); } },
+              { title: "Reviews", go: async function () { await $state.go("apex_review.list"); } },
               { title: "Multi-Edit", }
             ]);
 
@@ -242,16 +242,16 @@ cenozoApp.defineModule({
     ]);
 
     /* ############################################################################################## */
-    cenozo.providers.factory("CnReviewMultieditFactory", [
-      "CnReviewModelFactory",
+    cenozo.providers.factory("CnApexReviewMultieditFactory", [
+      "CnApexReviewModelFactory",
       "CnSession",
       "CnHttpFactory",
       "CnModalDatetimeFactory",
       "CnModalMessageFactory",
-      function (CnReviewModelFactory, CnSession, CnHttpFactory, CnModalDatetimeFactory, CnModalMessageFactory) {
+      function (CnApexReviewModelFactory, CnSession, CnHttpFactory, CnModalDatetimeFactory, CnModalMessageFactory) {
         var object = function () {
           angular.extend(this, {
-            parentModel: CnReviewModelFactory.root,
+            parentModel: CnApexReviewModelFactory.root,
             module: module,
             confirmInProgress: false,
             randomData: {
@@ -385,7 +385,7 @@ cenozoApp.defineModule({
                     start_date: this.randomData.startDate.replace(/T.*/, ""),
                     end_date: this.randomData.endDate.replace(/T.*/, ""),
                   });
-                  var response = await CnHttpFactory.instance({ path: "review", data: data }).post();
+                  var response = await CnHttpFactory.instance({ path: "apex_review", data: data }).post();
                   this.randomData.examDataList = response.data;
                   this.randomData.canProceed = 0 < Object.keys(this.randomData.examDataList).length;
                 } else {
@@ -411,7 +411,7 @@ cenozoApp.defineModule({
                     });
                   } else {
                     data.uid_list = fixedList;
-                    var response = await CnHttpFactory.instance({ path: "review", data: data }).post();
+                    var response = await CnHttpFactory.instance({ path: "apex_review", data: data }).post();
                     angular.extend(this.uidData, {
                       uidListString: response.data.uid_list.join(" "),
                       examDataList: response.data.exam_list,
@@ -447,7 +447,7 @@ cenozoApp.defineModule({
                 if (angular.isDefined(this.modalityId)) data.modality_id = this.modalityId;
 
                 const response = await CnHttpFactory.instance({
-                  path: "review",
+                  path: "apex_review",
                   data: data,
                   onError: CnModalMessageFactory.httpError,
                 }).post();
@@ -478,7 +478,7 @@ cenozoApp.defineModule({
                 }
 
                 const response = await CnHttpFactory.instance({
-                  path: "review",
+                  path: "apex_review",
                   data: data,
                   onError: CnModalMessageFactory.httpError,
                 }).post();
@@ -570,7 +570,7 @@ cenozoApp.defineModule({
       },
     ]);
 
-    cenozo.providers.factory("CnReviewViewFactory", [
+    cenozo.providers.factory("CnApexReviewViewFactory", [
       "CnBaseViewFactory",
       "CnImageDisplayFactory",
       "CnSession",
@@ -606,7 +606,6 @@ cenozoApp.defineModule({
               const analysis = this.analysisList.findByProperty("index", index);
               if (null != analysis) {
                 this.currentAnalysis = analysis;
-                this.loadAnalysis();
               }
             },
 
@@ -618,7 +617,7 @@ cenozoApp.defineModule({
               try {
                 // get a list of all analysis records
                 const response = await CnHttpFactory.instance({
-                  path: this.parentModel.getServiceResourcePath() + '/analysis',
+                  path: this.parentModel.getServiceResourcePath() + '/apex_analysis',
                 }).query();
 
                 this.analysisList = response.data.map((record, index) => ({
@@ -633,7 +632,7 @@ cenozoApp.defineModule({
                 await Promise.all(
                   this.analysisList.map(async (analysis) => {
                     const response = await CnHttpFactory.instance({
-                      path: ["analysis", analysis.analysisId, "code?full=1"].join("/"),
+                      path: ["apex_analysis", analysis.analysisId, "apex_code?full=1"].join("/"),
                     }).query();
                     analysis.codeGroupList = response.data;
 
@@ -651,8 +650,6 @@ cenozoApp.defineModule({
                     const analysis = this.analysisList.findByProperty("index", index);
                     if (null != analysis) {
                       this.currentAnalysis = analysis;
-                      this.loadAnalysis();
-
                       this.imageDisplayModel.currentImage =
                         this.imageDisplayModel.imageList.findByProperty("index", index);
                       this.imageDisplayModel.loadImage();
@@ -665,26 +662,6 @@ cenozoApp.defineModule({
               }
             },
 
-            loadAnalysis: function () {
-              if (null != this.currentAnalysis) this.calculateRating();
-            },
-            
-            calculateRating: function () {
-              let rating = 5;
-              this.currentAnalysis.codeGroupList.forEach(group => {
-                let inGroup = false;
-                group.code_list.filter(code => code.selected).forEach(code => {
-                  rating += code.value;
-                  inGroup = true;
-                });
-                if (inGroup) rating += group.value;
-              });
-
-              if (1 > rating) rating = 1;
-              else if (5 < rating) rating = 5;
-              this.currentAnalysis.rating = rating;
-            },
-            
             getCodeDescription: function(code) {
               return (
                 (code.description ? (code.description + " ") : "") +
@@ -700,36 +677,33 @@ cenozoApp.defineModule({
                 if (code.selected) {
                   // remove the code
                   const identifierList = [
-                    "analysis_id=" + this.currentAnalysis.analysisId,
-                    "code_id=" + code.id,
+                    "apex_analysis_id=" + this.currentAnalysis.analysisId,
+                    "apex_code_id=" + code.id,
                   ];
                   await CnHttpFactory.instance({
-                    path: "code/" + identifierList.join(";"),
+                    path: "apex_code/" + identifierList.join(";"),
                     onError: function (error) {
                       if (404 == error.status) {
                         console.info("The above 404 error can be safely ignored.");
                         code.selected = !code.selected;
-                        self.calculateRating();
                       } else CnModalMessageFactory.httpError(error);
                     }
                   }).delete();
                 } else {
                   // add the code
                   await CnHttpFactory.instance({
-                    path: ["analysis", this.currentAnalysis.analysisId, "code"].join("/"),
-                    data: { image_id: this.record.id, code_id: code.id },
+                    path: ["apex_analysis", this.currentAnalysis.analysisId, "apex_code"].join("/"),
+                    data: { image_id: this.record.id, apex_code_id: code.id },
                     onError: function (error) {
                       if (409 == error.status) {
                         console.info("The above 409 error can be safely ignored.");
                         code.selected = !code.selected;
-                        self.calculateRating();
                       } else CnModalMessageFactory.httpError(error);
                     }
                   }).post();
                 }
 
                 code.selected = !code.selected;
-                this.calculateRating();
               } catch (error) {
                 // errors are handled above in the onError functions
               } finally {
@@ -747,7 +721,7 @@ cenozoApp.defineModule({
     ]);
 
     /* ############################################################################################## */
-    cenozo.providers.factory("CnReviewAddFactory", [
+    cenozo.providers.factory("CnApexReviewAddFactory", [
       "CnBaseAddFactory",
       "CnHttpFactory",
       function (CnBaseAddFactory, CnHttpFactory) {
@@ -768,19 +742,19 @@ cenozoApp.defineModule({
     ]);
 
     /* ############################################################################################## */
-    cenozo.providers.factory("CnReviewModelFactory", [
+    cenozo.providers.factory("CnApexReviewModelFactory", [
       "CnBaseModelFactory",
-      "CnReviewAddFactory",
-      "CnReviewListFactory",
-      "CnReviewViewFactory",
+      "CnApexReviewAddFactory",
+      "CnApexReviewListFactory",
+      "CnApexReviewViewFactory",
       "CnSession",
       "CnHttpFactory",
       "CnModalMessageFactory",
       function (
         CnBaseModelFactory,
-        CnReviewAddFactory,
-        CnReviewListFactory,
-        CnReviewViewFactory,
+        CnApexReviewAddFactory,
+        CnApexReviewListFactory,
+        CnApexReviewViewFactory,
         CnSession,
         CnHttpFactory,
         CnModalMessageFactory
@@ -789,9 +763,9 @@ cenozoApp.defineModule({
           CnBaseModelFactory.construct(this, module);
 
           angular.extend(this, {
-            addModel: CnReviewAddFactory.instance(this),
-            listModel: CnReviewListFactory.instance(this),
-            viewModel: CnReviewViewFactory.instance(this, root),
+            addModel: CnApexReviewAddFactory.instance(this),
+            listModel: CnApexReviewListFactory.instance(this),
+            viewModel: CnApexReviewViewFactory.instance(this, root),
 
             // override the service collection path so that roles can see their own reviews on the home screen
             getServiceCollectionPath: function () {
@@ -806,10 +780,10 @@ cenozoApp.defineModule({
                 if (angular.isUndefined(data.modifier.where)) data.modifier.where = [];
 
                 if (this.isRole("coordinator")) {
-                  data.modifier.where.push({ column: "review.notification", operator: "=", value: "alert" });
+                  data.modifier.where.push({ column: "apex_review.notification", operator: "=", value: "alert" });
                 } else if (this.isRole("typist")) {
-                  data.modifier.where.push({ column: "review.user_id", operator: "=", value: CnSession.user.id });
-                  data.modifier.where.push({ column: "review.end_datetime", operator: "!=", value: null });
+                  data.modifier.where.push({ column: "apex_review.user_id", operator: "=", value: CnSession.user.id });
+                  data.modifier.where.push({ column: "apex_review.end_datetime", operator: "!=", value: null });
                 }
               }
               return data;
@@ -844,7 +818,7 @@ cenozoApp.defineModule({
               if ("typist" == CnSession.role.name) {
                 try {
                   var response = await CnHttpFactory.instance({
-                    path: "review",
+                    path: "apex_review",
                     data: { user_id: CnSession.user.id },
                     onError: async function (error) {
                       if (408 == error.status) {

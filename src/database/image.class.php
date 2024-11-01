@@ -3,7 +3,6 @@
  * image.class.php
  * 
  * @author Patrick Emond <emondpd@mcmaster.ca>
- * @fileimage
  */
 
 namespace alder\database;

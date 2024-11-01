@@ -3,7 +3,6 @@
  * analysis.class.php
  * 
  * @author Patrick Emond <emondpd@mcmaster.ca>
- * @fileanalysis
  */
 
 namespace alder\database;
@@ -33,28 +32,28 @@ class analysis extends \cenozo\database\record
         'code_list' => []
       ];
 
-      $code_type_sel = lib::create( 'database\select' );
-      $code_type_sel->add_table_column( 'code_type', 'id', 'code_type_id' );
-      $code_type_sel->add_column( 'rank' );
-      $code_type_sel->add_column( 'name' );
-      $code_type_sel->add_column( 'value' );
-      $code_type_sel->add_column( 'description' );
-      $code_type_sel->add_column( 'code.id IS NOT NULL', 'selected', false, 'boolean' );
-      $code_type_mod = lib::create( 'database\modifier' );
+      $code_sel = lib::create( 'database\select' );
+      $code_sel->add_table_column( 'code', 'id' );
+      $code_sel->add_column( 'rank' );
+      $code_sel->add_column( 'name' );
+      $code_sel->add_column( 'value' );
+      $code_sel->add_column( 'description' );
+      $code_sel->add_column( 'analysis_has_code.analysis_id IS NOT NULL', 'selected', false, 'boolean' );
+      $code_mod = lib::create( 'database\modifier' );
       $join_mod = lib::create( 'database\modifier' );
-      $join_mod->where( 'code_type.id', '=', 'code.code_type_id', false );
-      $join_mod->where( 'code.analysis_id', '=', $this->id );
-      $code_type_mod->join_modifier( 'code', $join_mod, 'left' );
-      $code_type_mod->order( "code_type.rank" );
-      foreach( $db_code_group->get_code_type_list($code_type_sel, $code_type_mod) as $code_type )
+      $join_mod->where( 'code.id', '=', 'analysis_has_code.code_id', false );
+      $join_mod->where( 'analysis_has_code.analysis_id', '=', $this->id );
+      $code_mod->join_modifier( 'analysis_has_code', $join_mod, 'left' );
+      $code_mod->order( "code.rank" );
+      foreach( $db_code_group->get_code_list($code_sel, $code_mod) as $code )
       {
         $group['code_list'][] = [
-          'code_type_id' => $code_type['code_type_id'],
-          'rank' => $code_type['rank'],
-          'name' => $code_type['name'],
-          'value' => $code_type['value'],
-          'description' => $code_type['description'],
-          'selected' => $code_type['selected']
+          'id' => $code['id'],
+          'rank' => $code['rank'],
+          'name' => $code['name'],
+          'value' => $code['value'],
+          'description' => $code['description'],
+          'selected' => $code['selected']
         ];
       }
 

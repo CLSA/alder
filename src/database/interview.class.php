@@ -3,7 +3,6 @@
  * interview.class.php
  * 
  * @author Patrick Emond <emondpd@mcmaster.ca>
- * @fileinterview
  */
 
 namespace alder\database;

@@ -1,6 +1,6 @@
 <?php
 /**
- * exam.class.php
+ * apex_code.class.php
  * 
  * @author Patrick Emond <emondpd@mcmaster.ca>
  */
@@ -9,6 +9,6 @@ namespace alder\database;
 use cenozo\lib, cenozo\log, cenozo\util;
 
 /**
- * exam: record
+ * apex_code: record
  */
-class exam extends \cenozo\database\record {}
+class apex_code extends \cenozo\database\record {}

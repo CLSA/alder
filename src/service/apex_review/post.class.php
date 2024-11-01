@@ -5,7 +5,7 @@
  * @author Patrick Emond <emondpd@mcmaster.ca>
  */
 
-namespace alder\service\review;
+namespace alder\service\apex_review;
 use cenozo\lib, cenozo\log, alder\util;
 
 /**
@@ -39,7 +39,7 @@ class post extends \cenozo\service\post
   protected function execute()
   {
     $participant_class_name = lib::get_class_name( 'database\participant' );
-    $review_class_name = lib::get_class_name( 'database\review' );
+    $apex_review_class_name = lib::get_class_name( 'database\apex_review' );
     $exam_class_name = lib::get_class_name( 'database\exam' );
     $file = $this->get_file_as_array();
 
@@ -122,17 +122,17 @@ class post extends \cenozo\service\post
               foreach( $exam_class_name::select( $exam_sel, $exam_mod ) as $exam )
               {
                 // make sure a review doesn't already exist
-                $db_review = $review_class_name::get_unique_record(
+                $db_apex_review = $apex_review_class_name::get_unique_record(
                   ['exam_id', 'user_id'],
                   [$exam['id'], $user_id]
                 );
 
-                if( is_null( $db_review ) )
+                if( is_null( $db_apex_review ) )
                 {
-                  $db_review = lib::create( 'database\review' );
-                  $db_review->exam_id = $exam['id'];
-                  $db_review->user_id = $user_id;
-                  $db_review->save();
+                  $db_apex_review = lib::create( 'database\apex_review' );
+                  $db_apex_review->exam_id = $exam['id'];
+                  $db_apex_review->user_id = $user_id;
+                  $db_apex_review->save();
                   $data++;
                 }
               }
@@ -169,16 +169,16 @@ class post extends \cenozo\service\post
           // modify existing reviews (do this first so the new reviews created below are not affected)
           if( !is_null( $completed ) || !is_null( $notification ) )
           {
-            $review_mod = lib::create( 'database\modifier' );
-            $review_mod->join( 'exam', 'review.exam_id', 'exam.id' );
-            $review_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
-            $review_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
-            $review_mod->where( 'uid', 'IN', $uid_list );
-            foreach( $review_class_name::select_objects( $review_mod ) as $db_review )
+            $apex_review_mod = lib::create( 'database\modifier' );
+            $apex_review_mod->join( 'exam', 'apex_review.exam_id', 'exam.id' );
+            $apex_review_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
+            $apex_review_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
+            $apex_review_mod->where( 'uid', 'IN', $uid_list );
+            foreach( $apex_review_class_name::select_objects( $apex_review_mod ) as $db_apex_review )
             {
-              if( !is_null( $completed ) ) $db_review->completed = $completed;
-              if( !is_null( $notification ) ) $db_review->notification = $notification;
-              $db_review->save();
+              if( !is_null( $completed ) ) $db_apex_review->completed = $completed;
+              if( !is_null( $notification ) ) $db_apex_review->notification = $notification;
+              $db_apex_review->save();
               $data['edit']++;
             }
           }
@@ -200,16 +200,16 @@ class post extends \cenozo\service\post
             $exam_mod->where( 'user_has_modality.user_id', '=', $user_id );
             foreach( $exam_class_name::select( $exam_sel, $exam_mod ) as $exam )
             {
-              $db_review = $review_class_name::get_unique_record(
+              $db_apex_review = $apex_review_class_name::get_unique_record(
                 ['exam_id', 'user_id'],
                 [$exam['id'], $user_id]
               );
-              if( is_null( $db_review ) )
+              if( is_null( $db_apex_review ) )
               {
-                $db_review = lib::create( 'database\review' );
-                $db_review->exam_id = $exam['id'];
-                $db_review->user_id = $user_id;
-                $db_review->save();
+                $db_apex_review = lib::create( 'database\apex_review' );
+                $db_apex_review->exam_id = $exam['id'];
+                $db_apex_review->user_id = $user_id;
+                $db_apex_review->save();
                 $data['new']++;
               }
             }
@@ -221,18 +221,18 @@ class post extends \cenozo\service\post
           $participant_sel = lib::create( 'database\select' );
           $participant_sel->add_table_column( 'study_phase', 'name', 'study_phase' );
           $participant_sel->add_table_column( 'modality', 'name', 'modality' );
-          $participant_sel->add_column( 'review.id IS NOT NULL', 'has_review', false );
+          $participant_sel->add_column( 'apex_review.id IS NOT NULL', 'has_apex_review', false );
           $participant_sel->add_column( 'COUNT(*)', 'total', false );
           $participant_mod = clone $modifier;
           $participant_mod->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
           $participant_mod->join( 'modality', 'scan_type.modality_id', 'modality.id' );
-          $participant_mod->left_join( 'review', 'exam.id', 'review.exam_id' );
+          $participant_mod->left_join( 'apex_review', 'exam.id', 'apex_review.exam_id' );
           $participant_mod->group( 'study_phase.id' );
           $participant_mod->group( 'modality.id' );
-          $participant_mod->group( 'review.id IS NULL' );
+          $participant_mod->group( 'apex_review.id IS NULL' );
           $participant_mod->order( 'study_phase.name' );
           $participant_mod->order( 'modality.name' );
-          $participant_mod->order( 'review.id IS NOT NULL' );
+          $participant_mod->order( 'apex_review.id IS NOT NULL' );
           $participant_mod->where( 'uid', 'IN', $uid_list );
 
           $data = [

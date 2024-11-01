@@ -30,6 +30,7 @@ class ui extends \cenozo\ui\ui
     if( !is_null( $module ) )
     {
       $module->add_child( 'review' );
+      $module->add_child( 'apex_review' );
       $module->add_action( 'display', '/{identifier}' );
     }
 
@@ -50,10 +51,13 @@ class ui extends \cenozo\ui\ui
     $module = $this->get_module( 'user' );
     if( !is_null( $module ) ) $module->add_choose( 'modality' );
 
-    $module = $this->get_module( 'code_group' );
-    if( !is_null( $module ) ) $module->add_child( 'code_type' );
+    $module = $this->get_module( 'apex_code' );
+    if( !is_null( $module ) ) $module->add_choose( 'apex_review' );
 
-    $module = $this->get_module( 'code_type' );
+    $module = $this->get_module( 'code_group' );
+    if( !is_null( $module ) ) $module->add_child( 'code' );
+
+    $module = $this->get_module( 'code' );
     if( !is_null( $module ) ) $module->add_choose( 'review' );
   }
 
@@ -67,6 +71,7 @@ class ui extends \cenozo\ui\ui
     parent::build_listitem_list();
 
     // add application-specific lists to the base list
+    $this->add_listitem( 'Apex Reviews', 'apex_review' );
     $this->add_listitem( 'Interviews', 'interview' );
     $this->add_listitem( 'Modalities', 'modality' );
     $this->add_listitem( 'Reviews', 'review' );
@@ -84,7 +89,11 @@ class ui extends \cenozo\ui\ui
     unset( $list['Participant Multiedit'] );
     unset( $list['Participant Search'] );
     unset( $list['Tracing'] );
-    if( 2 < $db_role->tier ) $list['Review Multiedit'] = array( 'subject' => 'review', 'action' => 'multiedit' );
+    if( 2 < $db_role->tier )
+    {
+      $list['Apex Review Multiedit'] = array( 'subject' => 'apex_review', 'action' => 'multiedit' );
+      $list['Review Multiedit'] = array( 'subject' => 'review', 'action' => 'multiedit' );
+    }
     return $list;
   }
 }

@@ -2,6 +2,21 @@
 
 SET AUTOCOMMIT=0;
 
+SOURCE apex_host.sql
+SOURCE apex_host_has_image.sql
+SOURCE apex_code.sql
+SOURCE apex_review.sql
+SOURCE apex_analysis.sql
+SOURCE apex_analysis_has_apex_code.sql
+
+SOURCE code.sql
+SOURCE analysis_has_code.sql
+SOURCE review.sql
+SOURCE setting.sql
+
+SOURCE service.sql
+SOURCE role_has_service.sql
+
 SOURCE update_version_number.sql
 
 COMMIT;

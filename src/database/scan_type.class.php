@@ -3,7 +3,6 @@
  * scan_type.class.php
  * 
  * @author Patrick Emond <emondpd@mcmaster.ca>
- * @filescan_type
  */
 
 namespace alder\database;

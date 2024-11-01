@@ -3,7 +3,6 @@
  * modality.class.php
  * 
  * @author Patrick Emond <emondpd@mcmaster.ca>
- * @filemodality
  */
 
 namespace alder\database;
