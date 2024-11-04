@@ -51,14 +51,15 @@ class ui extends \cenozo\ui\ui
     $module = $this->get_module( 'user' );
     if( !is_null( $module ) ) $module->add_choose( 'modality' );
 
-    $module = $this->get_module( 'apex_code' );
-    if( !is_null( $module ) ) $module->add_choose( 'apex_review' );
-
     $module = $this->get_module( 'code_group' );
     if( !is_null( $module ) ) $module->add_child( 'code' );
 
     $module = $this->get_module( 'code' );
-    if( !is_null( $module ) ) $module->add_choose( 'review' );
+    if( !is_null( $module ) )
+    {
+      $module->add_choose( 'apex_review' );
+      $module->add_choose( 'review' );
+    }
   }
 
   /**

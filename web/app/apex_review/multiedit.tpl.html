@@ -38,13 +38,13 @@
               </div>
             </div>
             <div class="form-group">
-              <label for="modalityId" class="col-sm-3 control-label text-right">Modality:</label>
+              <label for="scanTypeId" class="col-sm-3 control-label text-right">Scan Type:</label>
               <div class="col-sm-9">
                 <select
-                  id="modalityId"
-                  ng-model="model.modalityId"
+                  id="scanTypeId"
+                  ng-model="model.scanTypeId"
                   ng-change="model.selectionChanged()"
-                  ng-options="item.value as item.name for item in model.modalityList"
+                  ng-options="item.value as item.name for item in model.scanTypeList"
                   class="form-control"
                 ></select>
               </div>
@@ -60,13 +60,13 @@
                 ></select>
               </div>
             </div>
-            <div ng-if="'random' == model.selectionType">
+            <div ng-if="'bulk' == model.selectionType">
               <div class="form-group">
                 <label for="startDate" class="col-sm-3 control-label text-right">Start Date:</label>
                 <div class="col-sm-9">
                   <input
                     id="startDate"
-                    ng-model="model.randomData.startDate"
+                    ng-model="model.bulkData.startDate"
                     type="hidden"
                   ></input>
                   <input
@@ -83,7 +83,7 @@
                 <div class="col-sm-9">
                   <input
                     id="endDate"
-                    ng-model="model.randomData.endDate"
+                    ng-model="model.bulkData.endDate"
                     type="hidden"
                   ></input>
                   <input
@@ -97,14 +97,14 @@
               </div>
               <div class="form-group">
                 <label
-                  for="examsPerInterviewer"
+                  for="examsPerCategory"
                   class="col-sm-3 control-label text-right"
-                >Exams per Interviewer:</label>
+                >Exams per Phase/Scan-Type:</label>
                 <div class="col-sm-9">
                   <input
-                    id="examsPerInterviewer"
-                    ng-model="model.randomData.examsPerInterviewer"
-                    ng-change="model.sanitizeExamsPerInterviewer()"
+                    id="examsPerCategory"
+                    ng-model="model.bulkData.examsPerCategory"
+                    ng-change="model.sanitizeExamsPerCategory()"
                     class="form-control"
                     type="text"
                     autocomplete="off"
@@ -129,33 +129,27 @@
 
           <hr style="border-width: 1em" />
           <div ng-if="
-            !('random' == model.selectionType && model.randomData.canProceed) &&
+            !('bulk' == model.selectionType && model.bulkData.canProceed) &&
             !('uid' == model.selectionType && model.uidData.canProceed)
           ">
             <h4 class="text-center" ng-bind-html="model.confirmInProgress ? 'Searching, please wait...' : 'No exams selected.'"></h4>
           </div>
           <div ng-if="
-            ('random' == model.selectionType && model.randomData.canProceed) ||
+            ('bulk' == model.selectionType && model.bulkData.canProceed) ||
             ('uid' == model.selectionType && model.uidData.canProceed)
           ">
-            <div ng-if="'random' == model.selectionType">
+            <div ng-if="'bulk' == model.selectionType">
               <div class="form-horizontal">
-                <div ng-repeat="(phase,modalityList) in model.randomData.examDataList">
+                <div ng-repeat="(phase,scanTypeList) in model.bulkData.examDataList">
                   <h3 class="text-center">{{ phase }}</h3>
-                  <div ng-repeat="(modality,siteList) in modalityList">
-                    <h4 class="text-center">{{ modality }}</h4>
-                    <div class="row" ng-repeat="(site,interviewerList) in siteList">
-                      <label class="col-sm-6 control-label">{{ site }}</label>
-                      <div class="col-sm-6 form-text">
-                        <div
-                          ng-repeat="(interviewer,total) in interviewerList"
-                          ng-class="{ 'text-danger': total < model.randomData.examsPerInterviewer }"
-                        >{{ interviewer }}: {{ total }}</div>
-                      </div>
-                    </div>
+                  <div class="text-center">
+                    <span
+                      ng-repeat="(scanType,total) in scanTypeList"
+                      class="horizontal-spacer"
+                      ng-class="{ 'text-danger': total < model.bulkData.examsPerCategory }"
+                    >{{ scanType }}: {{ total }}</span>
                   </div>
-                  <hr ng-if="!$last" />
-                </div>
+                </span>
               </div>
               <hr />
               <form class="form-horizontal">
@@ -178,11 +172,11 @@
             
             <div ng-if="'uid' == model.selectionType">
               <div class="form-horizontal">
-                <div ng-repeat="(phase,modalityList) in model.uidData.examDataList">
+                <div ng-repeat="(phase,scanTypeList) in model.uidData.examDataList">
                   <h3 class="text-center">{{ phase }}</h3>
-                  <div class="row" ng-repeat="(modality,totals) in modalityList">
-                    <label class="col-sm-6 control-label">{{ modality }}</label>
-                    <div class="col-sm-6 form-text">
+                  <div class="row" ng-repeat="(scanType,totals) in scanTypeList">
+                    <label class="col-sm-6 control-label">{{ scanType }}</label>
+                    <div class="col-sm-6 text-center form-text">
                       {{ totals.with }} exams with reviews, {{ totals.without }} without
                     </div>
                   </div>
@@ -224,19 +218,6 @@
                       ></select>
                     </div>
                   </div>
-                  <div class="form-group">
-                    <label for="notification" class="col-sm-3 control-label text-right">
-                      Set notification:
-                    </label>
-                    <div class="col-sm-9">
-                      <select
-                        id="notification"
-                        ng-model="model.notification"
-                        ng-options="item.value as item.name for item in model.notificationList"
-                        class="form-control"
-                      ></select>
-                    </div>
-                  </div>
                 </div>
               </form>
             </div>
@@ -245,16 +226,16 @@
         <div class="form-footer text-right rounded-bottom bg-info">
           <button
             ng-if="
-              ('random' == model.selectionType && model.randomData.canProceed) ||
+              ('bulk' == model.selectionType && model.bulkData.canProceed) ||
               ('uid' == model.selectionType && model.uidData.canProceed)
             "
             ng-disabled="(
-              'random' == model.selectionType && (
-                null == model.userId || !model.randomData.examsPerInterviewer
+              'bulk' == model.selectionType && (
+                null == model.userId || !model.bulkData.examsPerCategory
               )
             ) || (
               'uid' == model.selectionType && (
-                null == model.userId && null == model.completed && null == model.notification
+                null == model.userId && null == model.completed
               )
             )"
             type="button"

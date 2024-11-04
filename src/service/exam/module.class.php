@@ -64,11 +64,7 @@ class module extends \cenozo\service\site_restricted_module
       $select->add_column(
         'CONCAT( '.
           'scan_type.name, '.
-          'IF( '.
-            '"none" = scan_type.side, '.
-            'NULL, '.
-            'CONCAT( " (", scan_type.side, ")" ) '.
-          ') '.
+          'IF( scan_type.side = "none", "", CONCAT( " (", scan_type.side, ")" ) ) '.
         ')',
         'scan_type',
         false

@@ -47,10 +47,6 @@ cenozoApp.defineModule({
           title: "End Date & Time",
           type: "datetime",
         },
-        notification: {
-          title: "Notification",
-          type: "string",
-        },
       },
       defaultOrder: {
         column: "user.name",
@@ -122,21 +118,6 @@ cenozoApp.defineModule({
         },
         isExcluded: function($state, model) { return "add"; },
       },
-      notification: {
-        title: "Notification",
-        type: "enum",
-        isExcluded: function ($state, model) {
-          return "add_review" == model.getActionFromState() || !model.isRole("administrator");
-        },
-      },
-      feedback: {
-        title: "Feedback",
-        type: "text",
-        isConstant: function ($state, model) {
-          return !model.viewModel.isTypist();
-        },
-        isExcluded: function($state, model) { return "add"; },
-      },
       note: {
         column: "exam.note",
         title: "Exam Notes",
@@ -157,62 +138,6 @@ cenozoApp.defineModule({
         },
       });
     }
-
-    module.addExtraOperation("view", {
-      title: "Mark as Read",
-      operation: async function ($state, model) {
-        if (model.isRole("coordinator")) {
-          await model.viewModel.setNotification("read");
-        }
-      },
-      isDisabled: function ($state, model) {
-        return model.viewModel.changingNotification;
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("coordinator") && "alert" == model.viewModel.record.notification;
-      },
-    });
-
-    module.addExtraOperation("view", {
-      title: "Mark as Unread",
-      operation: async function ($state, model) {
-        if (model.isRole("coordinator")) {
-          await model.viewModel.setNotification("alert");
-        }
-      },
-      isDisabled: function ($state, model) {
-        return model.viewModel.changingNotification;
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("coordinator") && "read" == model.viewModel.record.notification;
-      },
-    });
-
-    module.addExtraOperation("view", {
-      title: "Alert Coordinator",
-      operation: async function ($state, model) {
-        await model.viewModel.setNotification("alert");
-      },
-      isDisabled: function ($state, model) {
-        return model.viewModel.changingNotification;
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist") && !model.viewModel.record.notification;
-      },
-    });
-
-    module.addExtraOperation("view", {
-      title: "Remove Alert",
-      operation: async function ($state, model) {
-        await model.viewModel.setNotification("");
-      },
-      isDisabled: function ($state, model) {
-        return model.viewModel.changingNotification;
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist") && model.viewModel.record.notification;
-      },
-    });
 
     /* ############################################################################################## */
     cenozo.providers.directive("cnApexReviewMultiedit", [
@@ -254,11 +179,11 @@ cenozoApp.defineModule({
             parentModel: CnApexReviewModelFactory.root,
             module: module,
             confirmInProgress: false,
-            randomData: {
+            bulkData: {
               canProceed: false,
-              startDate: null,
-              endDate: null,
-              examsPerInterviewer: null,
+              startDate: undefined,
+              endDate: undefined,
+              examsPerCategory: null,
               examDataList: null,
             },
             uidData: {
@@ -270,13 +195,13 @@ cenozoApp.defineModule({
             },
             studyPhaseList: [],
             studyPhaseId: null,
-            modalityList: [],
-            modalityId: null,
+            scanTypeList: [],
+            scanTypeId: null,
             selectionTypeList: [
-              { name: "Random", value: "random" },
+              { name: "Bulk", value: "bulk" },
               { name: "UID", value: "uid" },
             ],
-            selectionType: "random",
+            selectionType: "bulk",
             formattedStartDate: null,
             formattedEndDate: null,
             userList: null,
@@ -287,46 +212,39 @@ cenozoApp.defineModule({
               { name: "No", value: 0 },
             ],
             completed: null,
-            notificationList: [
-              { name: "(leave unchanged)", value: null },
-              { name: "Remove alert", value: "" },
-              { name: "Alert user", value: "alert" },
-              { name: "Mark as read", value: "read" },
-            ],
-            notification: null,
 
             selectDate: async function (type) {
               const response = await CnModalDatetimeFactory.instance({
                 title: "start" == type ? "Start Date" : "End Date",
-                date: "start" == type ? this.randomData.startDate : this.randomData.endDate,
-                minDate: "end" == type ? this.randomData.startDate : null,
-                maxDate: "start" == type ? this.randomData.endDate : null,
+                date: "start" == type ? this.bulkData.startDate : this.bulkData.endDate,
+                minDate: "end" == type ? this.bulkData.startDate : null,
+                maxDate: "start" == type ? this.bulkData.endDate : null,
                 pickerType: "date",
-                emptyAllowed: false,
+                emptyAllowed: true,
               }).show();
 
               if (false !== response) {
                 if ("start" == type) {
-                  this.randomData.startDate = response;
+                  this.bulkData.startDate = response;
                   this.formattedStartDate = CnSession.formatValue(response, "date", true);
                 } else {
-                  this.randomData.endDate = response;
+                  this.bulkData.endDate = response;
                   this.formattedEndDate = CnSession.formatValue(response, "date", true);
                 }
-                await this.selectionChanged("random");
+                await this.selectionChanged("bulk");
               }
             },
 
-            sanitizeExamsPerInterviewer: function () {
-              this.randomData.examsPerInterviewer =
-                Number(this.randomData.examsPerInterviewer.replace(/[^0-9]/g, ""));
+            sanitizeExamsPerCategory: function () {
+              this.bulkData.examsPerCategory =
+                Number(this.bulkData.examsPerCategory.replace(/[^0-9]/g, ""));
             },
 
             selectionChanged: async function (type) {
               if ((
-                "random" == this.selectionType &&
-                this.randomData.startDate &&
-                this.randomData.endDate
+                "bulk" == this.selectionType &&
+                angular.isDefined(this.bulkData.startDate) &&
+                angular.isDefined(this.bulkData.endDate)
               ) || (
                 "uid" == this.selectionType &&
                 angular.isDefined(this.uidData.uidListString) &&
@@ -338,12 +256,12 @@ cenozoApp.defineModule({
 
             confirm: async function () {
               this.confirmInProgress = true;
-              if ("random" == this.selectionType) this.randomData.canProceed = false;
+              if ("bulk" == this.selectionType) this.bulkData.canProceed = false;
               else if ("uid" == this.selectionType) this.uidData.canProceed = false;
 
               let data = {};
               if (this.studyPhaseId) data.study_phase_id = this.studyPhaseId;
-              if (this.modalityId) data.modality_id = this.modalityId;
+              if (this.scanTypeId) data.scan_type_id = this.scanTypeId;
 
               try {
                 // make sure the user list has been downloaded
@@ -380,14 +298,14 @@ cenozoApp.defineModule({
                   this.userList.unshift({ name: "(empty)", value: null });
                 }
 
-                if ("random" == this.selectionType) {
+                if ("bulk" == this.selectionType) {
                   angular.extend(data, {
-                    start_date: this.randomData.startDate.replace(/T.*/, ""),
-                    end_date: this.randomData.endDate.replace(/T.*/, ""),
+                    start_date: null == this.bulkData.startDate ? null : this.bulkData.startDate.replace(/T.*/, ""),
+                    end_date: null == this.bulkData.endDate ? null : this.bulkData.endDate.replace(/T.*/, ""),
                   });
                   var response = await CnHttpFactory.instance({ path: "apex_review", data: data }).post();
-                  this.randomData.examDataList = response.data;
-                  this.randomData.canProceed = 0 < Object.keys(this.randomData.examDataList).length;
+                  this.bulkData.examDataList = response.data;
+                  this.bulkData.canProceed = 0 < Object.keys(this.bulkData.examDataList).length;
                 } else {
                   var uidRegex = new RegExp(CnSession.application.uidRegex);
 
@@ -421,9 +339,9 @@ cenozoApp.defineModule({
                     // count with/without totals
                     angular.extend(this.uidData, { withTotal: 0, withoutTotal: 0 });
                     for(phase in this.uidData.examDataList) {
-                      for(modality in this.uidData.examDataList[phase]) {
-                        this.uidData.withTotal += Number(this.uidData.examDataList[phase][modality].with);
-                        this.uidData.withoutTotal += Number(this.uidData.examDataList[phase][modality].without);
+                      for(scanType in this.uidData.examDataList[phase]) {
+                        this.uidData.withTotal += Number(this.uidData.examDataList[phase][scanType].with);
+                        this.uidData.withoutTotal += Number(this.uidData.examDataList[phase][scanType].without);
                       }
                     }
                   }
@@ -434,17 +352,17 @@ cenozoApp.defineModule({
             },
 
             proceed: async function (type) {
-              if ("random" == this.selectionType) {
+              if ("bulk" == this.selectionType) {
                 let data = {
-                  exams_per_interviewer: this.randomData.examsPerInterviewer,
-                  start_date: this.randomData.startDate.replace(/T.*/, ""),
-                  end_date: this.randomData.endDate.replace(/T.*/, ""),
+                  exams_per_category: this.bulkData.examsPerCategory,
+                  start_date: null == this.bulkData.startDate ? null : this.bulkData.startDate.replace(/T.*/, ""),
+                  end_date: null == this.bulkData.endDate ? null : this.bulkData.endDate.replace(/T.*/, ""),
                   user_id: this.userId,
                   process: true,
                 };
 
                 if (angular.isDefined(this.studyPhaseId)) data.study_phase_id = this.studyPhaseId;
-                if (angular.isDefined(this.modalityId)) data.modality_id = this.modalityId;
+                if (angular.isDefined(this.scanTypeId)) data.scan_type_id = this.scanTypeId;
 
                 const response = await CnHttpFactory.instance({
                   path: "apex_review",
@@ -468,13 +386,12 @@ cenozoApp.defineModule({
                 };
 
                 if (angular.isDefined(this.studyPhaseId)) data.study_phase_id = this.studyPhaseId;
-                if (angular.isDefined(this.modalityId)) data.modality_id = this.modalityId;
+                if (angular.isDefined(this.scanTypeId)) data.scan_type_id = this.scanTypeId;
                 if (0 < this.uidData.withoutTotal) {
                   if (angular.isDefined(this.userId)) data.user_id = this.userId;
                 }
                 if (0 < this.uidData.withTotal) {
                   if (angular.isDefined(this.completed)) data.completed = this.completed;
-                  if (angular.isDefined(this.notification)) data.notification = this.notification;
                 }
 
                 const response = await CnHttpFactory.instance({
@@ -518,7 +435,7 @@ cenozoApp.defineModule({
           });
 
           async function init(object) {
-            const [studyPhaseResponse, modalityResponse] = await Promise.all([
+            const [studyPhaseResponse, scanTypeResponse] = await Promise.all([
               CnHttpFactory.instance({
                 path: "study_phase",
                 data: {
@@ -536,11 +453,12 @@ cenozoApp.defineModule({
               }).query(),
 
               CnHttpFactory.instance({
-                path: "modality",
+                path: "scan_type",
                 data: {
-                  select: { column: ["id", "name"] },
+                  select: { column: ["id", "name", "side"] },
                   modifier: {
-                    order: "modality.name",
+                    where: { column: "modality.name", operator: "=", value: "dxa" },
+                    order: ["scan_type.name", "scan_type.side"],
                   },
                 },
               }).query()
@@ -552,11 +470,11 @@ cenozoApp.defineModule({
             }, []);
             object.studyPhaseList.unshift({ name: "(all)", value: null });
 
-            object.modalityList = modalityResponse.data.reduce((list, item) => {
-              list.push({ value: item.id, name: item.name });
+            object.scanTypeList = scanTypeResponse.data.reduce((list, item) => {
+              list.push({ value: item.id, name: "none" == item.side ? item.name : (item.side + " " + item.name) });
               return list;
             }, []);
-            object.modalityList.unshift({ name: "(all)", value: null });
+            object.scanTypeList.unshift({ name: "(all)", value: null });
           }
 
           init(this);
@@ -586,18 +504,6 @@ cenozoApp.defineModule({
             analysisList: [],
             currentAnalysis: null,
 
-            changingNotification: false,
-            setNotification: async function(value) {
-              try {
-                this.changingNotification = true;
-                await this.onPatch({ notification: value });
-                this.record.notification = value;
-              } catch (error) {
-              } finally {
-                this.changingNotification = false;
-              }
-            },
-
             isTypist: function() {
               return this.parentModel.isRole("typist") && this.record.user_id == CnSession.user.id;
             },
@@ -620,9 +526,11 @@ cenozoApp.defineModule({
                   path: this.parentModel.getServiceResourcePath() + '/apex_analysis',
                 }).query();
 
+                // do not include the analysisId since analysis is done in Apex, not locally in Alder
                 this.analysisList = response.data.map((record, index) => ({
                   index: index,
                   analysisId: record.id,
+                  annotations: false,
                   imageId: record.image_id,
                   codeGroupList: [],
                   rating: null,
@@ -632,7 +540,7 @@ cenozoApp.defineModule({
                 await Promise.all(
                   this.analysisList.map(async (analysis) => {
                     const response = await CnHttpFactory.instance({
-                      path: ["apex_analysis", analysis.analysisId, "apex_code?full=1"].join("/"),
+                      path: ["apex_analysis", analysis.analysisId, "code?full=1"].join("/"),
                     }).query();
                     analysis.codeGroupList = response.data;
 
@@ -678,10 +586,10 @@ cenozoApp.defineModule({
                   // remove the code
                   const identifierList = [
                     "apex_analysis_id=" + this.currentAnalysis.analysisId,
-                    "apex_code_id=" + code.id,
+                    "code_id=" + code.id,
                   ];
                   await CnHttpFactory.instance({
-                    path: "apex_code/" + identifierList.join(";"),
+                    path: "code/" + identifierList.join(";"),
                     onError: function (error) {
                       if (404 == error.status) {
                         console.info("The above 404 error can be safely ignored.");
@@ -692,8 +600,8 @@ cenozoApp.defineModule({
                 } else {
                   // add the code
                   await CnHttpFactory.instance({
-                    path: ["apex_analysis", this.currentAnalysis.analysisId, "apex_code"].join("/"),
-                    data: { image_id: this.record.id, apex_code_id: code.id },
+                    path: ["apex_analysis", this.currentAnalysis.analysisId, "code"].join("/"),
+                    data: { image_id: this.record.id, code_id: code.id },
                     onError: function (error) {
                       if (409 == error.status) {
                         console.info("The above 409 error can be safely ignored.");
@@ -779,11 +687,17 @@ cenozoApp.defineModule({
               if ("root" == this.getSubjectFromState() && this.isRole("coordinator", "typist")) {
                 if (angular.isUndefined(data.modifier.where)) data.modifier.where = [];
 
-                if (this.isRole("coordinator")) {
-                  data.modifier.where.push({ column: "apex_review.notification", operator: "=", value: "alert" });
-                } else if (this.isRole("typist")) {
-                  data.modifier.where.push({ column: "apex_review.user_id", operator: "=", value: CnSession.user.id });
-                  data.modifier.where.push({ column: "apex_review.end_datetime", operator: "!=", value: null });
+                if (this.isRole("typist")) {
+                  data.modifier.where.push({
+                    column: "apex_review.user_id",
+                    operator: "=",
+                    value: CnSession.user.id
+                  });
+                  data.modifier.where.push({
+                    column: "apex_review.end_datetime",
+                    operator: "!=",
+                    value: null
+                  });
                 }
               }
               return data;

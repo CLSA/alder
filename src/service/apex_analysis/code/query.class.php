@@ -5,7 +5,7 @@
  * @author Patrick Emond <emondpd@mcmaster.ca>
  */
 
-namespace alder\service\apex_analysis\apex_code;
+namespace alder\service\apex_analysis\code;
 use cenozo\lib, cenozo\log, alder\util;
 
 /**

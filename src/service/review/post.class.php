@@ -91,7 +91,7 @@ class post extends \cenozo\service\post
         $participant_mod->order( 'exam.interviewer' );
         $participant_mod->where( 'DATE(CONVERT_TZ(exam.datetime,"UTC",site.timezone))', '>=', $start_date );
         $participant_mod->where( 'DATE(CONVERT_TZ(exam.datetime,"UTC",site.timezone))', '<=', $end_date );
-        $interviewer_list = $participant_class_name::select( $participant_sel, $participant_mod );
+        $interview_list = $participant_class_name::select( $participant_sel, $participant_mod );
 
         if( $process )
         {
@@ -99,7 +99,7 @@ class post extends \cenozo\service\post
           $exams_per_interviewer = $file['exams_per_interviewer'];
 
           // get a list of all possible exams
-          foreach( $interviewer_list as $interview )
+          foreach( $interview_list as $interview )
           {
             // select up to the requested number of interviews
             $interview_id_list = explode( ',', $interview['interview_id_list'] );
@@ -142,7 +142,7 @@ class post extends \cenozo\service\post
         else
         {
           // break down the number of exams for each phase, modality, site and interviewer
-          foreach( $interviewer_list as $interview )
+          foreach( $interview_list as $interview )
           {
             $phase = $interview['study_phase'];
             $modality = $interview['modality'];
@@ -169,6 +169,7 @@ class post extends \cenozo\service\post
           // modify existing reviews (do this first so the new reviews created below are not affected)
           if( !is_null( $completed ) || !is_null( $notification ) )
           {
+            $now = lib::get_datetime_object();
             $review_mod = lib::create( 'database\modifier' );
             $review_mod->join( 'exam', 'review.exam_id', 'exam.id' );
             $review_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
@@ -176,7 +177,7 @@ class post extends \cenozo\service\post
             $review_mod->where( 'uid', 'IN', $uid_list );
             foreach( $review_class_name::select_objects( $review_mod ) as $db_review )
             {
-              if( !is_null( $completed ) ) $db_review->completed = $completed;
+              if( !is_null( $completed ) ) $db_review->completed = $now;
               if( !is_null( $notification ) ) $db_review->notification = $notification;
               $db_review->save();
               $data['edit']++;

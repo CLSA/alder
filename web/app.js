@@ -82,8 +82,8 @@ cenozo.factory("CnImageDisplayFactory", [
                   }).get()
                 ];
 
-                // load all annotations if an analysisId was provided
-                if (image.analysisId) {
+                // load all annotations if annotations are active and an analysisId exists
+                if (image.annotations && image.analysisId) {
                   promiseList.push(
                     CnHttpFactory.instance({
                       path: ["analysis", image.analysisId, "annotation"].join("/"),
@@ -98,7 +98,7 @@ cenozo.factory("CnImageDisplayFactory", [
                   imageSrc: 0 == imageResponse.data.image.size ? null : imageResponse.data.image.data,
                 });
 
-                if (image.analysisId) {
+                if (image.annotations && image.analysisId) {
                   image.annotationList = annotationResponse.data.reduce((list, a) => {
                     list.push({ id: a.id, type: a.type, x0: a.x0, y0: a.y0, x1: a.x1, y1: a.y1 }); 
                     return list;

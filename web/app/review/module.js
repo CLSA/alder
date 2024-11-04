@@ -624,6 +624,7 @@ cenozoApp.defineModule({
                 this.analysisList = response.data.map((record, index) => ({
                   index: index,
                   analysisId: record.id,
+                  annotations: true,
                   imageId: record.image_id,
                   codeGroupList: [],
                   rating: null,

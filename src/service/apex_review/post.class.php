@@ -27,7 +27,7 @@ class post extends \cenozo\service\post
 
       if( array_key_exists( 'uid_list', $file ) || array_key_exists( 'start_date', $file ) )
       {
-        // only tier-3 roles can process uid-lists or random exam assignments
+        // only tier-3 roles can process uid-lists or bulk exam assignments
         if( 3 > $db_role->tier ) $this->status->set_code( 403 );
       }
     }
@@ -47,7 +47,7 @@ class post extends \cenozo\service\post
     {
       $data = [];
       $study_phase_id = array_key_exists( 'study_phase_id', $file ) ? $file['study_phase_id'] : NULL;
-      $modality_id = array_key_exists( 'modality_id', $file ) ? $file['modality_id'] : NULL;
+      $scan_type_id = array_key_exists( 'scan_type_id', $file ) ? $file['scan_type_id'] : NULL;
       $user_id = array_key_exists( 'user_id', $file ) ? $file['user_id'] : NULL;
       $process = array_key_exists( 'process', $file ) && $file['process'];
 
@@ -55,21 +55,24 @@ class post extends \cenozo\service\post
       $modifier->join( 'interview', 'participant.id', 'interview.participant_id' );
       $modifier->join( 'exam', 'interview.id', 'exam.interview_id' );
       $modifier->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
-
+      
       if( !is_null( $study_phase_id ) ) $modifier->where( 'interview.study_phase_id', '=', $study_phase_id );
-      if( !is_null( $modality_id ) ) $modifier->where( 'scan_type.modality_id', '=', $modality_id );
+      if( !is_null( $scan_type_id ) ) $modifier->where( 'exam.scan_type_id', '=', $scan_type_id );
 
       if( array_key_exists( 'start_date', $file ) )
       {
         $start_date = $file['start_date'];
         $end_date = $file['end_date'];
 
-        // determine how many exams exist per phase/modality/interviewer in the given date span
+        // determine how many exams exist per phase/scan_type in the given date span
         $participant_sel = lib::create( 'database\select' );
         $participant_sel->add_table_column( 'study_phase', 'name', 'study_phase' );
-        $participant_sel->add_table_column( 'modality', 'name', 'modality' );
-        $participant_sel->add_table_column( 'site', 'name', 'site' );
-        $participant_sel->add_table_column( 'exam', 'interviewer' );
+        $participant_sel->add_table_column( 'scan_type', 'id', 'scan_type_id' );
+        $participant_sel->add_column(
+          'IF( scan_type.side = "none", scan_type.name, CONCAT( scan_type.side, " ", scan_type.name ) )',
+          'scan_type',
+          false
+        );
         if( $process )
         {
           $participant_sel->add_column( 'GROUP_CONCAT(DISTINCT interview.id)', 'interview_id_list', false );
@@ -83,76 +86,65 @@ class post extends \cenozo\service\post
         $participant_mod->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
         $participant_mod->join( 'modality', 'scan_type.modality_id', 'modality.id' );
         $participant_mod->group( 'study_phase.id' );
-        $participant_mod->group( 'modality.id' );
-        $participant_mod->group( 'exam.interviewer' );
+        $participant_mod->group( 'scan_type.id' );
         $participant_mod->order( 'study_phase.name' );
-        $participant_mod->order( 'modality.name' );
-        $participant_mod->order( 'site.name' );
-        $participant_mod->order( 'exam.interviewer' );
-        $participant_mod->where( 'DATE(CONVERT_TZ(exam.datetime,"UTC",site.timezone))', '>=', $start_date );
-        $participant_mod->where( 'DATE(CONVERT_TZ(exam.datetime,"UTC",site.timezone))', '<=', $end_date );
-        $interviewer_list = $participant_class_name::select( $participant_sel, $participant_mod );
+        $participant_mod->order( 'scan_type.name' );
+        $participant_mod->order( 'scan_type.side' );
+        if( !is_null( $start_date ) )
+          $participant_mod->where( 'DATE(CONVERT_TZ(exam.datetime,"UTC",site.timezone))', '>=', $start_date );
+        if( !is_null( $start_date ) )
+          $participant_mod->where( 'DATE(CONVERT_TZ(exam.datetime,"UTC",site.timezone))', '<=', $end_date );
+        $participant_mod->where( 'modality.name', '=', 'dxa' );
+
+        // only include exams without an existing review
+        $modifier->left_join( 'apex_review', 'exam.id', 'apex_review.exam_id' );
+        $modifier->where( 'apex_review.id', '=', NULL );
+
+        $interview_list = $participant_class_name::select( $participant_sel, $participant_mod );
 
         if( $process )
         {
           $data = 0;
-          $exams_per_interviewer = $file['exams_per_interviewer'];
 
           // get a list of all possible exams
-          foreach( $interviewer_list as $interview )
+          foreach( $interview_list as $interview )
           {
             // select up to the requested number of interviews
             $interview_id_list = explode( ',', $interview['interview_id_list'] );
             $interview_index_list = range( 0, count( $interview_id_list )-1 );
-            shuffle( $interview_index_list );
-            foreach( array_slice( $interview_index_list, 0, $exams_per_interviewer ) as $interview_index )
+            foreach( array_slice( $interview_index_list, 0, $exams_per_category ) as $interview_index )
             {
               $interview_id = $interview_id_list[$interview_index];
 
-              // get a list of all of exams done by the interviewer for the given modality
+              // get a list of all of exams for the given scan_type
               $exam_sel = lib::create( 'database\select' );
               $exam_sel->add_table_column( 'exam', 'id' );
               $exam_mod = lib::create( 'database\modifier' );
-              $exam_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
-              $exam_mod->join( 'modality', 'scan_type.modality_id', 'modality.id' );
-              $exam_mod->where( 'modality.name', '=', $interview['modality'] );
+              $exam_mod->where( 'scan_type_id', '=', $interview['scan_type_id'] );
               $exam_mod->where( 'exam.interview_id', '=', $interview_id );
 
-              // pick a random exam belonging to each scan-type
               foreach( $exam_class_name::select( $exam_sel, $exam_mod ) as $exam )
               {
-                // make sure a review doesn't already exist
-                $db_apex_review = $apex_review_class_name::get_unique_record(
-                  ['exam_id', 'user_id'],
-                  [$exam['id'], $user_id]
-                );
-
-                if( is_null( $db_apex_review ) )
-                {
-                  $db_apex_review = lib::create( 'database\apex_review' );
-                  $db_apex_review->exam_id = $exam['id'];
-                  $db_apex_review->user_id = $user_id;
-                  $db_apex_review->save();
-                  $data++;
-                }
+                $db_apex_review = lib::create( 'database\apex_review' );
+                $db_apex_review->exam_id = $exam['id'];
+                $db_apex_review->user_id = $user_id;
+                $db_apex_review->save();
+                $data++;
               }
             }
           }
         }
         else
         {
-          // break down the number of exams for each phase, modality, site and interviewer
-          foreach( $interviewer_list as $interview )
+          // break down the number of exams for each phase and scan_type
+          foreach( $interview_list as $interview )
           {
             $phase = $interview['study_phase'];
-            $modality = $interview['modality'];
-            $site = $interview['site'];
-            $interviewer = $interview['interviewer'];
+            $scan_type = $interview['scan_type'];
 
             if( !array_key_exists( $phase, $data ) ) $data[$phase] = [];
-            if( !array_key_exists( $modality, $data[$phase] ) ) $data[$phase][$modality] = [];
-            if( !array_key_exists( $site, $data[$phase][$modality] ) ) $data[$phase][$modality][$site] = [];
-            $data[$phase][$modality][$site][$interviewer] = $interview['total'];
+            if( !array_key_exists( $scan_type, $data[$phase] ) ) $data[$phase][$scan_type] = [];
+            $data[$phase][$scan_type] = $interview['total'];
           }
         }
       }
@@ -160,15 +152,15 @@ class post extends \cenozo\service\post
       {
         $uid_list = $participant_class_name::get_valid_uid_list( $file['uid_list'], $modifier );
         $completed = array_key_exists( 'completed', $file ) ? $file['completed'] : NULL;
-        $notification = array_key_exists( 'notification', $file ) ? $file['notification'] : NULL;
 
         if( $process )
         {
           $data = ['new' => 0, 'edit' => 0];
 
           // modify existing reviews (do this first so the new reviews created below are not affected)
-          if( !is_null( $completed ) || !is_null( $notification ) )
+          if( !is_null( $completed ) )
           {
+            $now = lib::get_datetime_object();
             $apex_review_mod = lib::create( 'database\modifier' );
             $apex_review_mod->join( 'exam', 'apex_review.exam_id', 'exam.id' );
             $apex_review_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
@@ -176,8 +168,7 @@ class post extends \cenozo\service\post
             $apex_review_mod->where( 'uid', 'IN', $uid_list );
             foreach( $apex_review_class_name::select_objects( $apex_review_mod ) as $db_apex_review )
             {
-              if( !is_null( $completed ) ) $db_apex_review->completed = $completed;
-              if( !is_null( $notification ) ) $db_apex_review->notification = $notification;
+              if( !is_null( $completed ) ) $db_apex_review->completed = $now;
               $db_apex_review->save();
               $data['edit']++;
             }
@@ -190,14 +181,11 @@ class post extends \cenozo\service\post
             $exam_sel->from( 'exam' );
             $exam_sel->add_column( 'id' );
             $exam_mod = lib::create( 'database\modifier' );
-            $exam_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
-            $exam_mod->join( 'user_has_modality', 'scan_type.modality_id', 'user_has_modality.modality_id' );
             $exam_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
             $exam_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
             $exam_mod->where( 'uid', 'IN', $uid_list );
             if( !is_null( $study_phase_id ) ) $exam_mod->where( 'interview.study_phase_id', '=', $study_phase_id );
-            if( !is_null( $modality_id ) ) $exam_mod->where( 'scan_type.modality_id', '=', $modality_id );
-            $exam_mod->where( 'user_has_modality.user_id', '=', $user_id );
+            if( !is_null( $scan_type_id ) ) $exam_mod->where( 'scan_type_id', '=', $scan_type_id );
             foreach( $exam_class_name::select( $exam_sel, $exam_mod ) as $exam )
             {
               $db_apex_review = $apex_review_class_name::get_unique_record(
@@ -217,10 +205,15 @@ class post extends \cenozo\service\post
         }
         else
         {
-          // determine how many reviews (existing and missing) of each study phase and modality exist
+          // determine how many reviews (existing and missing) of each study phase and scan_type exist
           $participant_sel = lib::create( 'database\select' );
           $participant_sel->add_table_column( 'study_phase', 'name', 'study_phase' );
-          $participant_sel->add_table_column( 'modality', 'name', 'modality' );
+          $participant_sel->add_table_column( 'scan_type', 'id', 'scan_type_id' );
+          $participant_sel->add_column(
+            'IF( scan_type.side = "none", scan_type.name, CONCAT( scan_type.side, " ", scan_type.name ) )',
+            'scan_type',
+            false
+          );
           $participant_sel->add_column( 'apex_review.id IS NOT NULL', 'has_apex_review', false );
           $participant_sel->add_column( 'COUNT(*)', 'total', false );
           $participant_mod = clone $modifier;
@@ -228,11 +221,13 @@ class post extends \cenozo\service\post
           $participant_mod->join( 'modality', 'scan_type.modality_id', 'modality.id' );
           $participant_mod->left_join( 'apex_review', 'exam.id', 'apex_review.exam_id' );
           $participant_mod->group( 'study_phase.id' );
-          $participant_mod->group( 'modality.id' );
+          $participant_mod->group( 'scan_type.id' );
           $participant_mod->group( 'apex_review.id IS NULL' );
           $participant_mod->order( 'study_phase.name' );
-          $participant_mod->order( 'modality.name' );
+          $participant_mod->order( 'scan_type.name' );
+          $participant_mod->order( 'scan_type.side' );
           $participant_mod->order( 'apex_review.id IS NOT NULL' );
+          $participant_mod->where( 'modality.name', '=', 'dxa' );
           $participant_mod->where( 'uid', 'IN', $uid_list );
 
           $data = [
@@ -240,16 +235,16 @@ class post extends \cenozo\service\post
             'exam_list' => []
           ];
 
-          // break down the number of exams for each phase, modality and whether it has a review
+          // break down the number of exams for each phase, scan_type and whether it has a review
           foreach( $participant_class_name::select( $participant_sel, $participant_mod ) as $row )
           {
             $phase = $row['study_phase'];
-            $modality = $row['modality'];
+            $scan_type = $row['scan_type'];
 
             if( !array_key_exists( $phase, $data['exam_list'] ) ) $data['exam_list'][$phase] = [];
-            if( !array_key_exists( $modality, $data['exam_list'][$phase] ) )
-              $data['exam_list'][$phase][$modality] = ['with' => 0, 'without' => 0];
-            $data['exam_list'][$phase][$modality][$row['has_review'] ? 'with' : 'without'] = $row['total'];
+            if( !array_key_exists( $scan_type, $data['exam_list'][$phase] ) )
+              $data['exam_list'][$phase][$scan_type] = ['with' => 0, 'without' => 0];
+            $data['exam_list'][$phase][$scan_type][$row['has_review'] ? 'with' : 'without'] = $row['total'];
           }
         }
       }

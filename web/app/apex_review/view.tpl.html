@@ -19,9 +19,6 @@
         </div>
         <form name="form" class="form-horizontal" novalidate>
           <div ng-repeat="group in model.viewModel.currentAnalysis.codeGroupList">
-            <div class="container-fluid bg-info" uib-tooltip-html="model.viewModel.getCodeDescription(group)">
-              <label class="control-label" ng-bind-html="group.name"></label>
-            </div>
             <div class="container-fluid vertical-spacer">
               <div
                 style="
