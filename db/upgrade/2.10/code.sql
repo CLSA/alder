@@ -24,6 +24,172 @@ CREATE PROCEDURE rename_code_tables()
         ON DELETE CASCADE ON UPDATE NO ACTION;
     END IF;
 
+    SELECT COUNT(*) INTO @test
+    FROM code_group
+    JOIN code ON code_group.id = code.code_group_id
+    WHERE code_group.name = "Apex";
+
+    IF @test = 0 THEN
+      SELECT "Importing Apex codes from Salix" AS "";
+
+      -- determine the salix database name
+      SELECT REPLACE( DATABASE(), "_alder", "_salix" ) INTO @salix;
+
+      -- left forearm
+      SET @rank = 0;
+      SET @sql = CONCAT(
+        "INSERT INTO code(update_timestamp, create_timestamp, code_group_id, rank, name, description) ",
+        "SELECT ",
+          "code_type.update_timestamp, code_type.create_timestamp, ",
+          "code_group.id, @rank := @rank+1, code_type.code, code_type.description ",
+        "FROM scan_type ",
+        "JOIN code_group ON scan_type.id = code_group.scan_type_id AND code_group.name = 'Apex'",
+        "JOIN ", @salix, ".scan_type AS salix_scan_type ",
+          "ON scan_type.name = salix_scan_type.type ",
+          "AND scan_type.side = salix_scan_type.side ",
+        "JOIN ", @salix, ".scan_type_has_code_type ON salix_scan_type.id = scan_type_has_code_type.scan_type_id ",
+        "JOIN ", @salix, ".code_type ON scan_type_has_code_type.code_type_id = code_type.id ",
+        "WHERE scan_type.name = 'forearm' ",
+        "AND scan_type.side = 'left' ",
+        "ORDER BY code_type.code"
+      );
+      PREPARE statement FROM @sql;
+      EXECUTE statement;
+      DEALLOCATE PREPARE statement;
+
+      -- right forearm
+      SET @rank = 0;
+      SET @sql = CONCAT(
+        "INSERT INTO code(update_timestamp, create_timestamp, code_group_id, rank, name, description) ",
+        "SELECT ",
+          "code_type.update_timestamp, code_type.create_timestamp, ",
+          "code_group.id, @rank := @rank+1, code_type.code, code_type.description ",
+        "FROM scan_type ",
+        "JOIN code_group ON scan_type.id = code_group.scan_type_id AND code_group.name = 'Apex'",
+        "JOIN ", @salix, ".scan_type AS salix_scan_type ",
+          "ON scan_type.name = salix_scan_type.type ",
+          "AND scan_type.side = salix_scan_type.side ",
+        "JOIN ", @salix, ".scan_type_has_code_type ON salix_scan_type.id = scan_type_has_code_type.scan_type_id ",
+        "JOIN ", @salix, ".code_type ON scan_type_has_code_type.code_type_id = code_type.id ",
+        "WHERE scan_type.name = 'forearm' ",
+        "AND scan_type.side = 'right' ",
+        "ORDER BY code_type.code"
+      );
+      PREPARE statement FROM @sql;
+      EXECUTE statement;
+      DEALLOCATE PREPARE statement;
+
+      -- left hip
+      SET @rank = 0;
+      SET @sql = CONCAT(
+        "INSERT INTO code(update_timestamp, create_timestamp, code_group_id, rank, name, description) ",
+        "SELECT ",
+          "code_type.update_timestamp, code_type.create_timestamp, ",
+          "code_group.id, @rank := @rank+1, code_type.code, code_type.description ",
+        "FROM scan_type ",
+        "JOIN code_group ON scan_type.id = code_group.scan_type_id AND code_group.name = 'Apex'",
+        "JOIN ", @salix, ".scan_type AS salix_scan_type ",
+          "ON scan_type.name = salix_scan_type.type ",
+          "AND scan_type.side = salix_scan_type.side ",
+        "JOIN ", @salix, ".scan_type_has_code_type ON salix_scan_type.id = scan_type_has_code_type.scan_type_id ",
+        "JOIN ", @salix, ".code_type ON scan_type_has_code_type.code_type_id = code_type.id ",
+        "WHERE scan_type.name = 'hip' ",
+        "AND scan_type.side = 'left' ",
+        "ORDER BY code_type.code"
+      );
+      PREPARE statement FROM @sql;
+      EXECUTE statement;
+      DEALLOCATE PREPARE statement;
+
+      -- right hip
+      SET @rank = 0;
+      SET @sql = CONCAT(
+        "INSERT INTO code(update_timestamp, create_timestamp, code_group_id, rank, name, description) ",
+        "SELECT ",
+          "code_type.update_timestamp, code_type.create_timestamp, ",
+          "code_group.id, @rank := @rank+1, code_type.code, code_type.description ",
+        "FROM scan_type ",
+        "JOIN code_group ON scan_type.id = code_group.scan_type_id AND code_group.name = 'Apex'",
+        "JOIN ", @salix, ".scan_type AS salix_scan_type ",
+          "ON scan_type.name = salix_scan_type.type ",
+          "AND scan_type.side = salix_scan_type.side ",
+        "JOIN ", @salix, ".scan_type_has_code_type ON salix_scan_type.id = scan_type_has_code_type.scan_type_id ",
+        "JOIN ", @salix, ".code_type ON scan_type_has_code_type.code_type_id = code_type.id ",
+        "WHERE scan_type.name = 'hip' ",
+        "AND scan_type.side = 'right' ",
+        "ORDER BY code_type.code"
+      );
+      PREPARE statement FROM @sql;
+      EXECUTE statement;
+      DEALLOCATE PREPARE statement;
+
+      -- lateral
+      SET @rank = 0;
+      SET @sql = CONCAT(
+        "INSERT INTO code(update_timestamp, create_timestamp, code_group_id, rank, name, description) ",
+        "SELECT ",
+          "code_type.update_timestamp, code_type.create_timestamp, ",
+          "code_group.id, @rank := @rank+1, code_type.code, code_type.description ",
+        "FROM scan_type ",
+        "JOIN code_group ON scan_type.id = code_group.scan_type_id AND code_group.name = 'Apex'",
+        "JOIN ", @salix, ".scan_type AS salix_scan_type ",
+          "ON scan_type.name = salix_scan_type.type ",
+          "AND scan_type.side = salix_scan_type.side ",
+        "JOIN ", @salix, ".scan_type_has_code_type ON salix_scan_type.id = scan_type_has_code_type.scan_type_id ",
+        "JOIN ", @salix, ".code_type ON scan_type_has_code_type.code_type_id = code_type.id ",
+        "WHERE scan_type.name = 'lateral' ",
+        "AND scan_type.side = 'none' ",
+        "ORDER BY code_type.code"
+      );
+      PREPARE statement FROM @sql;
+      EXECUTE statement;
+      DEALLOCATE PREPARE statement;
+
+      -- spine
+      SET @rank = 0;
+      SET @sql = CONCAT(
+        "INSERT INTO code(update_timestamp, create_timestamp, code_group_id, rank, name, description) ",
+        "SELECT ",
+          "code_type.update_timestamp, code_type.create_timestamp, ",
+          "code_group.id, @rank := @rank+1, code_type.code, code_type.description ",
+        "FROM scan_type ",
+        "JOIN code_group ON scan_type.id = code_group.scan_type_id AND code_group.name = 'Apex'",
+        "JOIN ", @salix, ".scan_type AS salix_scan_type ",
+          "ON scan_type.name = salix_scan_type.type ",
+          "AND scan_type.side = salix_scan_type.side ",
+        "JOIN ", @salix, ".scan_type_has_code_type ON salix_scan_type.id = scan_type_has_code_type.scan_type_id ",
+        "JOIN ", @salix, ".code_type ON scan_type_has_code_type.code_type_id = code_type.id ",
+        "WHERE scan_type.name = 'spine' ",
+        "AND scan_type.side = 'none' ",
+        "ORDER BY code_type.code"
+      );
+      PREPARE statement FROM @sql;
+      EXECUTE statement;
+      DEALLOCATE PREPARE statement;
+
+      -- wbody
+      SET @rank = 0;
+      SET @sql = CONCAT(
+        "INSERT INTO code(update_timestamp, create_timestamp, code_group_id, rank, name, description) ",
+        "SELECT ",
+          "code_type.update_timestamp, code_type.create_timestamp, ",
+          "code_group.id, @rank := @rank+1, code_type.code, code_type.description ",
+        "FROM scan_type ",
+        "JOIN code_group ON scan_type.id = code_group.scan_type_id AND code_group.name = 'Apex'",
+        "JOIN ", @salix, ".scan_type AS salix_scan_type ",
+          "ON scan_type.name = salix_scan_type.type ",
+          "AND scan_type.side = salix_scan_type.side ",
+        "JOIN ", @salix, ".scan_type_has_code_type ON salix_scan_type.id = scan_type_has_code_type.scan_type_id ",
+        "JOIN ", @salix, ".code_type ON scan_type_has_code_type.code_type_id = code_type.id ",
+        "WHERE scan_type.name = 'wbody' ",
+        "AND scan_type.side = 'none' ",
+        "ORDER BY code_type.code"
+      );
+      PREPARE statement FROM @sql;
+      EXECUTE statement;
+      DEALLOCATE PREPARE statement;
+    END IF;
+
   END //
 DELIMITER ;
 

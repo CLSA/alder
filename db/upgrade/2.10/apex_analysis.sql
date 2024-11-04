@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS apex_analysis (
   image_id INT(10) UNSIGNED NOT NULL,
   pass TINYINT(1) NULL DEFAULT NULL,
   export_datetime DATETIME NULL DEFAULT NULL,
+  note TEXT NULL DEFAULT NULL,
   PRIMARY KEY (id),
   INDEX fk_image_id (image_id ASC),
   UNIQUE INDEX uq_apex_review_id_image_id (apex_review_id ASC, image_id ASC),
