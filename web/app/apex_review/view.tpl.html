@@ -1,31 +1,35 @@
 <div class="row">
   <div class="col-sm-6">
     <cn-record-view model="model"></cn-record-view>
-    <div
-      class="vertical-spacer"
-      ng-if="0 < model.viewModel.currentAnalysis.codeGroupList.length"
-    >
-      <div class="record-view rounded">
-        <div class="container-fluid bg-primary rounded-top">
-          <h4>
-            Image Rating{{
-              null == model.viewModel.currentAnalysis.rating ?
-              "" :
-              " (" + model.viewModel.currentAnalysis.rating + ")"
-            }}
-            <span ng-if="!model.getEditEnabled() || !model.viewModel.isTypist()">(read only)</span>
-            <span ng-if="model.viewModel.isLoading">(Loading&hellip;)</span>
-          </h4>
-        </div>
-        <form name="form" class="form-horizontal" novalidate>
+    <div class="vertical-spacer"></div>
+    <div class="record-view rounded">
+      <div class="container-fluid bg-primary rounded-top">
+        <h4>
+          Analysis Details
+          <span ng-if="!model.viewModel.analysisModel.getEditEnabled()">(read only)</span>
+          <span ng-if="model.viewModel.isLoading">(Loading&hellip;)</span>
+        </h4>
+      </div>
+      <div class="vertical-spacer">
+        <cn-apex-analysis-view model="model.viewModel.analysisModel"></cn-apex-analysis-view>
+      </div>
+      <form
+        name="form"
+        class="form-horizontal"
+        ng-if="0 < model.viewModel.currentAnalysis.codeGroupList.length"
+        novalidate
+      >
+        <fieldset ng-disabled="!model.viewModel.analysisModel.getEditEnabled()">
           <div ng-repeat="group in model.viewModel.currentAnalysis.codeGroupList">
-            <div class="container-fluid vertical-spacer">
+            <div class="container-fluid bg-info" uib-tooltip-html="model.viewModel.getCodeDescription(group)">
+              <label class="control-label" ng-bind-html="group.name"></label>
+            </div>
+            <div class="container-fluid" style="padding-top: 0.5em;">
               <div
                 style="
                   position: relative;
                   min-height: 1px;
-                  padding-right: 5px;
-                  padding-left: 5px;
+                  padding: 0 5px 5px;
                   float: left;
                   width: 20%;
                 "
@@ -43,8 +47,8 @@
           </div>
           <div class="form-footer text-right rounded-bottom bg-info">
           </div>
-        </form>
-      </div>
+        </fieldset>
+      </form>
     </div>
   </div>
   <div class="col-sm-6" style="padding-left: 0px">

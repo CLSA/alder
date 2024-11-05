@@ -21,7 +21,7 @@ class analysis extends \cenozo\database\record
     $code_list = [];
     $db_scan_type = $this->get_image()->get_exam()->get_scan_type();
     $code_group_mod = lib::create( 'database\modifier' );
-    $code_group_mod->where( 'code_group.name', '!=', 'Apex' );
+    $code_group_mod->where( 'code_group.apex', '=', false );
     $code_group_mod->order( 'rank' );
     foreach( $db_scan_type->get_code_group_object_list( $code_group_mod ) as $db_code_group )
     {

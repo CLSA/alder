@@ -1,5 +1,6 @@
 cenozoApp.defineModule({
   name: "apex_review",
+  dependencies: "apex_analysis",
   models: ["add", "list", "view"],
   create: (module) => {
     angular.extend(module, {
@@ -105,17 +106,13 @@ cenozoApp.defineModule({
       start_datetime: {
         title: "Start Date & Time",
         type: "datetime",
-        isConstant: function ($state, model) {
-          return !model.viewModel.isTypist();
-        },
+        isConstant: function ($state, model) { return !model.isRole("administrator"); },
         isExcluded: function($state, model) { return "add"; },
       },
       end_datetime: {
         title: "End Date & Time",
         type: "datetime",
-        isConstant: function ($state, model) {
-          return !model.viewModel.isTypist();
-        },
+        isConstant: function ($state, model) { return !model.isRole("administrator"); },
         isExcluded: function($state, model) { return "add"; },
       },
       note: {
@@ -138,6 +135,36 @@ cenozoApp.defineModule({
         },
       });
     }
+
+    module.addExtraOperation("view", {
+      title: "Mark as Complete",
+      operation: async function ($state, model) {
+        if (model.isRole("typist")) {
+          await model.viewModel.setState("complete");
+        }
+      },
+      isDisabled: function ($state, model) {
+        return model.viewModel.changingState;
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("typist") && null == model.viewModel.record.end_datetime;
+      },
+    });
+
+    module.addExtraOperation("view", {
+      title: "Reopen Review",
+      operation: async function ($state, model) {
+        if (model.isRole("typist")) {
+          await model.viewModel.setState("reopen");
+        }
+      },
+      isDisabled: function ($state, model) {
+        return model.viewModel.changingState;
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("typist") && null != model.viewModel.record.end_datetime;
+      },
+    });
 
     /* ############################################################################################## */
     cenozo.providers.directive("cnApexReviewMultiedit", [
@@ -490,19 +517,53 @@ cenozoApp.defineModule({
 
     cenozo.providers.factory("CnApexReviewViewFactory", [
       "CnBaseViewFactory",
+      "CnApexAnalysisModelFactory",
       "CnImageDisplayFactory",
       "CnSession",
       "CnHttpFactory",
       "CnModalMessageFactory",
-      function (CnBaseViewFactory, CnImageDisplayFactory, CnSession, CnHttpFactory, CnModalMessageFactory) {
+      function (
+        CnBaseViewFactory,
+        CnApexAnalysisModelFactory,
+        CnImageDisplayFactory,
+        CnSession,
+        CnHttpFactory,
+        CnModalMessageFactory
+      ) {
         var object = function (parentModel, root) {
           CnBaseViewFactory.construct(this, parentModel, root);
 
+          // setup the analysis model
+          let analysisModel = CnApexAnalysisModelFactory.instance();
+          angular.extend(analysisModel, {
+            getServiceResourcePath: resource => "apex_analysis/" + this.currentAnalysis.analysisId,
+            getEditEnabled: () => (
+              this.parentModel.getEditEnabled() &&
+              this.parentModel.isRole('typist') &&
+              // make read-only for typists after marking as complete
+              null == this.parentModel.viewModel.record.end_datetime
+            ),
+          });
+
           angular.extend(this, {
             isLoading: false,
+            analysisModel: analysisModel,
             imageDisplayModel: CnImageDisplayFactory.instance(),
             analysisList: [],
             currentAnalysis: null,
+
+            changingState: false,
+
+            setState: async function(value) {
+              try {
+                this.changingState = true;
+                await this.onPatch({ state: value });
+                await this.onView(true);
+              } catch (error) {
+              } finally {
+                this.changingState = false;
+              }
+            },
 
             isTypist: function() {
               return this.parentModel.isRole("typist") && this.record.user_id == CnSession.user.id;
@@ -533,7 +594,9 @@ cenozoApp.defineModule({
                   annotations: false,
                   imageId: record.image_id,
                   codeGroupList: [],
-                  rating: null,
+                  pass: record.pass,
+                  export_datetime: record.export_datetime,
+                  note: record.note,
                 }));
 
                 // load the codes for all analyses
@@ -565,6 +628,7 @@ cenozoApp.defineModule({
                   }
                 });
                 await this.imageDisplayModel.onView();
+                await this.analysisModel.viewModel.onView(true);
               } finally {
                 this.isLoading = false;
               }
@@ -576,40 +640,18 @@ cenozoApp.defineModule({
                 (0 == code.value ? "" : "(" + code.value + ")")
               );
             },
-            
+
             toggleCode: async function(code) {
               code.working = true;
-
               try {
-                const self = this;
-                if (code.selected) {
-                  // remove the code
-                  const identifierList = [
-                    "apex_analysis_id=" + this.currentAnalysis.analysisId,
-                    "code_id=" + code.id,
-                  ];
-                  await CnHttpFactory.instance({
-                    path: "code/" + identifierList.join(";"),
-                    onError: function (error) {
-                      if (404 == error.status) {
-                        console.info("The above 404 error can be safely ignored.");
-                        code.selected = !code.selected;
-                      } else CnModalMessageFactory.httpError(error);
-                    }
-                  }).delete();
-                } else {
-                  // add the code
-                  await CnHttpFactory.instance({
-                    path: ["apex_analysis", this.currentAnalysis.analysisId, "code"].join("/"),
-                    data: { image_id: this.record.id, code_id: code.id },
-                    onError: function (error) {
-                      if (409 == error.status) {
-                        console.info("The above 409 error can be safely ignored.");
-                        code.selected = !code.selected;
-                      } else CnModalMessageFactory.httpError(error);
-                    }
-                  }).post();
-                }
+                // remove the code if it is seleted, add it if not
+                let data = {};
+                data[code.selected ? "remove" : "add"] = code.id;
+
+                await CnHttpFactory.instance({
+                  path: "apex_analysis/" + this.currentAnalysis.analysisId + "/code",
+                  data: data
+                }).post();
 
                 code.selected = !code.selected;
               } catch (error) {
@@ -675,6 +717,12 @@ cenozoApp.defineModule({
             listModel: CnApexReviewListFactory.instance(this),
             viewModel: CnApexReviewViewFactory.instance(this, root),
 
+            getMetadata: async function() {
+              await this.$$getMetadata();
+              // load the analysis model's metadata now so it's ready when viewing analysis details
+              await this.viewModel.analysisModel.getMetadata();
+            },
+
             // override the service collection path so that roles can see their own reviews on the home screen
             getServiceCollectionPath: function () {
               // ignore the parent if it is root
@@ -695,7 +743,7 @@ cenozoApp.defineModule({
                   });
                   data.modifier.where.push({
                     column: "apex_review.end_datetime",
-                    operator: "!=",
+                    operator: "=",
                     value: null
                   });
                 }

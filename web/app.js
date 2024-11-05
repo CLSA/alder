@@ -69,6 +69,11 @@ cenozo.factory("CnImageDisplayFactory", [
           if (null != this.currentImage) this.selectImage(this.currentImage.index-1);
         },
 
+        useAnnotations: function (image) {
+          if (angular.isUndefined(image)) image = this.currentImage;
+          return image.annotations && image.analysisId;
+        },
+
         onView: async function () {
           this.isLoading = true;
 
@@ -83,7 +88,7 @@ cenozo.factory("CnImageDisplayFactory", [
                 ];
 
                 // load all annotations if annotations are active and an analysisId exists
-                if (image.annotations && image.analysisId) {
+                if (this.useAnnotations(image)) {
                   promiseList.push(
                     CnHttpFactory.instance({
                       path: ["analysis", image.analysisId, "annotation"].join("/"),
@@ -98,7 +103,7 @@ cenozo.factory("CnImageDisplayFactory", [
                   imageSrc: 0 == imageResponse.data.image.size ? null : imageResponse.data.image.data,
                 });
 
-                if (image.annotations && image.analysisId) {
+                if (this.useAnnotations(image)) {
                   image.annotationList = annotationResponse.data.reduce((list, a) => {
                     list.push({ id: a.id, type: a.type, x0: a.x0, y0: a.y0, x1: a.x1, y1: a.y1 }); 
                     return list;
@@ -322,7 +327,7 @@ cenozo.factory("CnImageDisplayFactory", [
           this.context.scale(1/this.transform.scale, 1/this.transform.scale);
 
           // draw all annotations
-          if (this.currentImage.analysisId) {
+          if (this.useAnnotations()) {
             this.currentImage.annotationList.forEach(annotation => this.drawAnnotation(annotation));
           }
 
@@ -390,7 +395,7 @@ cenozo.factory("CnImageDisplayFactory", [
         },
 
         createAnnotation: function(type, point) {
-          if (!this.currentImage.analysisId || !this.isTypist) return;
+          if (!this.useAnnotations() || !this.isTypist) return;
 
           this.activeAnnotation = { id: null, type: type };
           angular.extend(this.activeAnnotation, {
@@ -403,7 +408,7 @@ cenozo.factory("CnImageDisplayFactory", [
         },
 
         updateActiveAnnotation: function(point) {
-          if (!this.currentImage.analysisId || !this.isTypist) return;
+          if (!this.useAnnotations() || !this.isTypist) return;
 
           let annotation = null;
           if (null != this.hover.id) {
@@ -424,7 +429,7 @@ cenozo.factory("CnImageDisplayFactory", [
         },
 
         deleteActiveAnnotation: async function() {
-          if (null == this.hover.id || !this.currentImage.analysisId || !this.isTypist) return;
+          if (!this.useAnnotations() || !this.isTypist || null == this.hover.id) return;
 
           const annotationList = this.currentImage.annotationList;
           let index = annotationList.findIndexByProperty("id", this.hover.id);
@@ -441,7 +446,7 @@ cenozo.factory("CnImageDisplayFactory", [
         },
 
         saveActiveAnnotation: async function() {
-          if (null == this.activeAnnotation || !this.currentImage.analysisId || !this.isTypist) return;
+          if (!this.useAnnotations() || !this.isTypist || null == this.activeAnnotation) return;
 
           let annotation = this.activeAnnotation;
           let data = {
@@ -491,7 +496,7 @@ cenozo.factory("CnImageDisplayFactory", [
         },
 
         updateHover: function(point) {
-          if (!this.currentImage.analysisId || !this.isTypist) return;
+          if (!this.useAnnotations() || !this.isTypist) return;
 
           // distance to handle varies with scaling
           const dh = 16/this.transform.scale;
@@ -540,7 +545,7 @@ cenozo.factory("CnImageDisplayFactory", [
         },
 
         transformActiveAnnotation: function(point) {
-          if (!this.currentImage.analysisId || !this.isTypist) return;
+          if (!this.useAnnotations() || !this.isTypist) return;
 
           let aa = this.activeAnnotation;
           if (null != aa) {

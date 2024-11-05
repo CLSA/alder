@@ -8,6 +8,7 @@ SOURCE analysis.sql
 SOURCE analysis_has_code.sql
 SOURCE review.sql
 SOURCE setting.sql
+SOURCE calculate_rating.sql
 
 SOURCE apex_host.sql
 SOURCE apex_host_has_image.sql

@@ -1,5 +1,6 @@
 cenozoApp.defineModule({
   name: "review",
+  dependencies: "analysis",
   models: ["add", "list", "view"],
   create: (module) => {
     angular.extend(module, {
@@ -109,17 +110,13 @@ cenozoApp.defineModule({
       start_datetime: {
         title: "Start Date & Time",
         type: "datetime",
-        isConstant: function ($state, model) {
-          return !model.viewModel.isTypist();
-        },
+        isConstant: function ($state, model) { return !model.isRole("administrator"); },
         isExcluded: function($state, model) { return "add"; },
       },
       end_datetime: {
         title: "End Date & Time",
         type: "datetime",
-        isConstant: function ($state, model) {
-          return !model.viewModel.isTypist();
-        },
+        isConstant: function ($state, model) { return !model.isRole("administrator"); },
         isExcluded: function($state, model) { return "add"; },
       },
       notification: {
@@ -211,6 +208,36 @@ cenozoApp.defineModule({
       },
       isIncluded: function ($state, model) {
         return model.isRole("typist") && model.viewModel.record.notification;
+      },
+    });
+
+    module.addExtraOperation("view", {
+      title: "Mark as Complete",
+      operation: async function ($state, model) {
+        if (model.isRole("typist")) {
+          await model.viewModel.setState("complete");
+        }
+      },
+      isDisabled: function ($state, model) {
+        return model.viewModel.changingState;
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("typist") && null == model.viewModel.record.end_datetime;
+      },
+    });
+
+    module.addExtraOperation("view", {
+      title: "Reopen Review",
+      operation: async function ($state, model) {
+        if (model.isRole("typist")) {
+          await model.viewModel.setState("reopen");
+        }
+      },
+      isDisabled: function ($state, model) {
+        return model.viewModel.changingState;
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("typist") && null != model.viewModel.record.end_datetime;
       },
     });
 
@@ -572,21 +599,55 @@ cenozoApp.defineModule({
 
     cenozo.providers.factory("CnReviewViewFactory", [
       "CnBaseViewFactory",
+      "CnAnalysisModelFactory",
       "CnImageDisplayFactory",
       "CnSession",
       "CnHttpFactory",
       "CnModalMessageFactory",
-      function (CnBaseViewFactory, CnImageDisplayFactory, CnSession, CnHttpFactory, CnModalMessageFactory) {
+      function (
+        CnBaseViewFactory,
+        CnAnalysisModelFactory,
+        CnImageDisplayFactory,
+        CnSession,
+        CnHttpFactory,
+        CnModalMessageFactory
+      ) {
         var object = function (parentModel, root) {
           CnBaseViewFactory.construct(this, parentModel, root);
 
+          // setup the analysis model
+          let analysisModel = CnAnalysisModelFactory.instance();
+          angular.extend(analysisModel, {
+            getServiceResourcePath: resource => "analysis/" + this.currentAnalysis.analysisId,
+            getEditEnabled: () => (
+              this.parentModel.getEditEnabled() &&
+              this.parentModel.isRole('typist') &&
+              // make read-only for typists after marking as complete
+              null == this.parentModel.viewModel.record.end_datetime
+            ),
+          });
+
           angular.extend(this, {
             isLoading: false,
+            analysisModel: analysisModel,
             imageDisplayModel: CnImageDisplayFactory.instance(),
             analysisList: [],
             currentAnalysis: null,
 
+            changingState: false,
             changingNotification: false,
+
+            setState: async function(value) {
+              try {
+                this.changingState = true;
+                await this.onPatch({ state: value });
+                await this.onView(true);
+              } catch (error) {
+              } finally {
+                this.changingState = false;
+              }
+            },
+
             setNotification: async function(value) {
               try {
                 this.changingNotification = true;
@@ -627,7 +688,6 @@ cenozoApp.defineModule({
                   annotations: true,
                   imageId: record.image_id,
                   codeGroupList: [],
-                  rating: null,
                 }));
 
                 // load the codes for all analyses
@@ -661,6 +721,7 @@ cenozoApp.defineModule({
                   }
                 });
                 await this.imageDisplayModel.onView();
+                await this.analysisModel.viewModel.onView(true);
               } finally {
                 this.isLoading = false;
               }
@@ -669,7 +730,7 @@ cenozoApp.defineModule({
             loadAnalysis: function () {
               if (null != this.currentAnalysis) this.calculateRating();
             },
-            
+
             calculateRating: function () {
               let rating = 5;
               this.currentAnalysis.codeGroupList.forEach(group => {
@@ -684,50 +745,28 @@ cenozoApp.defineModule({
               if (1 > rating) rating = 1;
               else if (5 < rating) rating = 5;
               this.currentAnalysis.rating = rating;
+              this.analysisModel.viewModel.record.rating = rating;
             },
-            
+
             getCodeDescription: function(code) {
               return (
                 (code.description ? (code.description + " ") : "") +
                 (0 == code.value ? "" : "(" + code.value + ")")
               );
             },
-            
+
             toggleCode: async function(code) {
               code.working = true;
 
               try {
-                const self = this;
-                if (code.selected) {
-                  // remove the code
-                  const identifierList = [
-                    "analysis_id=" + this.currentAnalysis.analysisId,
-                    "code_id=" + code.id,
-                  ];
-                  await CnHttpFactory.instance({
-                    path: "code/" + identifierList.join(";"),
-                    onError: function (error) {
-                      if (404 == error.status) {
-                        console.info("The above 404 error can be safely ignored.");
-                        code.selected = !code.selected;
-                        self.calculateRating();
-                      } else CnModalMessageFactory.httpError(error);
-                    }
-                  }).delete();
-                } else {
-                  // add the code
-                  await CnHttpFactory.instance({
-                    path: ["analysis", this.currentAnalysis.analysisId, "code"].join("/"),
-                    data: { image_id: this.record.id, code_id: code.id },
-                    onError: function (error) {
-                      if (409 == error.status) {
-                        console.info("The above 409 error can be safely ignored.");
-                        code.selected = !code.selected;
-                        self.calculateRating();
-                      } else CnModalMessageFactory.httpError(error);
-                    }
-                  }).post();
-                }
+                // remove the code if it is seleted, add it if not
+                let data = {};
+                data[code.selected ? "remove" : "add"] = code.id;
+
+                await CnHttpFactory.instance({
+                  path: "analysis/" + this.currentAnalysis.analysisId + "/code",
+                  data: data
+                }).post();
 
                 code.selected = !code.selected;
                 this.calculateRating();
@@ -794,6 +833,12 @@ cenozoApp.defineModule({
             listModel: CnReviewListFactory.instance(this),
             viewModel: CnReviewViewFactory.instance(this, root),
 
+            getMetadata: async function() {
+              await this.$$getMetadata();
+              // load the analysis model's metadata now so it's ready when viewing analysis details
+              await this.viewModel.analysisModel.getMetadata();
+            },
+
             // override the service collection path so that roles can see their own reviews on the home screen
             getServiceCollectionPath: function () {
               // ignore the parent if it is root
@@ -810,7 +855,7 @@ cenozoApp.defineModule({
                   data.modifier.where.push({ column: "review.notification", operator: "=", value: "alert" });
                 } else if (this.isRole("typist")) {
                   data.modifier.where.push({ column: "review.user_id", operator: "=", value: CnSession.user.id });
-                  data.modifier.where.push({ column: "review.end_datetime", operator: "!=", value: null });
+                  data.modifier.where.push({ column: "review.end_datetime", operator: "=", value: null });
                 }
               }
               return data;

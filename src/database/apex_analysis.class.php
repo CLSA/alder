@@ -21,7 +21,7 @@ class apex_analysis extends \cenozo\database\record
     $code_list = [];
     $db_scan_type = $this->get_image()->get_exam()->get_scan_type();
     $code_group_mod = lib::create( 'database\modifier' );
-    $code_group_mod->where( 'code_group.name', '=', 'Apex' );
+    $code_group_mod->where( 'code_group.apex', '=', true );
     $code_group_mod->order( 'rank' );
     foreach( $db_scan_type->get_code_group_object_list( $code_group_mod ) as $db_code_group )
     {
@@ -39,12 +39,12 @@ class apex_analysis extends \cenozo\database\record
       $code_sel->add_column( 'name' );
       $code_sel->add_column( 'value' );
       $code_sel->add_column( 'description' );
-      $code_sel->add_column( 'analysis_has_code.analysis_id IS NOT NULL', 'selected', false, 'boolean' );
+      $code_sel->add_column( 'apex_analysis_has_code.apex_analysis_id IS NOT NULL', 'selected', false, 'boolean' );
       $code_mod = lib::create( 'database\modifier' );
       $join_mod = lib::create( 'database\modifier' );
-      $join_mod->where( 'code.id', '=', 'analysis_has_code.code_id', false );
-      $join_mod->where( 'analysis_has_code.analysis_id', '=', $this->id );
-      $code_mod->join_modifier( 'analysis_has_code', $join_mod, 'left' );
+      $join_mod->where( 'code.id', '=', 'apex_analysis_has_code.code_id', false );
+      $join_mod->where( 'apex_analysis_has_code.apex_analysis_id', '=', $this->id );
+      $code_mod->join_modifier( 'apex_analysis_has_code', $join_mod, 'left' );
       $code_mod->order( "code.rank" );
       foreach( $db_code_group->get_code_list($code_sel, $code_mod) as $code )
       {

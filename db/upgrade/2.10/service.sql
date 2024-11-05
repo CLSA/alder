@@ -7,6 +7,7 @@ CREATE PROCEDURE convert_services()
     IF @test > 1 THEN
       DELETE FROM service WHERE subject = "code";
       UPDATE service SET subject = "code" WHERE subject = "code_type";
+      UPDATE service SET restricted = 0 WHERE subject = "code" AND method = "GET";
     END IF;
 
   END //

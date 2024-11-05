@@ -1,7 +1,8 @@
 cenozoApp.extendModule({
   name: "root",
-  dependencies: ["review"],
+  dependencies: ["apex_review", "review"],
   create: (module) => {
+    var apexReviewModule = cenozoApp.module("apex_review");
     var reviewModule = cenozoApp.module("review");
 
     // extend the view factory
@@ -9,11 +10,13 @@ cenozoApp.extendModule({
       "$delegate",
       "$compile",
       "CnSession",
+      "CnApexReviewModelFactory",
       "CnReviewModelFactory",
       function (
         $delegate,
         $compile,
         CnSession,
+        CnApexReviewModelFactory,
         CnReviewModelFactory
       ) {
         var oldController = $delegate[0].controller;
@@ -25,14 +28,22 @@ cenozoApp.extendModule({
             compile: function () {
               return function (scope, element, attrs) {
                 if (angular.isFunction(oldLink)) oldLink(scope, element, attrs);
-                angular
-                  .element(element[0].querySelector(".inner-view-frame div"))
-                  .append('<cn-review-list model="reviewModel"></cn-review-list>');
+                const el = angular.element(element[0].querySelector(".inner-view-frame div"));
+                el.append(
+                  '<cn-apex-review-list model="apexReviewModel"></cn-apex-review-list>' +
+                  '<div class="vertical-spacer"></div>' + 
+                  '<cn-review-list model="reviewModel"></cn-review-list>'
+                );
                 $compile(element.contents())(scope);
               };
             },
             controller: function ($scope) {
               oldController($scope);
+
+              $scope.apexReviewModel = CnApexReviewModelFactory.instance();
+              $scope.apexReviewModel.listModel.heading =
+                "Outstanding " + apexReviewModule.name.singular.ucWords() + " List";
+
               $scope.reviewModel = CnReviewModelFactory.instance();
               $scope.reviewModel.listModel.heading =
                 "Outstanding " + reviewModule.name.singular.ucWords() + " List";
