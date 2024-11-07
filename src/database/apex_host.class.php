@@ -1,6 +1,6 @@
 <?php
 /**
- * review.class.php
+ * apex_host.class.php
  * 
  * @author Patrick Emond <emondpd@mcmaster.ca>
  */
@@ -9,6 +9,6 @@ namespace alder\database;
 use cenozo\lib, cenozo\log, cenozo\util;
 
 /**
- * review: record
+ * apex_host: record
  */
-class review extends base_review {}
+class apex_host extends \cenozo\database\record {}

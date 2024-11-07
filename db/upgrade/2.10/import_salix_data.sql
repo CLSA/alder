@@ -69,7 +69,7 @@ CREATE PROCEDURE import_salix_data()
         "JOIN apex_review ON apex_analysis.apex_review_id = apex_review.id ",
         "JOIN exam ON apex_review.exam_id = exam.id ",
         "JOIN scan_type ON exam.scan_type_id = scan_type.id ",
-        "JOIN code_group ON scan_type.id = code_group.scan_type_id AND code_group.name = 'Apex' ",
+        "JOIN code_group ON scan_type.id = code_group.scan_type_id AND code_group.apex = true ",
         "JOIN ", @salix, ".apex_deployment ON apex_review.apex_deployment_id = apex_deployment.id ",
         "JOIN ", @salix, ".code AS apex_code ON apex_deployment.id = apex_code.apex_deployment_id ",
         "JOIN ", @salix, ".code_type ON apex_code.code_type_id = code_type.id ",
@@ -81,6 +81,27 @@ CREATE PROCEDURE import_salix_data()
 
       -- remove temporary column
       ALTER TABLE apex_review DROP COLUMN apex_deployment_id;
+
+      -- remove category names from code names
+      UPDATE code
+      SET name = SUBSTR(
+        name,
+        LOCATE("(", name)+1,
+        CHAR_LENGTH(name) - LOCATE("(", name) - 1
+      )
+      WHERE name LIKE "%(%)";
+
+      -- shorten code names
+      UPDATE code SET name = "high Z/T" WHERE name = "high Z/T score";
+      UPDATE code SET name = "left half" WHERE name = "left half body";
+      UPDATE code SET name = "right half" WHERE name = "right half body";
+
+      -- reorder ROI codes
+      UPDATE code SET rank = 105 WHERE name = "oversized";
+      UPDATE code SET rank = 106 WHERE name = "undersized";
+      UPDATE code SET rank = 4 WHERE name = "right" and rank = 5;
+      UPDATE code SET rank = rank-100 WHERE rank > 100;
+
     END IF;
 
   END //

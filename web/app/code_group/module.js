@@ -15,6 +15,10 @@ cenozoApp.defineModule({
         possessive: "code group's",
       },
       columnList: {
+        apex: {
+          title: "Apex",
+          type: "boolean",
+        },
         rank: {
           title: "Rank",
           type: "rank",
@@ -31,12 +35,16 @@ cenozoApp.defineModule({
         },
       },
       defaultOrder: {
-        column: "rank",
+        column: "apex",
         reverse: false,
       },
     });
 
     module.addInputGroup("", {
+      apex: {
+        title: "Apex",
+        type: "boolean",
+      },
       rank: {
         title: "Rank",
         type: "rank",

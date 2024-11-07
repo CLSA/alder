@@ -97,14 +97,14 @@
               </div>
               <div class="form-group">
                 <label
-                  for="examsPerInterviewer"
+                  for="examsPer"
                   class="col-sm-3 control-label text-right"
                 >Exams per Interviewer:</label>
                 <div class="col-sm-9">
                   <input
-                    id="examsPerInterviewer"
-                    ng-model="model.randomData.examsPerInterviewer"
-                    ng-change="model.sanitizeExamsPerInterviewer()"
+                    id="examsPer"
+                    ng-model="model.randomData.examsPer"
+                    ng-change="model.sanitizeExamsPer()"
                     class="form-control"
                     type="text"
                     autocomplete="off"
@@ -149,7 +149,7 @@
                       <div class="col-sm-6 form-text">
                         <div
                           ng-repeat="(interviewer,total) in interviewerList"
-                          ng-class="{ 'text-danger': total < model.randomData.examsPerInterviewer }"
+                          ng-class="{ 'text-danger': total < model.randomData.examsPer }"
                         >{{ interviewer }}: {{ total }}</div>
                       </div>
                     </div>
@@ -250,7 +250,7 @@
             "
             ng-disabled="(
               'random' == model.selectionType && (
-                null == model.userId || !model.randomData.examsPerInterviewer
+                null == model.userId || !model.randomData.examsPer
               )
             ) || (
               'uid' == model.selectionType && (

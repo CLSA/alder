@@ -283,9 +283,9 @@ cenozoApp.defineModule({
             confirmInProgress: false,
             randomData: {
               canProceed: false,
-              startDate: null,
-              endDate: null,
-              examsPerInterviewer: null,
+              startDate: undefined,
+              endDate: undefined,
+              examsPer: null,
               examDataList: null,
             },
             uidData: {
@@ -329,7 +329,7 @@ cenozoApp.defineModule({
                 minDate: "end" == type ? this.randomData.startDate : null,
                 maxDate: "start" == type ? this.randomData.endDate : null,
                 pickerType: "date",
-                emptyAllowed: false,
+                emptyAllowed: true,
               }).show();
 
               if (false !== response) {
@@ -344,16 +344,16 @@ cenozoApp.defineModule({
               }
             },
 
-            sanitizeExamsPerInterviewer: function () {
-              this.randomData.examsPerInterviewer =
-                Number(this.randomData.examsPerInterviewer.replace(/[^0-9]/g, ""));
+            sanitizeExamsPer: function () {
+              this.randomData.examsPer =
+                Number(this.randomData.examsPer.replace(/[^0-9]/g, ""));
             },
 
             selectionChanged: async function (type) {
               if ((
                 "random" == this.selectionType &&
-                this.randomData.startDate &&
-                this.randomData.endDate
+                angular.isDefined(this.randomData.startDate) &&
+                angular.isDefined(this.randomData.endDate)
               ) || (
                 "uid" == this.selectionType &&
                 angular.isDefined(this.uidData.uidListString) &&
@@ -409,8 +409,8 @@ cenozoApp.defineModule({
 
                 if ("random" == this.selectionType) {
                   angular.extend(data, {
-                    start_date: this.randomData.startDate.replace(/T.*/, ""),
-                    end_date: this.randomData.endDate.replace(/T.*/, ""),
+                    start_date: null == this.randomData.startDate ? null : this.randomData.startDate.replace(/T.*/, ""),
+                    end_date: null == this.randomData.endDate ? null : this.randomData.endDate.replace(/T.*/, ""),
                   });
                   var response = await CnHttpFactory.instance({ path: "review", data: data }).post();
                   this.randomData.examDataList = response.data;
@@ -463,9 +463,9 @@ cenozoApp.defineModule({
             proceed: async function (type) {
               if ("random" == this.selectionType) {
                 let data = {
-                  exams_per_interviewer: this.randomData.examsPerInterviewer,
-                  start_date: this.randomData.startDate.replace(/T.*/, ""),
-                  end_date: this.randomData.endDate.replace(/T.*/, ""),
+                  exams_per: this.randomData.examsPer,
+                  start_date: null == this.randomData.startDate ? null : this.randomData.startDate.replace(/T.*/, ""),
+                  end_date: null == this.randomData.endDate ? null : this.randomData.endDate.replace(/T.*/, ""),
                   user_id: this.userId,
                   process: true,
                 };
@@ -591,7 +591,7 @@ cenozoApp.defineModule({
 
         return {
           instance: function () {
-            return new object(false);
+            return new object();
           },
         };
       },

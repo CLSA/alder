@@ -1,0 +1,105 @@
+<div class="record-view rounded">
+  <div class="container-fluid bg-primary rounded-top">
+    <h4>
+      Apex Image Upload
+      <span ng-if="model.isLoading">(Loading&hellip;)</span>
+    </h4>
+  </div>
+  <form name="form" class="form-horizontal" novalidate>
+    <fieldset ng-disabled="model.isLoading">
+      <div class="form-body">
+        <div class="container-fluid">
+          <label for="hostId" class="control-label">Apex Workstation</label>
+          <div class="input-group">
+            <div class="row">
+              <div class="col-sm-10">
+                <select
+                  id="hostId"
+                  ng-model="model.hostId"
+                  ng-change="model.onHostChange()"
+                  ng-options="item.value as item.name for item in model.hostList"
+                  class="form-control"
+                ></select>
+              </div>
+              <div class="btn-group col-sm-2">
+                <button
+                  type="button"
+                  class="btn btn-primary full-width"
+                  ng-click="model.checkHostStatus()"
+                  ng-disabled="model.checkingHostStatus"
+                >
+                  Check Status
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="vertical-spacer">
+            <div ng-show="model.checkingHostStatus">Checking status...</div>
+            <ul class="vertical-spacer" ng-if="null != model.hostStatus">
+              <li ng-repeat="(key, value) in model.hostStatus">
+                {{ key }}:
+                <span ng-class="{ 'text-success': value, 'text-danger': !value }">
+                  {{ null == value ? "failed" : value ? "online" : "offline" }}
+                  <i class="glyphicon" ng-class="{ 'glyphicon-ok': value, 'glyphicon-remove': !value }"></i>
+                </span>
+              </li>
+            </ul>
+          </div>
+          <div ng-show="null == model.hostStatus" class="vertical-spacer"></div>
+          <div ng-show="null != model.hostStatus">
+            <div class="text-danger" ng-show="
+              !model.hostStatus['DICOM In'] ||
+              !model.hostStatus['DICOM Apex'] ||
+              !model.hostStatus['QDR']
+            ">
+              <h4>Please Note:</h4>
+              <div class="container-fluid">
+                Before images can be uploaded to the selected Apex workstation DICOM In, DICOM Apex
+                and QDR must all be online.<br />
+                Please check the Apex workstation and try again once all software is running.
+              </div>
+            </div>
+            <div ng-show="
+              model.hostStatus['DICOM In'] &&
+              model.hostStatus['DICOM Apex'] &&
+              model.hostStatus['QDR']
+            ">
+              <hr />
+              <label for="hostId" class="control-label">
+                Select images to upload: (hold CTRL key to select multiple images)
+              </label>
+              <div class="input-group">
+                <select
+                  id="selectedFileList"
+                  ng-model="model.selectedFileList"
+                  ng-options="item.value as item.name for item in model.fileList"
+                  class="form-control"
+                  multiple
+                ></select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="vertical-spacer"></div>
+      </div>
+      <div class="form-footer text-right rounded-bottom bg-info">
+        <div class="btn-group">
+          <button
+            type="button"
+            class="btn btn-primary"
+            ng-click="model.uploadFiles()"
+            ng-disabled="0 == model.selectedFileList.length"
+            ng-show="
+              model.hostStatus['DICOM In'] &&
+              model.hostStatus['DICOM Apex'] &&
+              model.hostStatus['QDR']
+            "
+          >
+            <i class="glyphicon glyphicon-cloud-upload"></i>
+            Upload {{ model.selectedFileList.length ? model.selectedFileList.length : "" }} Selected Images
+          </button>
+        </div>
+      </div>
+    </fieldset>
+  </form>
+</div>

@@ -136,35 +136,17 @@ cenozoApp.defineModule({
       });
     }
 
-    module.addExtraOperation("view", {
-      title: "Mark as Complete",
-      operation: async function ($state, model) {
-        if (model.isRole("typist")) {
-          await model.viewModel.setState("complete");
-        }
-      },
-      isDisabled: function ($state, model) {
-        return model.viewModel.changingState;
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist") && null == model.viewModel.record.end_datetime;
-      },
-    });
-
-    module.addExtraOperation("view", {
-      title: "Reopen Review",
-      operation: async function ($state, model) {
-        if (model.isRole("typist")) {
-          await model.viewModel.setState("reopen");
-        }
-      },
-      isDisabled: function ($state, model) {
-        return model.viewModel.changingState;
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist") && null != model.viewModel.record.end_datetime;
-      },
-    });
+    if (angular.isDefined(module.actions.upload)) {
+      module.addExtraOperation("view", {
+        title: "Upload to Apex",
+        operation: async function ($state, model) {
+          await $state.go("apex_review.upload", { identifier: model.viewModel.record.getIdentifier() });
+        },
+        isIncluded: function ($state, model) {
+          return model.isRole("administrator", "typist") && null == model.viewModel.record.end_datetime;
+        },
+      });
+    }
 
     /* ############################################################################################## */
     cenozo.providers.directive("cnApexReviewMultiedit", [
@@ -179,7 +161,7 @@ cenozoApp.defineModule({
             $scope.model = CnApexReviewMultieditFactory.instance();
             $scope.tab = "apex_review";
             CnSession.setBreadcrumbTrail([
-              { title: "Reviews", go: async function () { await $state.go("apex_review.list"); } },
+              { title: "Apex Reviews", go: async function () { await $state.go("apex_review.list"); } },
               { title: "Multi-Edit", }
             ]);
 
@@ -188,6 +170,134 @@ cenozoApp.defineModule({
               await $scope.model.confirm();
               angular.element("#uidListString").trigger("elastic");
             };
+          },
+        };
+      },
+    ]);
+
+    /* ############################################################################################## */
+    cenozo.providers.directive("cnApexReviewUpload", [
+      "CnApexReviewUploadFactory",
+      "CnSession",
+      "$state",
+      function (CnApexReviewUploadFactory, CnSession, $state) {
+        return {
+          templateUrl: module.getFileUrl("upload.tpl.html"),
+          restrict: "E",
+          controller: async function ($scope, $element) {
+            $scope.model = CnApexReviewUploadFactory.instance();
+            await $scope.model.onView();
+
+            CnSession.setBreadcrumbTrail([
+              { title: "Apex Review" },
+              {
+                title: $scope.model.parentModel.viewModel.record.id,
+                go: async function () {
+                  $state.go("apex_review.view", { identifier: $scope.model.parentModel.viewModel.record.id });
+                },
+              },
+              { title: "upload", }
+            ]);
+
+            // resize the the file list select based on the number of files
+            $element.find("#selectedFileList")[0].size = $scope.model.fileList.length;
+          },
+        };
+      },
+    ]);
+
+    /* ############################################################################################## */
+    cenozo.providers.factory("CnApexReviewUploadFactory", [
+      "CnApexReviewModelFactory",
+      "CnHttpFactory",
+      "CnModalMessageFactory",
+      function (CnApexReviewModelFactory, CnHttpFactory, CnModalMessageFactory) {
+        var object = function () {
+
+          angular.extend(this, {
+            parentModel: CnApexReviewModelFactory.instance(),
+            isLoading: true,
+            fileList: null,
+            selectedFileList: [],
+            hostList: null,
+            hostId: null,
+            checkingHostStatus: false,
+            hostStatus: null,
+
+            uploadingFiles: false,
+
+            checkHostStatus: async function() {
+              angular.extend(this, {
+                checkingHostStatus: true,
+                hostStatus: null,
+              });
+
+              try {
+                // get the host's status
+                const response = await CnHttpFactory.instance({
+                  path: "apex_host/" + this.hostId,
+                  data: { select: { column: 'status' } },
+                }).get();
+
+                this.hostStatus = JSON.parse(response.data.status);
+              } finally {
+                this.checkingHostStatus = false;
+              }
+            },
+
+            uploadFiles: async function() {
+              this.uploadingFiles = true;
+              try {
+                // TODO: upload files in this.selectedFileList to apex
+                /*
+                const response = await CnHttpFactory.instance({
+                }).post();
+                */
+                console.log( this.selectedFileList );
+              } finally {
+                this.uploadingFiles = false;
+              }
+            },
+
+            onView: async function() {
+              this.isLoading = true;
+              try {
+                // start by getting a list of all apex hosts
+                const hostResponse = await CnHttpFactory.instance({
+                  path: "apex_host",
+                  data: { select: { column: "name" }, modifier: { order: "name" } },
+                }).query();
+
+                this.hostList = hostResponse.data.reduce((list, item) => {
+                  list.push({ value: item.id, name: item.name });
+                  return list;
+                }, []);
+                this.hostId = 0 < this.hostList.length ? this.hostList[0].value : null;
+
+                // we are not visualizing images, so don't call the full onView method
+                await this.parentModel.viewModel.$$onView();
+
+                // get a list of all files associated with this exam that could be uploaded
+                const fileResponse = await CnHttpFactory.instance({
+                  path: "apex_review/" + this.parentModel.viewModel.record.id + "/image",
+                }).query();
+                this.fileList = fileResponse.data.reduce((list, item) => {
+                  let name = item.phase + ": " + (null == item.side ? "" : item.side + " ") + item.type;
+                  if (null != item.number) name = name + " #" + item.number;
+                  if (item.reanalysed) name += " (reanalysed)";
+                  list.push({ value: item.filename, name: name });
+                  return list;
+                }, []);
+              } finally {
+                this.isLoading = false;
+              }
+            },
+          });
+        };
+
+        return {
+          instance: function () {
+            return new object();
           },
         };
       },
@@ -210,7 +320,7 @@ cenozoApp.defineModule({
               canProceed: false,
               startDate: undefined,
               endDate: undefined,
-              examsPerCategory: null,
+              examsPer: null,
               examDataList: null,
             },
             uidData: {
@@ -262,9 +372,9 @@ cenozoApp.defineModule({
               }
             },
 
-            sanitizeExamsPerCategory: function () {
-              this.bulkData.examsPerCategory =
-                Number(this.bulkData.examsPerCategory.replace(/[^0-9]/g, ""));
+            sanitizeExamsPer: function () {
+              this.bulkData.examsPer =
+                Number(this.bulkData.examsPer.replace(/[^0-9]/g, ""));
             },
 
             selectionChanged: async function (type) {
@@ -381,7 +491,7 @@ cenozoApp.defineModule({
             proceed: async function (type) {
               if ("bulk" == this.selectionType) {
                 let data = {
-                  exams_per_category: this.bulkData.examsPerCategory,
+                  exams_per: this.bulkData.examsPer,
                   start_date: null == this.bulkData.startDate ? null : this.bulkData.startDate.replace(/T.*/, ""),
                   end_date: null == this.bulkData.endDate ? null : this.bulkData.endDate.replace(/T.*/, ""),
                   user_id: this.userId,
@@ -509,7 +619,7 @@ cenozoApp.defineModule({
 
         return {
           instance: function () {
-            return new object(false);
+            return new object();
           },
         };
       },
@@ -539,7 +649,7 @@ cenozoApp.defineModule({
             getServiceResourcePath: resource => "apex_analysis/" + this.currentAnalysis.analysisId,
             getEditEnabled: () => (
               this.parentModel.getEditEnabled() &&
-              this.parentModel.isRole('typist') &&
+              this.parentModel.isRole("typist") &&
               // make read-only for typists after marking as complete
               null == this.parentModel.viewModel.record.end_datetime
             ),
@@ -551,19 +661,6 @@ cenozoApp.defineModule({
             imageDisplayModel: CnImageDisplayFactory.instance(),
             analysisList: [],
             currentAnalysis: null,
-
-            changingState: false,
-
-            setState: async function(value) {
-              try {
-                this.changingState = true;
-                await this.onPatch({ state: value });
-                await this.onView(true);
-              } catch (error) {
-              } finally {
-                this.changingState = false;
-              }
-            },
 
             isTypist: function() {
               return this.parentModel.isRole("typist") && this.record.user_id == CnSession.user.id;
@@ -584,7 +681,7 @@ cenozoApp.defineModule({
               try {
                 // get a list of all analysis records
                 const response = await CnHttpFactory.instance({
-                  path: this.parentModel.getServiceResourcePath() + '/apex_analysis',
+                  path: this.parentModel.getServiceResourcePath() + "/apex_analysis",
                 }).query();
 
                 // do not include the analysisId since analysis is done in Apex, not locally in Alder
@@ -770,7 +867,7 @@ cenozoApp.defineModule({
               return (
                 this.$$getAddEnabled() &&
                 "exam" == this.getSubjectFromState() &&
-                ["add_review", "view"].includes( this.getActionFromState() )
+                ["add_apex_review", "view"].includes( this.getActionFromState() )
               );
             },
 

@@ -546,26 +546,6 @@ CREATE PROCEDURE rebuild_code_tables()
       EXECUTE statement;
       DEALLOCATE PREPARE statement;
 
-      -- remove category names from code names
-      UPDATE code
-      SET name = SUBSTR(
-        name,
-        LOCATE("(", name)+1,
-        CHAR_LENGTH(name) - LOCATE("(", name) - 1
-      )
-      WHERE name LIKE "%(%)";
-
-      -- shorten code names
-      UPDATE code SET name = "high Z/T" WHERE name = "high Z/T score";
-      UPDATE code SET name = "left half" WHERE name = "left half body";
-      UPDATE code SET name = "right half" WHERE name = "right half body";
-
-      -- reorder ROI codes
-      UPDATE code SET rank = 105 WHERE name = "oversized";
-      UPDATE code SET rank = 106 WHERE name = "undersized";
-      UPDATE code SET rank = 4 WHERE name = "right" and rank = 5;
-      UPDATE code SET rank = rank-100 WHERE rank > 100;
-
     END IF;
 
   END //

@@ -97,14 +97,14 @@
               </div>
               <div class="form-group">
                 <label
-                  for="examsPerCategory"
+                  for="examsPer"
                   class="col-sm-3 control-label text-right"
                 >Exams per Phase/Scan-Type:</label>
                 <div class="col-sm-9">
                   <input
-                    id="examsPerCategory"
-                    ng-model="model.bulkData.examsPerCategory"
-                    ng-change="model.sanitizeExamsPerCategory()"
+                    id="examsPer"
+                    ng-model="model.bulkData.examsPer"
+                    ng-change="model.sanitizeExamsPer()"
                     class="form-control"
                     type="text"
                     autocomplete="off"
@@ -146,7 +146,7 @@
                     <span
                       ng-repeat="(scanType,total) in scanTypeList"
                       class="horizontal-spacer"
-                      ng-class="{ 'text-danger': total < model.bulkData.examsPerCategory }"
+                      ng-class="{ 'text-danger': total < model.bulkData.examsPer }"
                     >{{ scanType }}: {{ total }}</span>
                   </div>
                 </span>
@@ -231,7 +231,7 @@
             "
             ng-disabled="(
               'bulk' == model.selectionType && (
-                null == model.userId || !model.bulkData.examsPerCategory
+                null == model.userId || !model.bulkData.examsPer
               )
             ) || (
               'uid' == model.selectionType && (

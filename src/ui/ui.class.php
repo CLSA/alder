@@ -60,6 +60,12 @@ class ui extends \cenozo\ui\ui
       $module->add_choose( 'apex_review' );
       $module->add_choose( 'review' );
     }
+
+    $module = $this->get_module( 'apex_host' );
+    if( !is_null( $module ) ) $module->add_choose( 'image' );
+
+    $module = $this->get_module( 'apex_review' );
+    if( !is_null( $module ) ) $module->add_action( 'upload', '/{identifier}' );
   }
 
   /**
@@ -72,6 +78,7 @@ class ui extends \cenozo\ui\ui
     parent::build_listitem_list();
 
     // add application-specific lists to the base list
+    $this->add_listitem( 'Apex Hosts', 'apex_host' );
     $this->add_listitem( 'Apex Reviews', 'apex_review' );
     $this->add_listitem( 'Interviews', 'interview' );
     $this->add_listitem( 'Modalities', 'modality' );

@@ -13,11 +13,23 @@ global $SETTINGS;
 $SETTINGS['general']['application_name'] = 'alder';
 $SETTINGS['general']['instance_name'] = $SETTINGS['general']['application_name'];
 $SETTINGS['general']['version'] = '2.10';
-$SETTINGS['general']['build'] = '893ef24';
+$SETTINGS['general']['build'] = 'e0241d3';
 
 // the location of alder internal path
 $SETTINGS['path']['APPLICATION'] = str_replace( '/settings.ini.php', '', __FILE__ );
 
-// the directory where image files are located
+// the directory where images are located
 $SETTINGS['path']['IMAGES'] = NULL;
 $SETTINGS['url']['IMAGES'] = NULL;
+
+// the directory where supplementary images are located
+$SETTINGS['path']['SUPPLEMENTARY'] = NULL;
+
+// the location of a keyfile used for Apex SSH commands
+$SETTINGS['apex']['keyfile'] = $SETTINGS['path']['APPLICATION'].'/doc/apex_key';
+
+// the password used when connecting to all Apex databases
+$SETTINGS['apex']['db_password'] = '';
+
+// the timeout used when communicating with an Apex server (in seconds)
+$SETTINGS['apex']['timeout'] = 5;
