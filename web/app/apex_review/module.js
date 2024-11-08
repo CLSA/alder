@@ -246,14 +246,16 @@ cenozoApp.defineModule({
             },
 
             uploadFiles: async function() {
+              if (0 == this.selectedFileList.length) return;
+
               this.uploadingFiles = true;
               try {
-                // TODO: upload files in this.selectedFileList to apex
-                /*
                 const response = await CnHttpFactory.instance({
-                }).post();
-                */
-                console.log( this.selectedFileList );
+                  path: "apex_host/" + this.hostId,
+                  data: { files: this.selectedFileList },
+                }).patch();
+                
+                console.log( response.data );
               } finally {
                 this.uploadingFiles = false;
               }
@@ -282,7 +284,9 @@ cenozoApp.defineModule({
                   path: "apex_review/" + this.parentModel.viewModel.record.id + "/image",
                 }).query();
                 this.fileList = fileResponse.data.reduce((list, item) => {
-                  let name = item.phase + ": " + (null == item.side ? "" : item.side + " ") + item.type;
+                  let name =
+                    "Phase " + item.phase.rank + " (" + item.phase.name + "): " +
+                    (null == item.side ? "" : item.side + " ") + item.type;
                   if (null != item.number) name = name + " #" + item.number;
                   if (item.reanalysed) name += " (reanalysed)";
                   list.push({ value: item.filename, name: name });

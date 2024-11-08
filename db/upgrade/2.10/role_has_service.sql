@@ -42,7 +42,7 @@ CREATE PROCEDURE patch_role_has_service()
       "SELECT role.id, service.id ",
       "FROM ", @cenozo, ".role, service ",
       "WHERE role.name = 'typist' ",
-      "AND service.subject = 'apex_review' ",
+      "AND service.subject IN( 'apex_host', 'apex_review' ) ",
       "AND service.method = 'PATCH' ",
       "AND service.restricted = 1"
     );

@@ -6,7 +6,7 @@
  */
 
 namespace alder\database;
-use cenozo\lib, cenozo\log, cenozo\util;
+use cenozo\lib, cenozo\log, alder\util;
 
 /**
  * review: record

@@ -1,0 +1,44 @@
+<?php
+/**
+ * patch.class.php
+ * 
+ * @author Patrick Emond <emondpd@mcmaster.ca>
+ */
+
+namespace alder\service\apex_host;
+use cenozo\lib, cenozo\log, alder\util;
+
+class patch extends \cenozo\service\patch
+{
+  /**
+   * Override parent method
+   */
+  protected function prepare()
+  {
+    $this->extract_parameter_list[] = 'files';
+    parent::prepare();
+  }
+
+  /**
+   * Extend parent method
+   */
+  public function execute()
+  {
+    parent::execute();
+
+    $files = $this->get_argument( 'files', NULL );
+    if( !is_null( $files ) )
+    {
+      // upload the provided files to the host
+      $apex_manager = lib::create( 'business\apex_manager', $this->get_leaf_record() );
+      $this->set_data( $apex_manager->upload_files( $files ) );
+    }
+  }
+
+  /**
+   * Used to track metadata about the user providing apex_host data
+   * @var array;
+   * @access protected
+   */
+  protected $user_metadata = [];
+}

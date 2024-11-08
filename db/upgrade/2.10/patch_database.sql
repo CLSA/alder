@@ -11,7 +11,6 @@ SOURCE setting.sql
 SOURCE calculate_rating.sql
 
 SOURCE apex_host.sql
-SOURCE apex_host_has_image.sql
 SOURCE apex_review.sql
 SOURCE apex_analysis.sql
 SOURCE apex_analysis_has_code.sql
