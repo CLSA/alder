@@ -8,7 +8,7 @@
 namespace alder\service;
 use cenozo\lib, cenozo\log, alder\util;
 
-class base_review_patch extends \cenozo\service\patch
+abstract class base_review_patch extends \cenozo\service\patch
 {
   /**
    * Extends parent method

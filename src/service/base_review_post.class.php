@@ -8,10 +8,7 @@
 namespace alder\service;
 use cenozo\lib, cenozo\log, alder\util;
 
-/**
- * The base class of all post services.
- */
-class base_review_post extends \cenozo\service\post
+abstract class base_review_post extends \cenozo\service\post
 {
   /**
    * Extends parent method

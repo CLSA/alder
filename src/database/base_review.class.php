@@ -8,9 +8,6 @@
 namespace alder\database;
 use cenozo\lib, cenozo\log, cenozo\util;
 
-/**
- * base_review: abstract record
- */
 abstract class base_review extends \cenozo\database\record
 {
   /**

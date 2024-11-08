@@ -8,10 +8,7 @@
 namespace alder\service;
 use cenozo\lib, cenozo\log, alder\util;
 
-/**
- * Performs operations which effect how this module is used in a service
- */
-class base_review_module extends \cenozo\service\site_restricted_module
+abstract class base_review_module extends \cenozo\service\site_restricted_module
 {
   /**
    * Extend parent method
