@@ -255,7 +255,32 @@ cenozoApp.defineModule({
                   data: { files: this.selectedFileList },
                 }).patch();
                 
-                console.log( response.data );
+                message = response.data.reduce(
+                  (str, item) => {
+                    let filename = this.fileList.findByProperty("value", item.file).name;
+                    let result = null == item.error ? "File successfully transferred." : item.error;
+                    let highlight = null == item.error ? "text-success" : "text-danger";
+                    let glyph = null == item.error ? "glyphicon-ok" : "glyphicon-remove";
+                    str += (
+                      '<div class="container-fluid vertical-spacer">' + 
+                        '<div>' + filename + '</div>' +
+                        '<div class="spacer ' + highlight + '">' +
+                          result + ' <i class="glyphicon ' + glyph + '"></i>' +
+                        '</div>' +
+                      '</div>'
+                    );
+                    return str;
+                  },
+                  ""
+                );
+                await CnModalMessageFactory.instance({
+                  title: "Upload Results",
+                  message: message,
+                  html: true,
+                  size: "lg",
+                }).show();
+
+                this.selectedFileList = [];
               } finally {
                 this.uploadingFiles = false;
               }

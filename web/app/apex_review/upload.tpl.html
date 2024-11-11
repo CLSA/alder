@@ -6,7 +6,7 @@
     </h4>
   </div>
   <form name="form" class="form-horizontal" novalidate>
-    <fieldset ng-disabled="model.isLoading">
+    <fieldset ng-disabled="model.isLoading || model.uploadingFiles">
       <div class="form-body">
         <div class="container-fluid">
           <label for="hostId" class="control-label">Apex Workstation</label>
@@ -95,8 +95,13 @@
               model.hostStatus['QDR']
             "
           >
-            <i class="glyphicon glyphicon-cloud-upload"></i>
-            Upload {{ model.selectedFileList.length ? model.selectedFileList.length : "" }} Selected Images
+            <span ng-if="model.uploadingFiles">
+              Uploading Images...
+            </span>
+            <span ng-if="!model.uploadingFiles">
+              <i class="glyphicon glyphicon-cloud-upload"></i>
+              Upload {{ model.selectedFileList.length ? model.selectedFileList.length : "" }} Selected Images
+            </span>
           </button>
         </div>
       </div>
