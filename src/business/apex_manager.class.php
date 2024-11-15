@@ -70,6 +70,22 @@ class apex_manager extends \cenozo\base_object
   }
 
   /**
+   * Deletes all DICOM images on the Apex host
+   * 
+   * @return string Any error, or NULL if the operation is successful
+   * @access public
+   */
+  public function delete_all_patients()
+  {
+    // remove all patients from Apex
+    $response = $this->delete_patient( 'apex' );
+
+    // convert an error with no description
+    if( false === $response ) $response = 'Unable to delete patient records from Apex database.';
+    return is_string( $response ) ? $response : NULL;
+  }
+
+  /**
    * Uploads DICOM images to the Apex host
    * 
    * @param [string] $file_list
@@ -96,132 +112,153 @@ class apex_manager extends \cenozo\base_object
           $filename = sprintf( '%s/%s', IMAGES_PATH, $filename );
       }
 
-      $result = [
-        'file' => $file,
-        'error' => NULL,
-      ];
+      $result = ['file' => $file, 'error' => NULL];
 
-      // check that the file exists
-      if( !file_exists( $filename ) )
-      {
-        $result['error'] = 'File not found in data vault.';
-        $result_list[] = $result;
-        continue;
-      }
-
-      // set the dicom's ID based on uid, side, type, number and whether it was reanalysed
-      $new_patient_id = sprintf(
-        '%s_%d_%s%s%s%s',
-        $data['uid'],
-        $data['phase']['rank'],
-        !is_null( $data['side'] ) ? substr( $data['side'], 0, 1 ) : '',
-        $data['type'],
-        is_null( $data['number'] ) ? '' : $data['number'],
-        $data['reanalysed'] ? '_r' : ''
+      $phase_string = sprintf( '%d%s', $data['phase']['rank'], $data['reanalysed'] ? 'R' : '' );
+      $type_string = is_null( $data['side'] ) ?
+        $data['type'] : sprintf( '%s (%s)', $data['type'], $data['side'] );
+      $short_type_string = strtoupper(
+        is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
       );
 
-      // create a temporary copy of the dicom file and prepare it for apex
-      $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
-      copy( $filename, $temp_filename );
+      // set the dicom's ID based on uid, side, type, and whether it was reanalysed
+      $new_patient_id = sprintf( '%s_%s_%s', $data['uid'], $phase_string, $short_type_string );
 
-      $response = $this->get_patient_id( $temp_filename );
-      if( 0 != $response['exitcode'] )
+      // the SCANID has a maximum length of 13 characters, so we need to make a very short version of the ID
+      $scanid = sprintf( '%s_%s%s', $data['uid'], $phase_string, $short_type_string );
+
+      try
       {
-        $result['error'] = 'Unable to determine DICOM PatientID tag.';
-        $result_list[] = $result;
-        continue;
-      }
-      $matches = [];
-      if( !preg_match( '/\[([^[]+)\]/', $response['output'], $matches ) )
-      {
-        $result['error'] = 'File is missing PatientID tag.';
-        $result_list[] = $result;
-        continue;
-      }
-      $old_patient_id = $matches[1];
-
-      $response = $this->set_patient_id( $temp_filename, $new_patient_id );
-      if( 0 != $response['exitcode'] )
-      {
-        $result['error'] = 'Failed to modify DICOM tags.';
-        $result_list[] = $result;
-        continue;
-      }
-
-      $response = $this->scp( $temp_filename, 'E:\incoming\incoming' );
-      unlink( $temp_filename );
-      if( 0 != $response['exitcode'] )
-      {
-        $result['error'] = 'Failed to copy file to host.';
-        $result_list[] = $result;
-        continue;
-      }
-
-
-      // wait up to 10 seconds for the file to register in the DICOM server
-      $file_registered = false;
-      for( $i = 1; $i <= 10; $i++ )
-      {
-        sleep(1);
-        $response = $this->ssh( sprintf( 'dir E:\incoming\%s', $new_patient_id ) );
-        if( 0 == $response['exitcode'] )
-        {
-          $file_registered = true;
-          break;
-        }
-      }
-      if( !$file_registered )
-      {
-        $result['error'] = 'Failed to register file in DICOM server.';
-        $result_list[] = $result;
-
-        // try deleting the file
-        $this->ssh( sprintf( 'c:\dicomserverIN\dgate64.exe -v --deletepatient:%s', $new_patient_id ) );
-
-        continue;
-      }
-
-      // move file to Apex DICOM server
-      $response = $this->ssh(
-        sprintf(
-          'c:\dicomserverIN\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
+        // check if the file is already on the server
+        $response = $this->query( sprintf(
+          "SELECT COUNT(*) FROM dbo.PATIENT WHERE IDENTIFIER1 = '%s'",
           $new_patient_id
-        )
-      );
+        ) );
 
-      // remove files from the DICOM IN server (whether the move patient command works or not)
-      $this->ssh( sprintf( 'c:\dicomserverIN\dgate64.exe -v --deletepatient:%s', $new_patient_id ) );
+        if( !odbc_fetch_row( $response ) ) throw new \Exception( 'Unable to query Apex MSSQL database.' );
+        if( 1 == odbc_result( $response, 1 ) ) throw new \Exception( 'File already exists on Apex workstation.' );
 
-      if( '0' != $response['output'] )
-      {
-        $result['error'] = 'Failed to move file into Apex DICOM server.';
-        $result_list[] = $result;
-        continue;
-      }
+        // check that the file exists
+        if( !file_exists( $filename ) ) throw new \Exception( 'File not found in data vault.' );
 
-      // modify name and identifier in the Apex database
-      $response = $this->query( sprintf(
-        "UPDATE dbo.PATIENT ".
-        "SET FIRST_NAME = '%s', LAST_NAME = '%s', IDENTIFIER1 = '%s' ".
-        "WHERE IDENTIFIER1 = '%s'",
-        sprintf( '%d%s', $data['phase']['rank'], $data['reanalysed'] ? 'R' : '' ),
-        is_null( $data['side'] ) ? $data['type'] : sprintf( '%s %s', $data['side'], $data['type'] ),
-        $data['uid'],
-        $old_patient_id
-      ) );
+        // create a temporary copy of the dicom file and prepare it for apex
+        $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
+        if( $this->debug ) log::debug( sprintf( 'cp %s %s', $filename, $temp_filename ) );
+        copy( $filename, $temp_filename );
 
-      if( false === $response || is_string( $response ) )
-      {
-        $result['error'] = is_string( $response ) ? $response : 'Unable to update Apex patient record.';
-        $result_list[] = $result;
+        $response = $this->get_patient_id( $temp_filename );
+        if( 0 != $response['exitcode'] ) throw new \Exception( 'Unable to determine DICOM PatientID tag.' );
 
-        // remove the scan from Apex, if we can
-        if( false !== $response )
+        $matches = [];
+        if( !preg_match( '/\[([^[]+)\]/', $response['output'], $matches ) )
+          throw new \Exception( 'File is missing PatientID tag.' );
+        $old_patient_id = $matches[1];
+
+        $response = $this->set_patient_id( $temp_filename, $new_patient_id );
+        if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to modify DICOM tags.' );
+
+        $response = $this->scp( $temp_filename, 'E:\incoming\incoming' );
+        if( $this->debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
+        unlink( $temp_filename );
+        if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to copy file to host.' );
+
+        // wait up to 15 seconds for the file to register in the DICOM server
+        $file_registered = false;
+        for( $i = 1; $i <= 15; $i++ )
         {
-          $this->query( "DELETE FROM dbo.PATIENT WHERE IDENTIFIER = '%s'", $old_patient_id );
+          sleep(1);
+          $response = $this->ssh( sprintf( 'dir E:\incoming\%s', $new_patient_id ) );
+          if( 0 == $response['exitcode'] )
+          {
+            $file_registered = true;
+            break;
+          }
+        }
+        if( !$file_registered )
+        {
+          // try deleting the file
+          $this->delete_patient( 'in', $new_patient_id );
+          throw new \Exception( 'Failed to register file in DICOM server.' );
         }
 
-        continue;
+        // move file to Apex DICOM server
+        $response = $this->ssh(
+          sprintf(
+            'c:\dicomserverIN\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
+            $new_patient_id
+          )
+        );
+
+        // remove files from the DICOM IN server (whether the move patient command works or not)
+        $this->delete_patient( 'in', $new_patient_id );
+
+        $response = $this->query( sprintf(
+          "SELECT COUNT(*) FROM dbo.PATIENT WHERE IDENTIFIER1 = '%s'",
+          $old_patient_id
+        ) );
+
+        if( !odbc_fetch_row( $response ) || 0 == odbc_result( $response, 1 ) )
+          throw new \Exception( 'Failed to move file into Apex DICOM server.' );
+
+        // modify name and identifier in the Apex database
+        $response1 = $this->query( sprintf(
+          "UPDATE dbo.PATIENT ".
+          "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s %s' ".
+          "WHERE IDENTIFIER1 = '%s'",
+          $new_patient_id,
+          $new_patient_id,
+          $type_string,
+          $data['uid'],
+          $phase_string,
+          $old_patient_id
+        ) );
+
+        if( false === $response || is_string( $response ) )
+        {
+          // remove the scan from Apex, if we can
+          if( false !== $response ) $this->delete_patient( 'apex', $old_patient_id );
+          throw new \Exception( is_string( $response ) ? $response : 'Unable to update Apex patient record.' );
+        }
+
+        // modify name and identifier in the Apex database
+        $response1 = $this->query( sprintf(
+          "UPDATE dbo.ScanAnalysis ".
+          "SET SCANID = '%s' ".
+          "WHERE PATIENT_KEY = '%s'",
+          $new_patient_id,
+          $new_patient_id
+        ) );
+
+        // modify name and identifier in the Apex database
+        $response2 = $this->query( sprintf(
+          "UPDATE dbo.Hip ".
+          "SET SCANID = '%s' ".
+          "WHERE PATIENT_KEY = '%s'",
+          $new_patient_id,
+          $new_patient_id
+        ) );
+
+        // modify name and identifier in the Apex database
+        $response3 = $this->query( sprintf(
+          "UPDATE dbo.HipHSA ".
+          "SET SCANID = '%s' ".
+          "WHERE PATIENT_KEY = '%s'",
+          $new_patient_id,
+          $new_patient_id
+        ) );
+
+        if(
+          false === $response1 || is_string( $response1 ) ||
+          false === $response2 || is_string( $response2 ) ||
+          false === $response3 || is_string( $response3 )
+        ) {
+          $this->delete_patient( 'apex', $new_patient_id );
+          throw new \Exception( is_string( $response ) ? $response : 'Unable to update Apex patient record.' );
+        }
+      }
+      catch( \Exception $e )
+      {
+        $result['error'] = $e->getMessage();
       }
 
       $result_list[] = $result;
@@ -231,10 +268,37 @@ class apex_manager extends \cenozo\base_object
   }
 
   /**
-   * TODO: document
+   * Deletes patient files for DICOM IN, DICOM Out or Apex
+   * 
+   * @param string $type Either "in", "out", or "apex"
+   * @param string $identifier The patient identifier (if null then all patients will be deleted)
+   * @return string The response from the server
+   * @access private
    */
-  public function delete_files()
+  private function delete_patient( $type, $identifier = NULL )
   {
+    if( 'in' == $type )
+    {
+      return $this->ssh( sprintf(
+        'c:\dicomserverIN\dgate64.exe -v --deletepatient:%s',
+        is_null( $identifier ) ? '*' : $identifier
+      ) );
+    }
+    else if ( 'out' == $type )
+    {
+      return $this->ssh( sprintf(
+        'c:\dicomserverOUT\dgate64.exe -v --deletepatient:%s',
+        is_null( $identifier ) ? '*' : $identifier
+      ) );
+    }
+    else if ( 'apex' == $type )
+    {
+      $sql = 'DELETE FROM dbo.PATIENT';
+      IF( !is_null( $identifier ) ) $sql .= sprintf( " WHERE IDENTIFIER1 = '%s'", $identifier );
+      return $this->query( $sql );
+    }
+
+    return NULL;
   }
 
   /**
@@ -253,6 +317,7 @@ class apex_manager extends \cenozo\base_object
       $this->db_apex_host->ssh_address,
       preg_replace( '/"/', '\\"', $command )
     );
+    if( $this->debug ) log::debug( $ssh_command );
     return util::exec_timeout( $ssh_command, $this->timeout );
   }
 
@@ -272,6 +337,7 @@ class apex_manager extends \cenozo\base_object
       // replace backslashes with two backslashes
       preg_replace( '#\\\#', '\\\\\\', $destination )
     );
+    if( $this->debug ) log::debug( $scp_command );
     return util::exec_timeout( $scp_command, $this->timeout );
   }
 
@@ -281,6 +347,7 @@ class apex_manager extends \cenozo\base_object
       'dcmdump --load-short --print-short --search "0010,0020" %s',
       $filename
     );
+    if( $this->debug ) log::debug( $command );
     return util::exec_timeout( $command, $this->timeout );
   }
 
@@ -291,6 +358,7 @@ class apex_manager extends \cenozo\base_object
       $patient_id,
       $filename
     );
+    if( $this->debug ) log::debug( $command );
     return util::exec_timeout( $command, $this->timeout );
   }
 
@@ -311,6 +379,7 @@ class apex_manager extends \cenozo\base_object
     }
 
     if( false === $this->db ) return 'Failed to connect to Apex database.';
+    if( $this->debug ) log::debug( $sql );
     return odbc_exec( $this->db, $sql );
   }
 
@@ -323,6 +392,15 @@ class apex_manager extends \cenozo\base_object
 
   /**
    * A connection to the Apex MSSQL database (created on demand)
+   * @var resource
+   * @access private
    */
   private $db = NULL;
+
+  /**
+   * When set to true the manager will print all commands to the log
+   * @var boolean
+   * @access private
+   */
+  private $debug = true;
 }

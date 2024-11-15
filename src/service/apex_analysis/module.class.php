@@ -64,6 +64,7 @@ class module extends \cenozo\service\site_restricted_module
     $modifier->join( 'apex_review', 'apex_analysis.apex_review_id', 'apex_review.id' );
     $modifier->join( 'exam', 'apex_review.exam_id', 'exam.id' );
     $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
+    $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
     $modifier->join( 'site', 'interview.site_id', 'site.id' );
     $modifier->join( 'user', 'apex_review.user_id', 'user.id' );
 

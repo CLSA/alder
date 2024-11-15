@@ -15,6 +15,7 @@ class patch extends \cenozo\service\patch
    */
   protected function prepare()
   {
+    $this->extract_parameter_list[] = 'delete';
     $this->extract_parameter_list[] = 'files';
     parent::prepare();
   }
@@ -25,6 +26,14 @@ class patch extends \cenozo\service\patch
   public function execute()
   {
     parent::execute();
+
+    $delete = $this->get_argument( 'delete', false );
+    if( $delete )
+    {
+      // delete all patients on the host
+      $apex_manager = lib::create( 'business\apex_manager', $this->get_leaf_record() );
+      $this->set_data( $apex_manager->delete_all_patients() );
+    }
 
     $files = $this->get_argument( 'files', NULL );
     if( !is_null( $files ) )

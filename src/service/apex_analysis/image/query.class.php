@@ -5,7 +5,7 @@
  * @author Patrick Emond <emondpd@mcmaster.ca>
  */
 
-namespace alder\service\apex_review\image;
+namespace alder\service\apex_analysis\image;
 use cenozo\lib, cenozo\log, alder\util;
 
 /**
@@ -29,7 +29,7 @@ class query extends \cenozo\service\query
    */
   protected function setup()
   {
-    // cache the list of images that can be uploded to apex for this apex_review
+    // cache the list of images that can be uploded to apex for this apex_anslysis
     $this->images_for_apex = $this->get_parent_record()->get_images_for_apex();
   }
 
@@ -50,7 +50,7 @@ class query extends \cenozo\service\query
   }
 
   /**
-   * A cache of all images that can be uploaded to apex for this apex_review
+   * A cache of all images that can be uploaded to apex for this apex_anslysis
    * @var array(array)
    * @access private
    */

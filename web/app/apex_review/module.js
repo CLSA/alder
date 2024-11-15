@@ -136,15 +136,41 @@ cenozoApp.defineModule({
       });
     }
 
-    if (angular.isDefined(module.actions.upload)) {
+    if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.export)) {
       module.addExtraOperation("view", {
-        title: "Upload to Apex",
+        title: "Send Images",
         operation: async function ($state, model) {
-          await $state.go("apex_review.upload", { identifier: model.viewModel.record.getIdentifier() });
+          await $state.go(
+            "apex_analysis.export",
+            { identifier: model.viewModel.currentAnalysis.analysisId }
+          );
         },
         isIncluded: function ($state, model) {
           return model.isRole("administrator", "typist") && null == model.viewModel.record.end_datetime;
         },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.currentAnalysis;
+        },
+        help: "Export images to an Apex workstation for re-analysis.",
+      });
+    }
+
+    if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.import)) {
+      module.addExtraOperation("view", {
+        title: "Get Analysis",
+        operation: async function ($state, model) {
+          await $state.go(
+            "apex_analysis.import",
+            { identifier: model.viewModel.currentAnalysis.analysisId }
+          );
+        },
+        isIncluded: function ($state, model) {
+          return model.isRole("administrator", "typist") && null == model.viewModel.record.end_datetime;
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.currentAnalysis;
+        },
+        help: "Import re-analysed images and data from an Apex workstation.",
       });
     }
 
@@ -170,163 +196,6 @@ cenozoApp.defineModule({
               await $scope.model.confirm();
               angular.element("#uidListString").trigger("elastic");
             };
-          },
-        };
-      },
-    ]);
-
-    /* ############################################################################################## */
-    cenozo.providers.directive("cnApexReviewUpload", [
-      "CnApexReviewUploadFactory",
-      "CnSession",
-      "$state",
-      function (CnApexReviewUploadFactory, CnSession, $state) {
-        return {
-          templateUrl: module.getFileUrl("upload.tpl.html"),
-          restrict: "E",
-          controller: async function ($scope, $element) {
-            $scope.model = CnApexReviewUploadFactory.instance();
-            await $scope.model.onView();
-
-            CnSession.setBreadcrumbTrail([
-              { title: "Apex Review" },
-              {
-                title: $scope.model.parentModel.viewModel.record.id,
-                go: async function () {
-                  $state.go("apex_review.view", { identifier: $scope.model.parentModel.viewModel.record.id });
-                },
-              },
-              { title: "upload", }
-            ]);
-
-            // resize the the file list select based on the number of files
-            $element.find("#selectedFileList")[0].size = $scope.model.fileList.length;
-          },
-        };
-      },
-    ]);
-
-    /* ############################################################################################## */
-    cenozo.providers.factory("CnApexReviewUploadFactory", [
-      "CnApexReviewModelFactory",
-      "CnHttpFactory",
-      "CnModalMessageFactory",
-      function (CnApexReviewModelFactory, CnHttpFactory, CnModalMessageFactory) {
-        var object = function () {
-
-          angular.extend(this, {
-            parentModel: CnApexReviewModelFactory.instance(),
-            isLoading: true,
-            fileList: null,
-            selectedFileList: [],
-            hostList: null,
-            hostId: null,
-            checkingHostStatus: false,
-            hostStatus: null,
-
-            uploadingFiles: false,
-
-            checkHostStatus: async function() {
-              angular.extend(this, {
-                checkingHostStatus: true,
-                hostStatus: null,
-              });
-
-              try {
-                // get the host's status
-                const response = await CnHttpFactory.instance({
-                  path: "apex_host/" + this.hostId,
-                  data: { select: { column: 'status' } },
-                }).get();
-
-                this.hostStatus = JSON.parse(response.data.status);
-              } finally {
-                this.checkingHostStatus = false;
-              }
-            },
-
-            uploadFiles: async function() {
-              if (0 == this.selectedFileList.length) return;
-
-              this.uploadingFiles = true;
-              try {
-                const response = await CnHttpFactory.instance({
-                  path: "apex_host/" + this.hostId,
-                  data: { files: this.selectedFileList },
-                }).patch();
-                
-                message = response.data.reduce(
-                  (str, item) => {
-                    let filename = this.fileList.findByProperty("value", item.file).name;
-                    let result = null == item.error ? "File successfully transferred." : item.error;
-                    let highlight = null == item.error ? "text-success" : "text-danger";
-                    let glyph = null == item.error ? "glyphicon-ok" : "glyphicon-remove";
-                    str += (
-                      '<div class="container-fluid vertical-spacer">' + 
-                        '<div>' + filename + '</div>' +
-                        '<div class="spacer ' + highlight + '">' +
-                          result + ' <i class="glyphicon ' + glyph + '"></i>' +
-                        '</div>' +
-                      '</div>'
-                    );
-                    return str;
-                  },
-                  ""
-                );
-                await CnModalMessageFactory.instance({
-                  title: "Upload Results",
-                  message: message,
-                  html: true,
-                  size: "lg",
-                }).show();
-
-                this.selectedFileList = [];
-              } finally {
-                this.uploadingFiles = false;
-              }
-            },
-
-            onView: async function() {
-              this.isLoading = true;
-              try {
-                // start by getting a list of all apex hosts
-                const hostResponse = await CnHttpFactory.instance({
-                  path: "apex_host",
-                  data: { select: { column: "name" }, modifier: { order: "name" } },
-                }).query();
-
-                this.hostList = hostResponse.data.reduce((list, item) => {
-                  list.push({ value: item.id, name: item.name });
-                  return list;
-                }, []);
-                this.hostId = 0 < this.hostList.length ? this.hostList[0].value : null;
-
-                // we are not visualizing images, so don't call the full onView method
-                await this.parentModel.viewModel.$$onView();
-
-                // get a list of all files associated with this exam that could be uploaded
-                const fileResponse = await CnHttpFactory.instance({
-                  path: "apex_review/" + this.parentModel.viewModel.record.id + "/image",
-                }).query();
-                this.fileList = fileResponse.data.reduce((list, item) => {
-                  let name =
-                    "Phase " + item.phase.rank + " (" + item.phase.name + "): " +
-                    (null == item.side ? "" : item.side + " ") + item.type;
-                  if (null != item.number) name = name + " #" + item.number;
-                  if (item.reanalysed) name += " (reanalysed)";
-                  list.push({ value: item.filename, name: name });
-                  return list;
-                }, []);
-              } finally {
-                this.isLoading = false;
-              }
-            },
-          });
-        };
-
-        return {
-          instance: function () {
-            return new object();
           },
         };
       },

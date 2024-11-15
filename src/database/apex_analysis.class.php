@@ -63,4 +63,99 @@ class apex_analysis extends \cenozo\database\record
 
     return $code_list;
   }
+
+  /**
+   * Returns a list of all images that may be used for this analysis
+   *
+   * @return associative array
+   */
+  public function get_images_for_apex()
+  {
+    $db_exam = $this->get_apex_review()->get_exam();
+    $db_scan_type = $db_exam->get_scan_type();
+    $uid = $db_exam->get_interview()->get_participant()->uid;
+    $paired = in_array( $db_scan_type->name, ['forearm', 'hip', 'spine'] );
+
+    $matches = [];
+    preg_match( '/[0-9]+/', $this->get_image()->filename, $matches );
+    $analysis_number = 1 == count( $matches ) ? $matches[0] : NULL;
+    $analysis_phase_rank = $db_exam->get_interview()->get_study_phase()->rank;
+
+    $sub_path = sprintf(
+      '%s/dxa/%s/dxa_%s%s{,_[0-9]}',
+      // wbody and lateral are not paired, so we only need to look in the current phase
+      $paired ? '*' : $analysis_phase_rank,
+      $uid,
+      $db_scan_type->name,
+      'none' == $db_scan_type->side ? '' : sprintf( '_%s', $db_scan_type->side )
+    );
+
+    $images = [];
+
+    $original_glob = sprintf(
+      '%s/%s.dcm',
+      IMAGES_PATH,
+      $sub_path
+    );
+    foreach( glob( $original_glob, GLOB_BRACE ) as $filename )
+    {
+      // remove the base path
+      $filename = str_replace( IMAGES_PATH, '', $filename );
+      $data = util::parse_dxa_filename( $filename );
+      $analysis_image = $analysis_phase_rank == $data['phase']['rank'] && $analysis_number === $data['number'];
+
+      $data['filename'] = $filename;
+      $data['analysis_image'] = $analysis_image;
+
+      if(
+        // always include the analysis image
+        $analysis_image ||
+        (
+          // We do not allow multiple images from the same phase, so:
+          // only include other images when doing paired analysis...
+          $paired &&
+          // and this isn't a numbered image in the same phase as the numbered analysis image
+          !(
+            $analysis_phase_rank == $data['phase']['rank'] &&
+            !is_null( $analysis_number ) &&
+            !is_null( $data['number'] )
+          )
+        )
+      ) $images[] = $data;
+    }
+
+
+    if( $paired )
+    {
+      $reanalysed_glob = sprintf( '%s/%s.reanalysed.dcm', SUPPLEMENTARY_PATH, $sub_path );
+      foreach( glob( $reanalysed_glob, GLOB_BRACE ) as $filename )
+      {
+        // remove the base path
+        $filename = str_replace( SUPPLEMENTARY_PATH, '', $filename );
+        $data = util::parse_dxa_filename( $filename );
+        $data['filename'] = $filename;
+        $data['analysis_image'] = false;
+        $images[] = $data;
+      }
+    }
+
+    // sort files by study phase, then type, side, number and reanalysed
+    usort(
+      $images,
+      function($a, $b) {
+        return strcmp(
+          implode(
+            ' ',
+            [$a['phase']['rank'], $a['type'], $a['side'], $a['number'], $a['reanalysed'] ? '1' : '0']
+          ),
+          implode(
+            ' ',
+            [$b['phase']['rank'], $b['type'], $b['side'], $b['number'], $b['reanalysed'] ? '1' : '0']
+          )
+        );
+      }
+    );
+
+    return $images;
+  }
 }
