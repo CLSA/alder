@@ -17,8 +17,8 @@ cenozoApp.defineModule({
     });
 
     module.addInputGroup("", {
-      export_datetime: {
-        title: "Export Date & Time",
+      download_datetime: {
+        title: "Download",
         type: "datetime",
         isConstant: true,
       },
@@ -35,16 +35,16 @@ cenozoApp.defineModule({
     });
 
     /* ############################################################################################## */
-    cenozo.providers.directive("cnApexAnalysisImport", [
-      "CnApexAnalysisImportFactory",
+    cenozo.providers.directive("cnApexAnalysisDownload", [
+      "CnApexAnalysisDownloadFactory",
       "CnSession",
       "$state",
-      function (CnApexAnalysisImportFactory, CnSession, $state) {
+      function (CnApexAnalysisDownloadFactory, CnSession, $state) {
         return {
-          templateUrl: module.getFileUrl("import.tpl.html"),
+          templateUrl: module.getFileUrl("download.tpl.html"),
           restrict: "E",
           controller: async function ($scope, $element) {
-            $scope.model = CnApexAnalysisImportFactory.instance();
+            $scope.model = CnApexAnalysisDownloadFactory.instance();
             $scope.viewParent = async function () {
               await $state.go(
                 "apex_review.view",
@@ -64,7 +64,7 @@ cenozoApp.defineModule({
                   );
                 },
               },
-              { title: "Import", }
+              { title: "Download", }
             ]);
           },
         };
@@ -72,16 +72,16 @@ cenozoApp.defineModule({
     ]);
 
     /* ############################################################################################## */
-    cenozo.providers.directive("cnApexAnalysisExport", [
-      "CnApexAnalysisExportFactory",
+    cenozo.providers.directive("cnApexAnalysisUpload", [
+      "CnApexAnalysisUploadFactory",
       "CnSession",
       "$state",
-      function (CnApexAnalysisExportFactory, CnSession, $state) {
+      function (CnApexAnalysisUploadFactory, CnSession, $state) {
         return {
-          templateUrl: module.getFileUrl("export.tpl.html"),
+          templateUrl: module.getFileUrl("upload.tpl.html"),
           restrict: "E",
           controller: async function ($scope, $element) {
-            $scope.model = CnApexAnalysisExportFactory.instance();
+            $scope.model = CnApexAnalysisUploadFactory.instance();
             $scope.viewParent = async function () {
               await $state.go(
                 "apex_review.view",
@@ -101,7 +101,7 @@ cenozoApp.defineModule({
                   );
                 },
               },
-              { title: "Export", }
+              { title: "Upload", }
             ]);
 
             // resize the the file list select based on the number of files
@@ -112,7 +112,7 @@ cenozoApp.defineModule({
     ]);
 
     /* ############################################################################################## */
-    cenozo.providers.factory("CnApexAnalysisImportFactory", [
+    cenozo.providers.factory("CnApexAnalysisDownloadFactory", [
       "CnApexAnalysisModelFactory",
       "CnHttpFactory",
       "CnModalMessageFactory",
@@ -152,6 +152,50 @@ cenozoApp.defineModule({
             },
 
             downloadFiles: async function() {
+              if (null == this.analysisFile) return;
+
+              this.downloadingFiles = true;
+              try {
+                let fileList = [this.analysisFile.filename];
+
+                const response = await CnHttpFactory.instance({
+                  path: "apex_host/" + this.hostId,
+                  data: { download: fileList },
+                }).patch();
+
+                message = response.data.reduce(
+                  (str, item) => {
+                    let filename = this.analysisFile.name;
+                    let result = null == item.error ? "Data successfully retrieved." : item.error;
+                    let highlight = (
+                      null == item.error ? "text-success" :
+                      result.match( /already exists/ ) ? "text-warning" :
+                      "text-danger"
+                    );
+                    let glyph = null == item.error ? "glyphicon-ok" : "glyphicon-remove";
+                    str += (
+                      '<div class="container-fluid vertical-spacer">' +
+                        '<div>' + filename + '</div>' +
+                        '<div class="spacer ' + highlight + '">' +
+                          result + (
+                            result.match( /already exists/ ) ?  "" : ' <i class="glyphicon ' + glyph + '"></i>'
+                          ) +
+                        '</div>' +
+                      '</div>'
+                    );
+                    return str;
+                  },
+                  ""
+                );
+                await CnModalMessageFactory.instance({
+                  title: "Upload Results",
+                  message: message,
+                  html: true,
+                  size: "lg",
+                }).show();
+              } finally {
+                this.downloadingFiles = false;
+              }
             },
 
             onView: async function() {
@@ -186,7 +230,7 @@ cenozoApp.defineModule({
     ]);
 
     /* ############################################################################################## */
-    cenozo.providers.factory("CnApexAnalysisExportFactory", [
+    cenozo.providers.factory("CnApexAnalysisUploadFactory", [
       "CnApexAnalysisModelFactory",
       "CnHttpFactory",
       "CnModalMessageFactory",
@@ -258,7 +302,7 @@ cenozoApp.defineModule({
 
                 const response = await CnHttpFactory.instance({
                   path: "apex_host/" + this.hostId,
-                  data: { files: fileList },
+                  data: { upload: fileList },
                 }).patch();
 
                 message = response.data.reduce(
@@ -266,13 +310,19 @@ cenozoApp.defineModule({
                     let filename = item.file == this.analysisFile.filename ?
                       this.analysisFile.name : this.fileList.findByProperty("value", item.file).name;
                     let result = null == item.error ? "File successfully transferred." : item.error;
-                    let highlight = null == item.error ? "text-success" : "text-danger";
+                    let highlight = (
+                      null == item.error ? "text-success" :
+                      result.match( /already exists/ ) ? "text-warning" :
+                      "text-danger"
+                    );
                     let glyph = null == item.error ? "glyphicon-ok" : "glyphicon-remove";
                     str += (
                       '<div class="container-fluid vertical-spacer">' +
                         '<div>' + filename + '</div>' +
                         '<div class="spacer ' + highlight + '">' +
-                          result + ' <i class="glyphicon ' + glyph + '"></i>' +
+                          result + (
+                            result.match( /already exists/ ) ?  "" : ' <i class="glyphicon ' + glyph + '"></i>'
+                          ) +
                         '</div>' +
                       '</div>'
                     );

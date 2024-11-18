@@ -136,12 +136,12 @@ cenozoApp.defineModule({
       });
     }
 
-    if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.export)) {
+    if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.upload)) {
       module.addExtraOperation("view", {
-        title: "Send Images",
+        title: "Upload Images",
         operation: async function ($state, model) {
           await $state.go(
-            "apex_analysis.export",
+            "apex_analysis.upload",
             { identifier: model.viewModel.currentAnalysis.analysisId }
           );
         },
@@ -151,16 +151,16 @@ cenozoApp.defineModule({
         isDisabled: function ($state, model) {
           return null == model.viewModel.currentAnalysis;
         },
-        help: "Export images to an Apex workstation for re-analysis.",
+        help: "Upload images to an Apex workstation for re-analysis.",
       });
     }
 
-    if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.import)) {
+    if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.download)) {
       module.addExtraOperation("view", {
-        title: "Get Analysis",
+        title: "Download Analysis",
         operation: async function ($state, model) {
           await $state.go(
-            "apex_analysis.import",
+            "apex_analysis.download",
             { identifier: model.viewModel.currentAnalysis.analysisId }
           );
         },
@@ -170,7 +170,7 @@ cenozoApp.defineModule({
         isDisabled: function ($state, model) {
           return null == model.viewModel.currentAnalysis;
         },
-        help: "Import re-analysed images and data from an Apex workstation.",
+        help: "Download re-analysed images and data from an Apex workstation.",
       });
     }
 
@@ -590,7 +590,7 @@ cenozoApp.defineModule({
                   imageId: record.image_id,
                   codeGroupList: [],
                   pass: record.pass,
-                  export_datetime: record.export_datetime,
+                  download_datetime: record.download_datetime,
                   note: record.note,
                 }));
 

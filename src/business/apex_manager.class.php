@@ -124,9 +124,6 @@ class apex_manager extends \cenozo\base_object
       // set the dicom's ID based on uid, side, type, and whether it was reanalysed
       $new_patient_id = sprintf( '%s_%s_%s', $data['uid'], $phase_string, $short_type_string );
 
-      // the SCANID has a maximum length of 13 characters, so we need to make a very short version of the ID
-      $scanid = sprintf( '%s_%s%s', $data['uid'], $phase_string, $short_type_string );
-
       try
       {
         // check if the file is already on the server
@@ -157,7 +154,7 @@ class apex_manager extends \cenozo\base_object
         $response = $this->set_patient_id( $temp_filename, $new_patient_id );
         if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to modify DICOM tags.' );
 
-        $response = $this->scp( $temp_filename, 'E:\incoming\incoming' );
+        $response = $this->scp_file_to_apex( $temp_filename, 'E:\incoming\incoming' );
         if( $this->debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
         unlink( $temp_filename );
         if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to copy file to host.' );
@@ -201,7 +198,7 @@ class apex_manager extends \cenozo\base_object
           throw new \Exception( 'Failed to move file into Apex DICOM server.' );
 
         // modify name and identifier in the Apex database
-        $response1 = $this->query( sprintf(
+        $response = $this->query( sprintf(
           "UPDATE dbo.PATIENT ".
           "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s %s' ".
           "WHERE IDENTIFIER1 = '%s'",
@@ -220,46 +217,105 @@ class apex_manager extends \cenozo\base_object
           throw new \Exception( is_string( $response ) ? $response : 'Unable to update Apex patient record.' );
         }
 
-        // modify name and identifier in the Apex database
-        $response1 = $this->query( sprintf(
-          "UPDATE dbo.ScanAnalysis ".
-          "SET SCANID = '%s' ".
-          "WHERE PATIENT_KEY = '%s'",
-          $new_patient_id,
-          $new_patient_id
-        ) );
+        // modify name and identifier in all associated analysis tables
+        $table_list = ['ScanAnalysis', ucwords( $data['type'] )];
+        if( 'hip' == $data['type'] ) $table_list[] = 'HipHSA';
+        else if( 'wbody' == $data['type'] )
+        {
+          $table_list = array_merge( $table_list, [
+            'WbodyComposition',
+            'SubRegionBone',
+            'SubRegionComposition',
+            'ObesityIndices',
+            'AndroidGynoidComposition'
+          ] );
+        }
 
-        // modify name and identifier in the Apex database
-        $response2 = $this->query( sprintf(
-          "UPDATE dbo.Hip ".
-          "SET SCANID = '%s' ".
-          "WHERE PATIENT_KEY = '%s'",
-          $new_patient_id,
-          $new_patient_id
-        ) );
+        $table_error_list = [];
+        foreach( $table_list as $table )
+        {
+          $response = $this->query( sprintf(
+            "UPDATE dbo.%s ".
+            "SET SCANID = '%s' ".
+            "WHERE PATIENT_KEY = '%s'",
+            $table,
+            $new_patient_id,
+            $new_patient_id
+          ) );
 
-        // modify name and identifier in the Apex database
-        $response3 = $this->query( sprintf(
-          "UPDATE dbo.HipHSA ".
-          "SET SCANID = '%s' ".
-          "WHERE PATIENT_KEY = '%s'",
-          $new_patient_id,
-          $new_patient_id
-        ) );
+          if( false === $response || is_string( $response ) ) $table_error_list[] = $table;
+        }
 
-        if(
-          false === $response1 || is_string( $response1 ) ||
-          false === $response2 || is_string( $response2 ) ||
-          false === $response3 || is_string( $response3 )
-        ) {
+        if( 0 < count( $table_error_list ) )
+        {
           $this->delete_patient( 'apex', $new_patient_id );
-          throw new \Exception( is_string( $response ) ? $response : 'Unable to update Apex patient record.' );
+
+          throw new \Exception(
+            sprintf(
+              'Unable to update Apex %s table%s.',
+              implode( ', ', $table_error_list ),
+              1 == count( $table_error_list ) ? '' : 's'
+            )
+          );
         }
       }
       catch( \Exception $e )
       {
         $result['error'] = $e->getMessage();
       }
+
+      $result_list[] = $result;
+    }
+
+    return $result_list;
+  }
+
+  /**
+   * Uploads DICOM images to the Apex host
+   * 
+   * @param [string] $file_list
+   * @return [object]
+   * @access public
+   */
+  public function download_files( $file_list )
+  {
+    $result_list = [];
+    foreach( $file_list as $file )
+    {
+      $data = util::parse_dxa_filename( $file );
+      $filename = $file;
+
+      // add base paths to relative filenames
+      if( preg_match( '/reanalysed/', $filename ) )
+      {
+        if( 0 === preg_match( sprintf( '#%s#', SUPPLEMENTARY_PATH ), $filename ) )
+          $filename = sprintf( '%s/%s', SUPPLEMENTARY_PATH, $filename );
+      }
+      else
+      {
+        if( 0 === preg_match( sprintf( '#%s#', IMAGES_PATH ), $filename ) )
+          $filename = sprintf( '%s/%s', IMAGES_PATH, $filename );
+      }
+
+      $result = ['file' => $file, 'error' => NULL];
+
+      $phase_string = sprintf( '%d%s', $data['phase']['rank'], $data['reanalysed'] ? 'R' : '' );
+      $type_string = is_null( $data['side'] ) ?
+        $data['type'] : sprintf( '%s (%s)', $data['type'], $data['side'] );
+      $short_type_string = strtoupper(
+        is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
+      );
+
+      // the directory containing re-analysed images will be the same as the new patient ID used when uploading
+      $new_patient_id = sprintf( '%s_%s_%s', $data['uid'], $phase_string, $short_type_string );
+
+      $response = $this->scp_dir_from_apex(
+        sprintf( 'E:\outgoing\%s\%s\%s', $data['type'], $data['side'], $new_patient_id ),
+        TEMP_PATH
+      );
+      if( 0 != $response['exitcode'] ) $result['error'] = 'Failed to copy directory from host.';
+
+      // TODO: get analysis metadata from Apex database
 
       $result_list[] = $result;
     }
@@ -326,7 +382,7 @@ class apex_manager extends \cenozo\base_object
    * 
    * @access private
    */
-  private function scp( $file, $destination )
+  private function scp_file_to_apex( $file, $destination )
   {
     $scp_command = sprintf(
       'scp -i %s %s %s@%s:%s',
@@ -336,6 +392,26 @@ class apex_manager extends \cenozo\base_object
       $this->db_apex_host->ssh_address,
       // replace backslashes with two backslashes
       preg_replace( '#\\\#', '\\\\\\', $destination )
+    );
+    if( $this->debug ) log::debug( $scp_command );
+    return util::exec_timeout( $scp_command, $this->timeout );
+  }
+
+  /**
+   * Copies files to the Apex server
+   * 
+   * @access private
+   */
+  private function scp_dir_from_apex( $dir, $destination )
+  {
+    $scp_command = sprintf(
+      'scp -i %s -r %s@%s:%s %s',
+      $this->keyfile,
+      $this->db_apex_host->ssh_username,
+      $this->db_apex_host->ssh_address,
+      // replace backslashes with two backslashes
+      preg_replace( '#\\\#', '\\\\\\', $dir ),
+      $destination
     );
     if( $this->debug ) log::debug( $scp_command );
     return util::exec_timeout( $scp_command, $this->timeout );
@@ -402,5 +478,5 @@ class apex_manager extends \cenozo\base_object
    * @var boolean
    * @access private
    */
-  private $debug = true;
+  private $debug = false;
 }

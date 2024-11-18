@@ -16,7 +16,8 @@ class patch extends \cenozo\service\patch
   protected function prepare()
   {
     $this->extract_parameter_list[] = 'delete';
-    $this->extract_parameter_list[] = 'files';
+    $this->extract_parameter_list[] = 'download';
+    $this->extract_parameter_list[] = 'upload';
     parent::prepare();
   }
 
@@ -35,12 +36,20 @@ class patch extends \cenozo\service\patch
       $this->set_data( $apex_manager->delete_all_patients() );
     }
 
-    $files = $this->get_argument( 'files', NULL );
-    if( !is_null( $files ) )
+    $download_files = $this->get_argument( 'download', NULL );
+    if( !is_null( $download_files ) )
+    {
+      // download the provided files to the host
+      $apex_manager = lib::create( 'business\apex_manager', $this->get_leaf_record() );
+      $this->set_data( $apex_manager->download_files( $download_files ) );
+    }
+
+    $upload_files = $this->get_argument( 'upload', NULL );
+    if( !is_null( $upload_files ) )
     {
       // upload the provided files to the host
       $apex_manager = lib::create( 'business\apex_manager', $this->get_leaf_record() );
-      $this->set_data( $apex_manager->upload_files( $files ) );
+      $this->set_data( $apex_manager->upload_files( $upload_files ) );
     }
   }
 

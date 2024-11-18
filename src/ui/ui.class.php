@@ -67,8 +67,8 @@ class ui extends \cenozo\ui\ui
     $module = $this->get_module( 'apex_analysis' );
     if( !is_null( $module ) )
     {
-      $module->add_action( 'import', '/{identifier}' );
-      $module->add_action( 'export', '/{identifier}' );
+      $module->add_action( 'download', '/{identifier}' );
+      $module->add_action( 'upload', '/{identifier}' );
     }
   }
 

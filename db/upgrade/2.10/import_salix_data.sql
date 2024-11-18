@@ -52,7 +52,7 @@ CREATE PROCEDURE import_salix_data()
         "JOIN apex_review ON apex_analysis.apex_review_id = apex_review.id ",
         "JOIN ", @salix, ".apex_deployment ON apex_review.apex_deployment_id = apex_deployment.id ",
         "SET ",
-          "apex_analysis.export_datetime = apex_review.end_datetime, ",
+          "apex_analysis.download_datetime = apex_deployment.analysis_datetime, ",
           "apex_analysis.pass = apex_deployment.pass, "
           "apex_analysis.note = apex_deployment.note"
       );
