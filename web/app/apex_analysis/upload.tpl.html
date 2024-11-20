@@ -1,12 +1,12 @@
 <div class="record-view rounded">
   <div class="container-fluid bg-primary rounded-top">
     <h4>
-      Upload images to Apex for {{ model.parentModel.viewModel.record.uid }}
+      Apex Workstation Image Upload for {{ model.parentModel.viewModel.record.uid }}
       <span ng-if="model.isLoading">(Loading&hellip;)</span>
     </h4>
   </div>
   <form name="form" class="form-horizontal" novalidate>
-    <fieldset ng-disabled="model.isLoading || model.uploadingFiles">
+    <fieldset ng-disabled="model.isLoading || model.uploadingImages || model.deletingImages">
       <div class="form-body" style="padding-bottom: 1em;">
         <div class="container-fluid">
           <label for="hostId" class="control-label">Apex Workstation</label>
@@ -35,104 +35,83 @@
           </div>
           <div class="vertical-spacer">
             <div ng-show="model.checkingHostStatus">Checking status...</div>
-            <ul ng-if="null != model.hostStatus">
-              <li ng-repeat="(key, value) in model.hostStatus">
-                {{ key }}:
-                <span ng-class="{ 'text-success': value, 'text-danger': !value }">
-                  {{ null == value ? "failed" : value ? "online" : "offline" }}
-                  <i class="glyphicon" ng-class="{ 'glyphicon-ok': value, 'glyphicon-remove': !value }"></i>
-                </span>
-              </li>
-            </ul>
+            <div ng-if="null != model.hostStatus">
+              <ul>
+                <li ng-repeat="(key, value) in model.hostStatus">
+                  {{ key }}:
+                  <span ng-class="value ? 'text-success' : 'text-danger'">
+                    {{ null == value ? "failed" : value ? "online" : "offline" }}
+                    <i class="glyphicon" ng-class="value ? 'glyphicon-ok' : 'glyphicon-remove'"></i>
+                  </span>
+                </li>
+              </ul>
+              <div
+                class="input-group text-danger"
+                ng-if="
+                  !model.hostStatus['DICOM In'] ||
+                  !model.hostStatus['DICOM Apex'] ||
+                  !model.hostStatus['QDR']
+                "
+              >
+                <h4>Please Note:</h4>
+                <div class="container-fluid">
+                  Before images can be sent to the selected Apex workstation,
+                  DICOM In, DICOM Apex and QDR must all be online.<br />
+                  Please check the Apex workstation and try again once all software is running.
+                </div>
+              </div>
+            </div>
           </div>
-          <div ng-show="null != model.hostStatus">
-            <div class="panel-group">
-              <div class="panel panel-default">
-                <div class="panel-heading">
-                  <h4>File Selection for Upload</h4>
-                </div>
-                <div class="panel-body">
-                  <div class="container-fluid">
-                    <div class="input-group text-danger" ng-show="
-                      !model.hostStatus['DICOM In'] ||
-                      !model.hostStatus['DICOM Apex'] ||
-                      !model.hostStatus['QDR'] ||
-                      null == model.analysisFile
-                    ">
-                      <h4>Please Note:</h4>
-                      <div class="container-fluid" ng-show="
-                        !model.hostStatus['DICOM In'] ||
-                        !model.hostStatus['DICOM Apex'] ||
-                        !model.hostStatus['QDR']
-                      ">
-                        Before images can be sent to the selected Apex workstation,
-                        DICOM In, DICOM Apex and QDR must all be online.<br />
-                        Please check the Apex workstation and try again once all software is running.
-                      </div>
-                      <div class="container-fluid" ng-show="null == model.analysisFile">
-                        The file associated with the image you wish to upload could not be found.<br />
-                        Please report this error to technical support.
-                      </div>
-                    </div>
-                    <div ng-show="
-                      model.hostStatus['DICOM In'] &&
-                      model.hostStatus['DICOM Apex'] &&
-                      model.hostStatus['QDR'] &&
-                      null != model.analysisFile
-                    ">
-                      <div class="form-group">
-                        <label for="hostId" class="control-label">Image for Re-Analysis</label>
-                        <input readonly ng-model="model.analysisFile.name" class="form-control"></input>
-                      </div>
-                      <div ng-show="0 < model.fileList.length" class="form-group">
-                        <label for="hostId" class="control-label">
-                          Select associated images to include in the upload: (hold CTRL key to select multiple images)
-                        </label>
-                        <div class="input-group">
-                          <select
-                            id="selectedFileList"
-                            ng-model="model.selectedFileList"
-                            ng-options="item.value as item.name for item in model.fileList"
-                            class="form-control"
-                            multiple
-                          ></select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="panel-footer text-right">
-                  <div class="btn-group">
-                    <button type="button" class="btn btn-primary" ng-click="model.deleteFiles()">
-                      <span ng-if="model.deletingFiles">
-                        Deleting Images...
-                      </span>
-                      <span ng-if="!model.deletingFiles">
-                        <i class="glyphicon glyphicon-cloud-upload"></i>
-                       Delete all Images
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-primary"
-                      ng-click="model.uploadFiles()"
-                      ng-show="
-                        model.hostStatus['DICOM In'] &&
-                        model.hostStatus['DICOM Apex'] &&
-                        model.hostStatus['QDR'] &&
-                        null != model.analysisFile
-                      "
-                    >
-                      <span ng-if="model.uploadingFiles">
-                        Uploading Image{{ model.selectedFileList.length ? "s" : "" }}...
-                      </span>
-                      <span ng-if="!model.uploadingFiles">
-                        <i class="glyphicon glyphicon-cloud-upload"></i>
-                        Upload Image{{ model.selectedFileList.length ? "s" : "" }}
-                      </span>
-                    </button>
-                  </div>
-                </div>
+          <hr />
+          <div class="input-group">
+            <div class="form-group first-form-group" ng-if="null != model.currentImage">
+              <label for="hostId" class="control-label col-sm-3">Reanalysis Image</label>
+              <div class="col-sm-9">
+                <input ng-model="model.currentImage.name" class="form-control" readonly></input>
+                <span ng-class="model.currentImage.uploaded ? 'text-success' : 'text-danger'">
+                  {{ model.currentImage.status }}
+                  <i
+                    class="glyphicon"
+                    ng-if="null != model.currentImage.uploaded"
+                    ng-class="model.currentImage.uploaded ? 'glyphicon-ok' : 'glyphicon-remove'"
+                  ></i>
+                </span>
+              </div>
+            </div>
+            <div class="form-group" ng-if="null != model.baseImage">
+              <label for="hostId" class="control-label col-sm-3">Base Paired Image</label>
+              <div class="col-sm-9">
+                <input ng-model="model.baseImage.name" class="form-control" readonly></input>
+                <span ng-class="model.baseImage.uploaded ? 'text-success' : 'text-danger'">
+                  {{ model.currentImage.status }}
+                  <i
+                    class="glyphicon"
+                    ng-if="null != model.baseImage.uploaded"
+                    ng-class="model.baseImage.uploaded ? 'glyphicon-ok' : 'glyphicon-remove'"
+                  ></i>
+                </span>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="btn-group">
+                <button type="button" class="btn btn-primary" ng-click="model.deleteImages()">
+                  <span ng-if="model.deletingImages">
+                    Deleting Images...
+                  </span>
+                  <span ng-if="!model.deletingImages">
+                    <i class="glyphicon glyphicon-cloud-upload"></i>
+                   Delete all Images
+                  </span>
+                </button>
+                <button type="button" class="btn btn-primary" ng-click="model.uploadImages()">
+                  <span ng-if="model.uploadingImages">
+                    Uploading Image{{ null == model.baseImage ? "" : "s" }}...
+                  </span>
+                  <span ng-if="!model.uploadingImages">
+                    <i class="glyphicon glyphicon-cloud-upload"></i>
+                    Upload Image{{ null == model.baseImage ? "" : "s" }}
+                  </span>
+                </button>
               </div>
             </div>
           </div>

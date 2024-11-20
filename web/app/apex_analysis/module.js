@@ -103,9 +103,6 @@ cenozoApp.defineModule({
               },
               { title: "Upload", }
             ]);
-
-            // resize the the file list select based on the number of files
-            $element.find("#selectedFileList")[0].size = $scope.model.fileList.length;
           },
         };
       },
@@ -135,7 +132,7 @@ cenozoApp.defineModule({
                 const response = await CnModalConfirmFactory.instance({
                   title: "Delete all Images on " + hostName,
                   message:
-                    "Are you sure you wish to delete all images on " + hostName + "?" +
+                    "Are you sure you wish to delete all images on " + hostName + "?  " +
                     "This operation cannot be reversed and any existing images and analysis will be lost."
                 }).show();
 
@@ -202,12 +199,12 @@ cenozoApp.defineModule({
               this.isLoading = true;
               try {
                 // start by getting a list of all apex hosts
-                const hostResponse = await CnHttpFactory.instance({
+                const response = await CnHttpFactory.instance({
                   path: "apex_host",
                   data: { select: { column: "name" }, modifier: { order: "name" } },
                 }).query();
 
-                this.hostList = hostResponse.data.reduce((list, item) => {
+                this.hostList = response.data.reduce((list, item) => {
                   list.push({ value: item.id, name: item.name });
                   return list;
                 }, []);
@@ -233,23 +230,22 @@ cenozoApp.defineModule({
     cenozo.providers.factory("CnApexAnalysisUploadFactory", [
       "CnApexAnalysisModelFactory",
       "CnHttpFactory",
-      "CnModalMessageFactory",
       "CnModalConfirmFactory",
-      function (CnApexAnalysisModelFactory, CnHttpFactory, CnModalMessageFactory, CnModalConfirmFactory) {
+      function (CnApexAnalysisModelFactory, CnHttpFactory, CnModalConfirmFactory) {
         var object = function () {
 
           angular.extend(this, {
             parentModel: CnApexAnalysisModelFactory.instance(),
             isLoading: true,
-            analysisFile: null,
-            fileList: null,
-            selectedFileList: [],
+            currentImage: null,
+            baseImage: null,
             hostList: null,
             hostId: null,
             checkingHostStatus: false,
             hostStatus: null,
-            deletingFiles: false,
-            uploadingFiles: false,
+            imageStatus: null,
+            deletingImages: false,
+            uploadingImages: false,
 
             checkHostStatus: async function() {
               angular.extend(this, {
@@ -270,120 +266,134 @@ cenozoApp.defineModule({
               }
             },
 
-            deleteFiles: async function() {
+            checkImageStatus: async function() {
+              if (!this.hostId) return;
+              const hostName = this.hostList.findByProperty("value", this.hostId).name;
+
+              // get the image(s) associated with this analysis
+              const response = await CnHttpFactory.instance({
+                path: (
+                  "apex_analysis/" +
+                  this.parentModel.viewModel.record.id +
+                  "/image?apex_host_id=" +
+                  this.hostId
+                ),
+              }).query();
+
+              response.data.forEach((image) => {
+                // determine the UI-friendly image name
+                image.name = (
+                  "Phase " + image.phase.rank + " (" + image.phase.name + "): " +
+                  (null == image.side ? "" : image.side + " ") + image.type
+                );
+                if (null != image.number) image.name = image.name + " #" + image.number;
+
+                // set the UI-friendly image status
+                image.status = (image.uploaded ? "Successfully uploded to " : "Not uploaded to ") + hostName;
+
+                if (image.reanalysed) {
+                  image.name += " (reanalysed)";
+                  this.baseImage = image;
+                } else {
+                  this.currentImage = image;
+                }
+              });
+            },
+
+            deleteImages: async function() {
+              if (!this.hostId) return;
+              const hostName = this.hostList.findByProperty("value", this.hostId).name;
+
               try {
                 // confirm with the user first
-                const hostName = this.hostList.findByProperty("value", this.hostId).name;
                 const response = await CnModalConfirmFactory.instance({
                   title: "Delete all Images on " + hostName,
                   message:
-                    "Are you sure you wish to delete all images on " + hostName + "?" +
+                    "Are you sure you wish to delete all images on " + hostName + "?  " +
                     "This operation cannot be reversed and any existing images and analysis will be lost."
                 }).show();
 
                 if (response) {
-                  this.deletingFiles = true;
+                  this.deletingImages = true;
                   await CnHttpFactory.instance({
                     path: "apex_host/" + this.hostId,
                     data: { delete: true },
                   }).patch();
+                  await this.checkImageStatus();
                 }
               } finally {
-                this.deletingFiles = false;
+                this.deletingImages = false;
               }
             },
 
-            uploadFiles: async function() {
-              if (null == this.analysisFile) return;
+            uploadImages: async function() {
+              if (!this.hostId) return;
+              const hostName = this.hostList.findByProperty("value", this.hostId).name;
 
-              this.uploadingFiles = true;
+              this.uploadingImages = true;
               try {
-                let fileList = [this.analysisFile.filename].concat(this.selectedFileList);
+                let fileList = [];
+                if (null != this.currentImage) {
+                  this.currentImage.uploaded = null;
+                  this.currentImage.status = "Uploading image to " + hostName + " ...";
+                  fileList.push(this.currentImage.filename);
+                }
+                if (null != this.baseImage) {
+                  this.baseImage.uploaded = null;
+                  this.baseImage.status = "Uploading image to " + hostName + " ...";
+                  fileList.push(this.baseImage.filename);
+                }
+
+                if (0 == fileList.length) return;
 
                 const response = await CnHttpFactory.instance({
                   path: "apex_host/" + this.hostId,
                   data: { upload: fileList },
                 }).patch();
+                await this.checkImageStatus();
 
-                message = response.data.reduce(
-                  (str, item) => {
-                    let filename = item.file == this.analysisFile.filename ?
-                      this.analysisFile.name : this.fileList.findByProperty("value", item.file).name;
-                    let result = null == item.error ? "File successfully transferred." : item.error;
-                    let highlight = (
-                      null == item.error ? "text-success" :
-                      result.match( /already exists/ ) ? "text-warning" :
-                      "text-danger"
+                response.data.forEach(image => {
+                  if (this.currentImage.filename == image.file) {
+                    this.currentImage.uploaded = null == image.error;
+                    this.currentImage.status = (
+                      null == image.error ?
+                      "Successfully uploded to " + hostName :
+                      image.error
                     );
-                    let glyph = null == item.error ? "glyphicon-ok" : "glyphicon-remove";
-                    str += (
-                      '<div class="container-fluid vertical-spacer">' +
-                        '<div>' + filename + '</div>' +
-                        '<div class="spacer ' + highlight + '">' +
-                          result + (
-                            result.match( /already exists/ ) ?  "" : ' <i class="glyphicon ' + glyph + '"></i>'
-                          ) +
-                        '</div>' +
-                      '</div>'
+                  } else if (this.baseImage.filename == image.file) {
+                    this.baseImage.uploaded = null == image.error;
+                    this.baseImage.status = (
+                      null == image.error ?
+                      "Successfully uploded to " + hostName :
+                      image.error
                     );
-                    return str;
-                  },
-                  ""
-                );
-                await CnModalMessageFactory.instance({
-                  title: "Upload Results",
-                  message: message,
-                  html: true,
-                  size: "lg",
-                }).show();
-
-                this.selectedFileList = [];
+                  }
+                });
               } finally {
-                this.uploadingFiles = false;
+                this.uploadingImages = false;
               }
             },
 
             onView: async function() {
               this.isLoading = true;
               try {
-                this.analysisFile = null;
-                this.fileList = [];
+                this.currentImage = null;
+                this.baseImage = null;
 
                 // start by getting a list of all apex hosts
-                const hostResponse = await CnHttpFactory.instance({
+                const response = await CnHttpFactory.instance({
                   path: "apex_host",
                   data: { select: { column: "name" }, modifier: { order: "name" } },
                 }).query();
 
-                this.hostList = hostResponse.data.reduce((list, item) => {
+                this.hostList = response.data.reduce((list, item) => {
                   list.push({ value: item.id, name: item.name });
                   return list;
                 }, []);
                 this.hostId = 0 < this.hostList.length ? this.hostList[0].value : null;
 
                 await this.parentModel.viewModel.onView();
-
-                // determine the analysis filename and list of associated files
-                const fileResponse = await CnHttpFactory.instance({
-                  path: "apex_analysis/" + this.parentModel.viewModel.record.id + "/image",
-                }).query();
-                this.analysisFile = null;
-                this.fileList = fileResponse.data.reduce((list, item) => {
-                  let name =
-                    "Phase " + item.phase.rank + " (" + item.phase.name + "): " +
-                    (null == item.side ? "" : item.side + " ") + item.type;
-                  if (null != item.number) name = name + " #" + item.number;
-                  if (item.reanalysed) name += " (reanalysed)";
-
-                  if (item.analysis_image) {
-                    // set the analysis image file details
-                    this.analysisFile = { name: name, filename: item.filename };
-                  } else {
-                    // put the rest of the files in the associated file list
-                    list.push({ value: item.filename, name: name });
-                  }
-                  return list;
-                }, []);
+                await this.checkImageStatus();
               } finally {
                 this.isLoading = false;
               }

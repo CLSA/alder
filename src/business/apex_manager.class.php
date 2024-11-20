@@ -85,6 +85,30 @@ class apex_manager extends \cenozo\base_object
     return is_string( $response ) ? $response : NULL;
   }
 
+  public function check_for_scan( $filename )
+  {
+    $data = util::parse_dxa_filename( $filename );
+    $phase_string = sprintf( '%d%s', $data['phase']['rank'], $data['reanalysed'] ? 'R' : '' );
+    $short_type_string = strtoupper(
+      is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
+    );
+
+    // the patient ID is based on uid, side and type
+    $patient_id = sprintf( '%s_%s', $data['uid'], $short_type_string );
+
+    // the scan ID is based on uid, phase, side, type, and whether it was reanalysed
+    $scan_id = sprintf( '%s%s%s', $data['uid'], $phase_string, $short_type_string );
+
+    // check if the file is already on the server
+    $response = $this->query( sprintf(
+      "SELECT COUNT(*) FROM dbo.ScanAnalysis WHERE PATIENT_KEY = '%s' AND SCANID = '%s'",
+      $patient_id,
+      $scan_id
+    ) );
+
+    return odbc_fetch_row( $response ) && 1 == odbc_result( $response, 1 );
+  }
+
   /**
    * Uploads DICOM images to the Apex host
    * 
@@ -94,7 +118,15 @@ class apex_manager extends \cenozo\base_object
    */
   public function upload_files( $file_list )
   {
+    // start by checking if the necessary servers are online
+    $response = $this->ssh( 'c:\dicomserverIN\dgate64.exe -v --echo:CONQUESTSRV1' );
+    $dicom_in_online = 1 === preg_match( '/ is UP/', $response['output'] );
+
+    $response = $this->ssh( 'tasklist /FI "IMAGENAME eq qdr.exe" /FO LIST' );
+    $qdr_online = 1 === preg_match( '/qdr.exe/', $response['output'] );
+
     $result_list = [];
+    $modify_patient_record = true;
     foreach( $file_list as $file )
     {
       $data = util::parse_dxa_filename( $file );
@@ -104,12 +136,12 @@ class apex_manager extends \cenozo\base_object
       if( preg_match( '/reanalysed/', $filename ) )
       {
         if( 0 === preg_match( sprintf( '#%s#', SUPPLEMENTARY_PATH ), $filename ) )
-          $filename = sprintf( '%s/%s', SUPPLEMENTARY_PATH, $filename );
+          $filename = sprintf( '%s%s', SUPPLEMENTARY_PATH, $filename );
       }
       else
       {
         if( 0 === preg_match( sprintf( '#%s#', IMAGES_PATH ), $filename ) )
-          $filename = sprintf( '%s/%s', IMAGES_PATH, $filename );
+          $filename = sprintf( '%s%s', IMAGES_PATH, $filename );
       }
 
       $result = ['file' => $file, 'error' => NULL];
@@ -121,142 +153,174 @@ class apex_manager extends \cenozo\base_object
         is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
       );
 
-      // set the dicom's ID based on uid, side, type, and whether it was reanalysed
-      $new_patient_id = sprintf( '%s_%s_%s', $data['uid'], $phase_string, $short_type_string );
+      // set the patient ID based on uid, side and type
+      $new_patient_id = sprintf( '%s_%s', $data['uid'], $short_type_string );
+
+      // set the scan ID based on uid, phase, side, type, and whether it was reanalysed
+      $new_scan_id = sprintf( '%s%s%s', $data['uid'], $phase_string, $short_type_string );
 
       try
       {
         // check if the file is already on the server
         $response = $this->query( sprintf(
-          "SELECT COUNT(*) FROM dbo.PATIENT WHERE IDENTIFIER1 = '%s'",
-          $new_patient_id
+          "SELECT COUNT(*) FROM dbo.ScanAnalysis WHERE PATIENT_KEY = '%s' AND SCANID = '%s'",
+          $new_patient_id,
+          $new_scan_id
         ) );
 
-        if( !odbc_fetch_row( $response ) ) throw new \Exception( 'Unable to query Apex MSSQL database.' );
-        if( 1 == odbc_result( $response, 1 ) ) throw new \Exception( 'File already exists on Apex workstation.' );
+        if( !odbc_fetch_row( $response ) )
+          throw new \Exception( sprintf( 'Unable to query %s Apex database', $this->db_apex_host->name ) );
 
-        // check that the file exists
-        if( !file_exists( $filename ) ) throw new \Exception( 'File not found in data vault.' );
-
-        // create a temporary copy of the dicom file and prepare it for apex
-        $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
-        if( $this->debug ) log::debug( sprintf( 'cp %s %s', $filename, $temp_filename ) );
-        copy( $filename, $temp_filename );
-
-        $response = $this->get_patient_id( $temp_filename );
-        if( 0 != $response['exitcode'] ) throw new \Exception( 'Unable to determine DICOM PatientID tag.' );
-
-        $matches = [];
-        if( !preg_match( '/\[([^[]+)\]/', $response['output'], $matches ) )
-          throw new \Exception( 'File is missing PatientID tag.' );
-        $old_patient_id = $matches[1];
-
-        $response = $this->set_patient_id( $temp_filename, $new_patient_id );
-        if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to modify DICOM tags.' );
-
-        $response = $this->scp_file_to_apex( $temp_filename, 'E:\incoming\incoming' );
-        if( $this->debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
-        unlink( $temp_filename );
-        if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to copy file to host.' );
-
-        // wait up to 15 seconds for the file to register in the DICOM server
-        $file_registered = false;
-        for( $i = 1; $i <= 15; $i++ )
+        if( 1 == odbc_result( $response, 1 ) )
         {
-          sleep(1);
-          $response = $this->ssh( sprintf( 'dir E:\incoming\%s', $new_patient_id ) );
-          if( 0 == $response['exitcode'] )
+          // a modified patient record already exists
+          $modify_patient_record = false;
+        }
+        else // only proceed if the file isn't already on the server
+        {
+          // check that the file exists
+          if( !file_exists( $filename ) ) throw new \Exception( 'File not found in data vault' );
+
+          if( !$dicom_in_online || !$qdr_online )
+            throw new \Exception( sprintf( 'Service(s) on %s are offline', $this->db_apex_host->name ) );
+        
+          // create a temporary copy of the dicom file and prepare it for apex
+          $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
+          if( $this->debug ) log::debug( sprintf( 'cp %s %s', $filename, $temp_filename ) );
+          copy( $filename, $temp_filename );
+
+          $response = $this->get_patient_id( $temp_filename );
+          if( 0 != $response['exitcode'] ) throw new \Exception( 'Unable to determine DICOM PatientID tag' );
+
+          $matches = [];
+          if( !preg_match( '/\[([^[]+)\]/', $response['output'], $matches ) )
+            throw new \Exception( 'File is missing PatientID tag' );
+          $old_patient_id = $matches[1];
+
+          $response = $this->set_patient_id( $temp_filename, $new_patient_id );
+          if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to modify DICOM tags' );
+
+          $response = $this->scp_file_to_apex( $temp_filename, 'E:\incoming\incoming' );
+          if( $this->debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
+          unlink( $temp_filename );
+          if( 0 != $response['exitcode'] )
+            throw new \Exception( sprintf( 'Failed to copy file to %s', $this->db_apex_host->name ) );
+
+          // wait up to 15 seconds for the file to register in the DICOM server
+          $file_registered = false;
+          for( $i = 1; $i <= 15; $i++ )
           {
-            $file_registered = true;
-            break;
+            sleep(1);
+            $response = $this->ssh( sprintf( 'dir E:\incoming\%s', $new_patient_id ) );
+            if( 0 == $response['exitcode'] )
+            {
+              $file_registered = true;
+              break;
+            }
           }
-        }
-        if( !$file_registered )
-        {
-          // try deleting the file
-          $this->delete_patient( 'in', $new_patient_id );
-          throw new \Exception( 'Failed to register file in DICOM server.' );
-        }
+          if( !$file_registered )
+          {
+            // try deleting the file
+            $this->delete_patient( 'in', $new_patient_id );
+            throw new \Exception( 'Failed to register file in DICOM server' );
+          }
 
-        // move file to Apex DICOM server
-        $response = $this->ssh(
-          sprintf(
-            'c:\dicomserverIN\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
-            $new_patient_id
-          )
-        );
-
-        // remove files from the DICOM IN server (whether the move patient command works or not)
-        $this->delete_patient( 'in', $new_patient_id );
-
-        $response = $this->query( sprintf(
-          "SELECT COUNT(*) FROM dbo.PATIENT WHERE IDENTIFIER1 = '%s'",
-          $old_patient_id
-        ) );
-
-        if( !odbc_fetch_row( $response ) || 0 == odbc_result( $response, 1 ) )
-          throw new \Exception( 'Failed to move file into Apex DICOM server.' );
-
-        // modify name and identifier in the Apex database
-        $response = $this->query( sprintf(
-          "UPDATE dbo.PATIENT ".
-          "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s %s' ".
-          "WHERE IDENTIFIER1 = '%s'",
-          $new_patient_id,
-          $new_patient_id,
-          $type_string,
-          $data['uid'],
-          $phase_string,
-          $old_patient_id
-        ) );
-
-        if( false === $response || is_string( $response ) )
-        {
-          // remove the scan from Apex, if we can
-          if( false !== $response ) $this->delete_patient( 'apex', $old_patient_id );
-          throw new \Exception( is_string( $response ) ? $response : 'Unable to update Apex patient record.' );
-        }
-
-        // modify name and identifier in all associated analysis tables
-        $table_list = ['ScanAnalysis', ucwords( $data['type'] )];
-        if( 'hip' == $data['type'] ) $table_list[] = 'HipHSA';
-        else if( 'wbody' == $data['type'] )
-        {
-          $table_list = array_merge( $table_list, [
-            'WbodyComposition',
-            'SubRegionBone',
-            'SubRegionComposition',
-            'ObesityIndices',
-            'AndroidGynoidComposition'
-          ] );
-        }
-
-        $table_error_list = [];
-        foreach( $table_list as $table )
-        {
-          $response = $this->query( sprintf(
-            "UPDATE dbo.%s ".
-            "SET SCANID = '%s' ".
-            "WHERE PATIENT_KEY = '%s'",
-            $table,
-            $new_patient_id,
-            $new_patient_id
-          ) );
-
-          if( false === $response || is_string( $response ) ) $table_error_list[] = $table;
-        }
-
-        if( 0 < count( $table_error_list ) )
-        {
-          $this->delete_patient( 'apex', $new_patient_id );
-
-          throw new \Exception(
+          // move file to Apex DICOM server
+          $response = $this->ssh(
             sprintf(
-              'Unable to update Apex %s table%s.',
-              implode( ', ', $table_error_list ),
-              1 == count( $table_error_list ) ? '' : 's'
+              'c:\dicomserverIN\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
+              $new_patient_id
             )
           );
+
+          // remove files from the DICOM IN server (whether the move patient command works or not)
+          $this->delete_patient( 'in', $new_patient_id );
+
+          $response = $this->query( sprintf(
+            "SELECT PATIENT_KEY FROM dbo.PATIENT WHERE IDENTIFIER1 = '%s'",
+            $old_patient_id
+          ) );
+
+          if( !odbc_fetch_row( $response ) || 0 == odbc_result( $response, 1 ) )
+            throw new \Exception( 'Failed to move file into Apex' );
+
+          $patient_key = odbc_result( $response, 1 );
+
+          // modify name and identifier in the Apex database (for the first image only)
+          $working_patient_id = $old_patient_id;
+          if( $modify_patient_record )
+          {
+            $response = $this->query( sprintf(
+              "UPDATE dbo.PATIENT ".
+              "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s' ".
+              "WHERE IDENTIFIER1 = '%s'",
+              $new_patient_id,
+              $new_patient_id,
+              $type_string,
+              $data['uid'],
+              $old_patient_id
+            ) );
+
+            if( false === $response || is_string( $response ) )
+            {
+              // remove the scan from Apex, if we can
+              if( false !== $response ) $this->delete_patient( 'apex', $old_patient_id );
+              throw new \Exception( is_string( $response ) ? $response : 'Unable to update Apex patient record' );
+            }
+
+            $working_patient_id = $new_patient_id;
+            $patient_key = $new_patient_id;
+            $modify_patient_record = false;
+          }
+
+          // modify name and identifier in all associated analysis tables
+          $table_list = ['ScanAnalysis', ucwords( $data['type'] )];
+          if( 'hip' == $data['type'] ) $table_list[] = 'HipHSA';
+          else if( 'wbody' == $data['type'] )
+          {
+            $table_list = array_merge( $table_list, [
+              'WbodyComposition',
+              'SubRegionBone',
+              'SubRegionComposition',
+              'ObesityIndices',
+              'AndroidGynoidComposition'
+            ] );
+          }
+
+          $table_error_list = [];
+          foreach( $table_list as $table )
+          {
+            $response = $this->query( sprintf(
+              "UPDATE dbo.%s ".
+              "SET %s SCANID = '%s' ".
+              "WHERE PATIENT_KEY = '%s'",
+              $table,
+              $patient_key != $new_patient_id ? sprintf( "PATIENT_KEY = '%s',", $new_patient_id ) : '',
+              $new_scan_id,
+              $patient_key
+            ) );
+
+            if( false === $response || is_string( $response ) ) $table_error_list[] = $table;
+          }
+
+          if( 0 < count( $table_error_list ) )
+          {
+            // something went wrong, so clean up before reporting the error
+            $this->delete_patient( 'apex', $working_patient_id );
+
+            throw new \Exception(
+              sprintf(
+                'Unable to update Apex %s table%s',
+                implode( ', ', $table_error_list ),
+                1 == count( $table_error_list ) ? '' : 's'
+              )
+            );
+          }
+          else if( $working_patient_id == $old_patient_id )
+          {
+            // delete the patient record since we have transferred its scans to the base patient
+            $this->delete_patient( 'apex', $working_patient_id );
+          }
         }
       }
       catch( \Exception $e )

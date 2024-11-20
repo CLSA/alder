@@ -65,96 +65,111 @@ class apex_analysis extends \cenozo\database\record
   }
 
   /**
-   * Returns a list of all images that may be used for this analysis
+   * Returns the image associated with this analysis and the base paired image (for forearm, hip and spine only)
    *
+   * @param database\apex_host An optional check to see if the images have been uploaded to the host
    * @return associative array
    */
-  public function get_images_for_apex()
+  public function get_images_for_apex( $db_apex_host = NULL )
   {
+    $image_class_name = lib::get_class_name( 'database\image' );
+
+    $db_image = $this->get_image();
     $db_exam = $this->get_apex_review()->get_exam();
     $db_scan_type = $db_exam->get_scan_type();
-    $uid = $db_exam->get_interview()->get_participant()->uid;
-    $paired = in_array( $db_scan_type->name, ['forearm', 'hip', 'spine'] );
+    $db_interview = $db_exam->get_interview();
+    $uid = $db_interview->get_participant()->uid;
+    $db_study_phase = $db_interview->get_study_phase();
+    $apex_manager = is_null( $db_apex_host ) ? NULL : lib::create( 'business\apex_manager', $db_apex_host );
 
-    $matches = [];
-    preg_match( '/[0-9]+/', $this->get_image()->filename, $matches );
-    $analysis_number = 1 == count( $matches ) ? $matches[0] : NULL;
-    $analysis_phase_rank = $db_exam->get_interview()->get_study_phase()->rank;
+    // determine whether the image has a number
+    $parts = explode( '_', $db_image->filename );
+    $last_part = end( $parts );
+    $number = preg_match( '/^[0-9]+$/', $last_part ) ? $last_part : NULL;
 
-    $sub_path = sprintf(
-      '%s/dxa/%s/dxa_%s%s{,_[0-9]}',
-      // wbody and lateral are not paired, so we only need to look in the current phase
-      $paired ? '*' : $analysis_phase_rank,
-      $uid,
-      $db_scan_type->name,
-      'none' == $db_scan_type->side ? '' : sprintf( '_%s', $db_scan_type->side )
-    );
+    $image = [
+      'uid' => $uid,
+      'phase' => [
+        'rank' => $db_study_phase->rank,
+        'code' => $db_study_phase->code,
+        'name' => $db_study_phase->name
+      ],
+      'type' => $db_scan_type->name,
+      'side' => $db_scan_type->side,
+      'number' => $number,
+      'reanalysed' => false,
+      'filename' => sprintf(
+        '/%d/dxa/%s/%s',
+        $db_study_phase->rank,
+        $uid,
+        $db_image->filename
+      )
+    ];
 
-    $images = [];
+    // if an apex host is provided then check if the image is on the workstation
+    if( !is_null( $apex_manager ) )
+      $image['uploaded'] = $apex_manager->check_for_scan( $image['filename'] );
 
-    $original_glob = sprintf(
-      '%s/%s.dcm',
-      IMAGES_PATH,
-      $sub_path
-    );
-    foreach( glob( $original_glob, GLOB_BRACE ) as $filename )
+    $images[] = $image;
+
+    // get the base paired file, if necessary
+    if( in_array( $db_scan_type->name, ['forearm', 'hip', 'spine'] ) )
     {
-      // remove the base path
-      $filename = str_replace( IMAGES_PATH, '', $filename );
-      $data = util::parse_dxa_filename( $filename );
-      $analysis_image = $analysis_phase_rank == $data['phase']['rank'] && $analysis_number === $data['number'];
+      // get the earliest passed analysis for this participant/scan-type
+      $select = lib::create( 'database\select' );
+      $select->add_table_column( 'study_phase', 'rank' );
+      $select->add_table_column( 'study_phase', 'code' );
+      $select->add_table_column( 'study_phase', 'name' );
+      $select->add_table_column( 'image', 'filename' );
 
-      $data['filename'] = $filename;
-      $data['analysis_image'] = $analysis_image;
+      $modifier = lib::create( 'database\modifier' );
+      $modifier->join( 'apex_analysis', 'image.id', 'apex_analysis.image_id' );
+      $modifier->join( 'apex_review', 'apex_analysis.apex_review_id', 'apex_review.id' );
+      $modifier->join( 'exam', 'apex_review.exam_id', 'exam.id' );
+      $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
+      $modifier->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
+      $modifier->where( 'apex_analysis.pass', '=', true );
+      $modifier->where( 'exam.scan_type_id', '=', $db_scan_type->id );
+      $modifier->where( 'interview.participant_id', '=', $db_interview->participant_id );
+      $modifier->order( 'study_phase.rank' ); // get the lowest study phase rank
+      $modifier->order( 'image.filename' ); // get the lowest image number (if there is one)
+      $modifier->limit( 1 );
 
-      if(
-        // always include the analysis image
-        $analysis_image ||
-        (
-          // We do not allow multiple images from the same phase, so:
-          // only include other images when doing paired analysis...
-          $paired &&
-          // and this isn't a numbered image in the same phase as the numbered analysis image
-          !(
-            $analysis_phase_rank == $data['phase']['rank'] &&
-            !is_null( $analysis_number ) &&
-            !is_null( $data['number'] )
-          )
-        )
-      ) $images[] = $data;
-    }
+      $base_image_list = $image_class_name::select( $select, $modifier );
 
-
-    if( $paired )
-    {
-      $reanalysed_glob = sprintf( '%s/%s.reanalysed.dcm', SUPPLEMENTARY_PATH, $sub_path );
-      foreach( glob( $reanalysed_glob, GLOB_BRACE ) as $filename )
+      if( 1 == count( $base_image_list ) )
       {
-        // remove the base path
-        $filename = str_replace( SUPPLEMENTARY_PATH, '', $filename );
-        $data = util::parse_dxa_filename( $filename );
-        $data['filename'] = $filename;
-        $data['analysis_image'] = false;
-        $images[] = $data;
+        $base_image = current( $base_image_list );
+        $parts = explode( '_', $db_image->filename );
+        $last_part = end( $parts );
+        $base_number = preg_match( '/^[0-9]+$/', $last_part ) ? $last_part : NULL;
+
+        $image = [
+          'uid' => $uid,
+          'phase' => [
+            'rank' => $base_image['rank'],
+            'code' => $base_image['code'],
+            'name' => $base_image['name']
+          ],
+          'type' => $db_scan_type->name,
+          'side' => $db_scan_type->side,
+          'number' => $base_number,
+          'reanalysed' => true,
+          'filename' => sprintf(
+            '/%d/dxa/%s/%s',
+            $base_image['rank'],
+            $uid,
+            $base_image['filename']
+          )
+        ];
+
+        // if an apex host is provided then check if the image is on the workstation
+        if( !is_null( $apex_manager ) )
+          $image['uploaded'] = $apex_manager->check_for_scan( $image['filename'] );
+
+        $images[] = $image;
       }
     }
-
-    // sort files by study phase, then type, side, number and reanalysed
-    usort(
-      $images,
-      function($a, $b) {
-        return strcmp(
-          implode(
-            ' ',
-            [$a['phase']['rank'], $a['type'], $a['side'], $a['number'], $a['reanalysed'] ? '1' : '0']
-          ),
-          implode(
-            ' ',
-            [$b['phase']['rank'], $b['type'], $b['side'], $b['number'], $b['reanalysed'] ? '1' : '0']
-          )
-        );
-      }
-    );
 
     return $images;
   }
