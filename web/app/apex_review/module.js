@@ -138,7 +138,7 @@ cenozoApp.defineModule({
 
     if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.upload)) {
       module.addExtraOperation("view", {
-        title: "Upload Images",
+        title: "Upload",
         operation: async function ($state, model) {
           await $state.go(
             "apex_analysis.upload",
@@ -157,7 +157,7 @@ cenozoApp.defineModule({
 
     if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.download)) {
       module.addExtraOperation("view", {
-        title: "Download Analysis",
+        title: "Download",
         operation: async function ($state, model) {
           await $state.go(
             "apex_analysis.download",
@@ -173,6 +173,28 @@ cenozoApp.defineModule({
         help: "Download re-analysed images and data from an Apex workstation.",
       });
     }
+
+    module.addExtraOperation("view", {
+      title: "Close",
+      operation: async function ($state, model) {
+        model.viewModel.setState("complete");
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("typist") && null == model.viewModel.record.end_datetime;
+      },
+      help: "Mark the review as completed."
+    });
+
+    module.addExtraOperation("view", {
+      title: "Re-Open",
+      operation: async function ($state, model) {
+        model.viewModel.setState("reopen");
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("typist") && null != model.viewModel.record.end_datetime;
+      },
+      help: "Re-open the review."
+    });
 
     /* ############################################################################################## */
     cenozo.providers.directive("cnApexReviewMultiedit", [
@@ -544,7 +566,8 @@ cenozoApp.defineModule({
           // setup the analysis model
           let analysisModel = CnApexAnalysisModelFactory.instance();
           angular.extend(analysisModel, {
-            getServiceResourcePath: resource => "apex_analysis/" + this.currentAnalysis.analysisId,
+            getServiceResourcePath: resource =>
+              "apex_analysis/" + (null == this.currentAnalysis ? 0 : this.currentAnalysis.analysisId),
             getEditEnabled: () => (
               this.parentModel.getEditEnabled() &&
               this.parentModel.isRole("typist") &&
@@ -564,15 +587,27 @@ cenozoApp.defineModule({
               return this.parentModel.isRole("typist") && this.record.user_id == CnSession.user.id;
             },
 
-            selectAnalysis: function(index) {
+            setState: async function(value) {
+              try {
+                this.changingState = true;
+                await this.onPatch({ state: value }); 
+                await this.onView(true);
+              } catch (error) {
+              } finally {
+                this.changingState = false;
+              }
+            },
+
+            selectAnalysis: async function(index) {
               const analysis = this.analysisList.findByProperty("index", index);
               if (null != analysis) {
                 this.currentAnalysis = analysis;
+                await this.analysisModel.viewModel.onView(true);
               }
             },
 
             onView: async function (force) {
-              await this.$$onView();
+              await this.$$onView(force);
 
               this.isLoading = true;
 
@@ -612,10 +647,9 @@ cenozoApp.defineModule({
                   isTypist: this.isTypist(),
                   reviewUserId: this.record.user_id,
                   imageList: this.analysisList,
-                  selectImage: (index) => {
-                    const analysis = this.analysisList.findByProperty("index", index);
-                    if (null != analysis) {
-                      this.currentAnalysis = analysis;
+                  selectImage: async (index) => {
+                    await this.selectAnalysis(index);
+                    if (null != this.currentAnalysis) {
                       this.imageDisplayModel.currentImage =
                         this.imageDisplayModel.imageList.findByProperty("index", index);
                       this.imageDisplayModel.loadImage();
@@ -623,7 +657,6 @@ cenozoApp.defineModule({
                   }
                 });
                 await this.imageDisplayModel.onView();
-                await this.analysisModel.viewModel.onView(true);
               } finally {
                 this.isLoading = false;
               }

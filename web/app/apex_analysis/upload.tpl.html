@@ -17,7 +17,7 @@
                   id="hostId"
                   ng-model="model.hostId"
                   ng-change="model.onHostChange()"
-                  ng-options="item.value as item.name for item in model.hostList"
+                  ng-options="item.value as item.name for item in model.parentModel.hostList"
                   class="form-control"
                 ></select>
               </div>
@@ -93,13 +93,8 @@
             <div class="text-right">
               <div class="btn-group">
                 <button type="button" class="btn btn-primary" ng-click="model.deleteImages()">
-                  <span ng-if="model.deletingImages">
-                    Deleting Images...
-                  </span>
-                  <span ng-if="!model.deletingImages">
-                    <i class="glyphicon glyphicon-cloud-upload"></i>
-                   Delete all Images
-                  </span>
+                  <span ng-if="model.deletingImages">Deleting Images...</span>
+                  <span ng-if="!model.deletingImages">Delete all Images</span>
                 </button>
                 <button type="button" class="btn btn-primary" ng-click="model.uploadImages()">
                   <span ng-if="model.uploadingImages">

@@ -51,15 +51,15 @@ class apex_manager extends \cenozo\base_object
   {
     $responses = [];
     // check if Conquest IN is online
-    $response = $this->ssh( 'c:\dicomserverIN\dgate64.exe -v --echo:CONQUESTSRV1' );
+    $response = $this->ssh( 'C:\dicomserverIN\dgate64.exe -v --echo:CONQUESTSRV1' );
     $responses['DICOM In'] = 1 === preg_match( '/ is UP/', $response['output'] );
 
     // check if Conquest OUT is online
-    $response = $this->ssh( 'c:\dicomserverOUT\dgate64.exe -v --echo:CONQUESTSRV2' );
+    $response = $this->ssh( 'C:\dicomserverOUT\dgate64.exe -v --echo:CONQUESTSRV2' );
     $responses['DICOM Out'] = 1 === preg_match( '/ is UP/', $response['output'] );
 
     // check if apex is online
-    $response = $this->ssh( 'c:\dicomserverIN\dgate64.exe -v --echo:DEXA' );
+    $response = $this->ssh( 'C:\dicomserverIN\dgate64.exe -v --echo:DEXA' );
     $responses['DICOM Apex'] = 1 === preg_match( '/ is UP/', $response['output'] );
 
     // check if qdr is online
@@ -112,14 +112,14 @@ class apex_manager extends \cenozo\base_object
   /**
    * Uploads DICOM images to the Apex host
    * 
-   * @param [string] $file_list
+   * @param $db_apex_analysis The analysis to upload files for (current and base paired file if needed)
    * @return [object]
    * @access public
    */
-  public function upload_files( $file_list )
+  public function upload_files( $db_apex_analysis )
   {
     // start by checking if the necessary servers are online
-    $response = $this->ssh( 'c:\dicomserverIN\dgate64.exe -v --echo:CONQUESTSRV1' );
+    $response = $this->ssh( 'C:\dicomserverIN\dgate64.exe -v --echo:CONQUESTSRV1' );
     $dicom_in_online = 1 === preg_match( '/ is UP/', $response['output'] );
 
     $response = $this->ssh( 'tasklist /FI "IMAGENAME eq qdr.exe" /FO LIST' );
@@ -127,8 +127,11 @@ class apex_manager extends \cenozo\base_object
 
     $result_list = [];
     $modify_patient_record = true;
-    foreach( $file_list as $file )
+
+    $image_list = $db_apex_analysis->get_images_for_apex( $this->db_apex_host );
+    foreach( $image_list as $image )
     {
+      $file = $image['filename'];
       $data = util::parse_dxa_filename( $file );
       $filename = $file;
 
@@ -228,7 +231,7 @@ class apex_manager extends \cenozo\base_object
           // move file to Apex DICOM server
           $response = $this->ssh(
             sprintf(
-              'c:\dicomserverIN\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
+              'C:\dicomserverIN\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
               $new_patient_id
             )
           );
@@ -337,54 +340,36 @@ class apex_manager extends \cenozo\base_object
   /**
    * Uploads DICOM images to the Apex host
    * 
-   * @param [string] $file_list
-   * @return [object]
+   * @param $db_apex_analysis The analysis to upload files for (current and base paired file if needed)
+   * @return boolean
    * @access public
    */
-  public function download_files( $file_list )
+  public function download_files( $db_apex_analysis )
   {
-    $result_list = [];
-    foreach( $file_list as $file )
-    {
-      $data = util::parse_dxa_filename( $file );
-      $filename = $file;
+    // get the current analysis image only
+    // (don't pass the apex host as we don't need to know if the unanalysed scan is present)
+    $image = $db_apex_analysis->get_images_for_apex( NULL, true );
+    $data = util::parse_dxa_filename( $image['filename'] );
 
-      // add base paths to relative filenames
-      if( preg_match( '/reanalysed/', $filename ) )
-      {
-        if( 0 === preg_match( sprintf( '#%s#', SUPPLEMENTARY_PATH ), $filename ) )
-          $filename = sprintf( '%s/%s', SUPPLEMENTARY_PATH, $filename );
-      }
-      else
-      {
-        if( 0 === preg_match( sprintf( '#%s#', IMAGES_PATH ), $filename ) )
-          $filename = sprintf( '%s/%s', IMAGES_PATH, $filename );
-      }
+    $short_type_string = strtoupper(
+      is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
+    );
+    $identifier = sprintf( '%s\%s\%s_%s', $data['type'], $data['side'], $data['uid'], $short_type_string );
 
-      $result = ['file' => $file, 'error' => NULL];
+    $response = $this->scp_dir_from_apex( sprintf( 'E:\outgoing\%s', $identifier ), TEMP_PATH );
+    log::debug( $response );
+    if( 0 != $response['exitcode'] ) return false;
 
-      $phase_string = sprintf( '%d%s', $data['phase']['rank'], $data['reanalysed'] ? 'R' : '' );
-      $type_string = is_null( $data['side'] ) ?
-        $data['type'] : sprintf( '%s (%s)', $data['type'], $data['side'] );
-      $short_type_string = strtoupper(
-        is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
-      );
+    // TODO: transfer file to supplementary directory
 
-      // the directory containing re-analysed images will be the same as the new patient ID used when uploading
-      $new_patient_id = sprintf( '%s_%s_%s', $data['uid'], $phase_string, $short_type_string );
+    $this->delete_patient( 'out', $identifier );
 
-      $response = $this->scp_dir_from_apex(
-        sprintf( 'E:\outgoing\%s\%s\%s', $data['type'], $data['side'], $new_patient_id ),
-        TEMP_PATH
-      );
-      if( 0 != $response['exitcode'] ) $result['error'] = 'Failed to copy directory from host.';
+    $db_apex_analysis->download_datetime = util::get_datetime_object();
+    $db_apex_analysis->save();
 
-      // TODO: get analysis metadata from Apex database
+    // TODO: get analysis metadata from Apex database
 
-      $result_list[] = $result;
-    }
-
-    return $result_list;
+    return true;
   }
 
   /**
@@ -400,16 +385,27 @@ class apex_manager extends \cenozo\base_object
     if( 'in' == $type )
     {
       return $this->ssh( sprintf(
-        'c:\dicomserverIN\dgate64.exe -v --deletepatient:%s',
+        'C:\dicomserverIN\dgate64.exe -v --deletepatient:%s',
         is_null( $identifier ) ? '*' : $identifier
       ) );
     }
     else if ( 'out' == $type )
     {
-      return $this->ssh( sprintf(
-        'c:\dicomserverOUT\dgate64.exe -v --deletepatient:%s',
+      // deleting outgoing patients involves delecting a directory only (as defined by the identifier)
+      $response = $this->ssh( sprintf(
+        'del /s /q E:\outgoing\%s',
         is_null( $identifier ) ? '*' : $identifier
       ) );
+
+      if( $response )
+      {
+        $response = $this->ssh( sprintf(
+          'rmdir E:\outgoing\%s',
+          is_null( $identifier ) ? '*' : $identifier
+        ) );
+      }
+
+      return $response;
     }
     else if ( 'apex' == $type )
     {

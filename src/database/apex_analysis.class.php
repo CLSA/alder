@@ -13,6 +13,35 @@ use cenozo\lib, cenozo\log, alder\util;
  */
 class apex_analysis extends \cenozo\database\record
 {
+  /** 
+   * Override parent save method to make sure only one analysis can have a download datetime
+   * 
+   * @throws exception\permission
+   * @access public
+   */
+  public function save()
+  {
+    $setting_download_datetime =
+      $this->has_column_changed( 'download_datetime' ) &&
+      !is_null( $this->download_datetime );
+
+    parent::save();
+
+    if( $setting_download_datetime )
+    {
+      // remove the download datetime from all other analysis records belonging to this review
+      $modifier = lib::create( 'database\modifier' );
+      $modifier->where( 'apex_review_id', '=', $this->apex_review_id );
+      $modifier->where( 'download_datetime', '!=', NULL );
+      $modifier->where( 'id', '!=', $this->id );
+      $sql = sprintf(
+        'UPDATE apex_analysis SET download_datetime = NULL %s',
+        $modifier->get_sql()
+      );
+      static::db()->execute( $sql );
+    }
+  }
+  
   /**
    * Returns a list of all codes for this apex_analysis
    */
@@ -68,9 +97,10 @@ class apex_analysis extends \cenozo\database\record
    * Returns the image associated with this analysis and the base paired image (for forearm, hip and spine only)
    *
    * @param database\apex_host An optional check to see if the images have been uploaded to the host
+   * @param boolean $current_image_only If true then the current analysis image is returned instead of an array
    * @return associative array
    */
-  public function get_images_for_apex( $db_apex_host = NULL )
+  public function get_images_for_apex( $db_apex_host = NULL, $current_image_only = false )
   {
     $image_class_name = lib::get_class_name( 'database\image' );
 
@@ -109,6 +139,9 @@ class apex_analysis extends \cenozo\database\record
     // if an apex host is provided then check if the image is on the workstation
     if( !is_null( $apex_manager ) )
       $image['uploaded'] = $apex_manager->check_for_scan( $image['filename'] );
+
+    // we can return now if only the current image is required
+    if( $current_image_only ) return $image;
 
     $images[] = $image;
 
