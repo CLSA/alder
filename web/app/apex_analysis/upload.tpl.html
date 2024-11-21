@@ -72,8 +72,7 @@
                   {{ model.currentImage.status }}
                   <i
                     class="glyphicon"
-                    ng-if="null != model.currentImage.uploaded"
-                    ng-class="model.currentImage.uploaded ? 'glyphicon-ok' : 'glyphicon-remove'"
+                    ng-class="{ 'glyphicon-ok': model.currentImage.uploaded, 'glyphicon-remove': null != model.currentImage.error }"
                   ></i>
                 </span>
               </div>
@@ -83,11 +82,10 @@
               <div class="col-sm-9">
                 <input ng-model="model.baseImage.name" class="form-control" readonly></input>
                 <span ng-class="model.baseImage.uploaded ? 'text-success' : 'text-danger'">
-                  {{ model.currentImage.status }}
+                  {{ model.baseImage.status }}
                   <i
                     class="glyphicon"
-                    ng-if="null != model.baseImage.uploaded"
-                    ng-class="model.baseImage.uploaded ? 'glyphicon-ok' : 'glyphicon-remove'"
+                    ng-class="{ 'glyphicon-ok': model.baseImage.uploaded, 'glyphicon-remove': null != model.baseImage.error }"
                   ></i>
                 </span>
               </div>

@@ -353,21 +353,16 @@ cenozoApp.defineModule({
                 await this.checkImageStatus();
 
                 response.data.forEach(image => {
-                  if (this.currentImage.filename == image.file) {
-                    this.currentImage.uploaded = null == image.error;
-                    this.currentImage.status = (
-                      null == image.error ?
-                      "Successfully uploded to " + hostName :
-                      image.error
-                    );
-                  } else if (this.baseImage.filename == image.file) {
-                    this.baseImage.uploaded = null == image.error;
-                    this.baseImage.status = (
-                      null == image.error ?
-                      "Successfully uploded to " + hostName :
-                      image.error
-                    );
-                  }
+                  const workingImage = (
+                    null != this.baseImage && this.baseImage.filename == image.file ?
+                    this.baseImage :
+                    this.currentImage
+                  );
+                  angular.extend(workingImage, {
+                    uploaded: null == image.error,
+                    error: image.error,
+                    status: null == image.error ? ("Successfully uploded to " + hostName) : image.error,
+                  });
                 });
               } finally {
                 this.uploadingImages = false;
