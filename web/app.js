@@ -61,6 +61,14 @@ cenozo.factory("CnImageDisplayFactory", [
           }
         },
 
+        nextImageEnabled: function () {
+          return null != this.currentImage && this.imageList.length != this.currentImage.index+1;
+        },
+
+        prevImageEnabled: function () {
+          return null != this.currentImage && 0 != this.currentImage.index;
+        },
+
         nextImage: function () {
           if (null != this.currentImage) this.selectImage(this.currentImage.index+1);
         },

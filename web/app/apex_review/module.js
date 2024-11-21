@@ -648,8 +648,9 @@ cenozoApp.defineModule({
                   reviewUserId: this.record.user_id,
                   imageList: this.analysisList,
                   selectImage: async (index) => {
-                    await this.selectAnalysis(index);
-                    if (null != this.currentAnalysis) {
+                    const image = this.imageDisplayModel.imageList.findByProperty("index", index);
+                    if (null != image) {
+                      await this.selectAnalysis(index);
                       this.imageDisplayModel.currentImage =
                         this.imageDisplayModel.imageList.findByProperty("index", index);
                       this.imageDisplayModel.loadImage();

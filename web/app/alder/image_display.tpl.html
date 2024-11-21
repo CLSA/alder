@@ -3,29 +3,17 @@
     <h4>
       <div class="pull-right">
         <i
-          class="glyphicon glyphicon-chevron-left glyph-hover btn-primary btn-header"
-          ng-style="{'color':
-            null == model.currentImage ||
-            0 == model.currentImage.index ?
-            '#aaa' : '#fff'
-          }"
-          ng-disabled="
-            null == model.currentImage ||
-            0 == model.currentImage.index
-          "
+          class="glyphicon glyphicon-chevron-left glyph-hover btn-header"
+          ng-class="{ 'btn-primary': model.prevImageEnabled() }"
+          ng-style="{'color': model.prevImageEnabled() ? '#fff' : '#aaa' }"
+          ng-disabled="!model.prevImageEnabled()"
           ng-click="model.prevImage()"
         ></i>
         <i
-          class="glyphicon glyphicon-chevron-right glyph-hover btn-primary btn-header"
-          ng-style="{'color':
-            null == model.currentImage ||
-            model.imageList.length == model.currentImage.index+1 ?
-            '#aaa' : '#fff'
-          }"
-          ng-disabled="
-            null == model.currentImage ||
-            model.imageList.length == model.currentImage.index+1
-          "
+          class="glyphicon glyphicon-chevron-right glyph-hover btn-header"
+          ng-class="{ 'btn-primary': model.nextImageEnabled() }"
+          ng-style="{'color': model.nextImageEnabled() ? '#fff' : '#aaa' }"
+          ng-disabled="!model.nextImageEnabled()"
           ng-click="model.nextImage()"
         ></i>
       </div>
