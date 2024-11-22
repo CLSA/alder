@@ -35,7 +35,7 @@ abstract class base_review_post extends \cenozo\service\post
    */
   protected function execute()
   {
-    $review_type = $this->get_left_subject();
+    $review_type = $this->get_leaf_subject();
 
     $participant_class_name = lib::get_class_name( 'database\participant' );
     $review_class_name = lib::get_class_name( sprintf( 'database\%s', $review_type ) );
@@ -58,7 +58,7 @@ abstract class base_review_post extends \cenozo\service\post
 
       if( !is_null( $study_phase_id ) ) $modifier->where( 'interview.study_phase_id', '=', $study_phase_id );
       if( !is_null( $modality_id ) ) $modifier->where( 'scan_type.modality_id', '=', $modality_id );
-      if( !is_null( $scan_type_id ) ) $modifier->where( 'scan_type.scan_type_id', '=', $scan_type_id );
+      if( !is_null( $scan_type_id ) ) $modifier->where( 'scan_type.id', '=', $scan_type_id );
 
       if( array_key_exists( 'start_date', $file ) )
       {
@@ -107,8 +107,8 @@ abstract class base_review_post extends \cenozo\service\post
           $participant_mod->where( 'modality.name', '=', 'dxa' );
 
           // only include exams without an existing review
-          $modifier->left_join( 'apex_review', 'exam.id', 'apex_review.exam_id' );
-          $modifier->where( 'apex_review.id', '=', NULL );
+          $participant_mod->left_join( 'apex_review', 'exam.id', 'apex_review.exam_id' );
+          $participant_mod->where( 'apex_review.id', '=', NULL );
         }
         else
         {
