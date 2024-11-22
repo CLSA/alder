@@ -29,14 +29,16 @@ class apex_analysis extends \cenozo\database\record
 
     if( $setting_download_datetime )
     {
-      // remove the download datetime from all other analysis records belonging to this review
+      // remove the download datetime from all other analysis records belonging to this exam
       $modifier = lib::create( 'database\modifier' );
-      $modifier->where( 'apex_review_id', '=', $this->apex_review_id );
-      $modifier->where( 'download_datetime', '!=', NULL );
-      $modifier->where( 'id', '!=', $this->id );
+      $modifier->join( 'apex_review', 'apex_analysis.apex_review_id', 'apex_review.id' );
+      $modifier->where( 'apex_review.exam_id', '=', $this->get_apex_review()->exam_id );
+      $modifier->where( 'apex_analysis.download_datetime', '!=', NULL );
+      $modifier->where( 'apex_analysis.id', '!=', $this->id );
       $sql = sprintf(
-        'UPDATE apex_analysis SET download_datetime = NULL %s',
-        $modifier->get_sql()
+        'UPDATE apex_analysis %s SET download_datetime = NULL %s',
+        $modifier->get_join(),
+        $modifier->get_sql_without_joins()
       );
       static::db()->execute( $sql );
     }

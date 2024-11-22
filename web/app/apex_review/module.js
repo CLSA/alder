@@ -41,10 +41,12 @@ cenozoApp.defineModule({
           isIncluded: function ($state, model) { return !model.isRole("typist"); },
         },
         start_datetime: {
+          column: "apex_review.start_datetime",
           title: "Start Date & Time",
           type: "datetime",
         },
         end_datetime: {
+          column: "apex_review.end_datetime",
           title: "End Date & Time",
           type: "datetime",
         },
