@@ -226,7 +226,6 @@ class post extends \cenozo\service\post
           $participant_mod = clone $modifier;
           $participant_mod->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
           $participant_mod->join( 'modality', 'scan_type.modality_id', 'modality.id' );
-          $participant_mod->join( 'exam', 'interview.id', 'exam.interview_id' );
           $participant_mod->left_join( 'review', 'exam.id', 'review.exam_id' );
           $participant_mod->group( 'study_phase.id' );
           $participant_mod->group( 'modality.id' );
