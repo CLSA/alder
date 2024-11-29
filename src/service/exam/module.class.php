@@ -65,10 +65,7 @@ class module extends \cenozo\service\site_restricted_module
         'CONCAT( '.
           'scan_type.name, '.
           'IF( '.
-            '"none" = scan_type.side, '.
-            'NULL, '.
-            'CONCAT( " (", scan_type.side, ")" ) '.
-          ') '.
+            '"none" = scan_type.side, "", CONCAT( " (", scan_type.side, ")" ) ) '.
         ')',
         'scan_type',
         false
