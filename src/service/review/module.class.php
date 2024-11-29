@@ -11,4 +11,5 @@ use cenozo\lib, cenozo\log, alder\util;
 /**
  * Performs operations which effect how this module is used in a service
  */
+
 class module extends \alder\service\base_review_module {}
