@@ -29,7 +29,7 @@ if(
     "To import image data: read <filename>\n".
     "  <filename> CSV file with no header and the following rows:\n".
     "    phase: The phase the image is from (1-indexed)\n".
-    "    scan type: The type of scan (carotid_intima, dxa or retinal)\n".
+    "    scan type: The type of scan (carotid_intima, dxa, retinal or spirometry)\n".
     "    uid: The X000000-based participant UID\n".
     "    filename: The name of the file\n".
     "    link: If this is a symlink, the name of the file pointed to by the link\n".
@@ -90,41 +90,50 @@ class import
 
   public function generate_image_file( $phase, $filename )
   {
-    printf( "Searching for phase %d carotid_intima files\n", $phase );
-    exec( sprintf(
-      'find /usr/local/mount/alder/%d/carotid_intima '.
-        '-type f,l '.
-        '\( -name "still*" -o -name "STILL*" \) '.
-        '-not -empty -printf "%%p\t%%l\n" | '.
-      'sed -e \'s#'.
-        '.*/\([0-9]\+\)/carotid_intima/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#'.
-        '"\1","carotid_intima","\2","\3","\4"#\' | '.
-      'sed -e \'s#,""#,NULL#\' > %s',
-      $phase,
-      $filename
-    ) );
+//    printf( "Searching for phase %d carotid_intima files\n", $phase );
+//    exec( sprintf(
+//      'find /usr/local/mount/alder/%d/carotid_intima '.
+//        '-type f,l '.
+//        '\( -name "still*" -o -name "STILL*" \) '.
+//        '-not -empty -printf "%%p\t%%l\n" | '.
+//      'sed -e \'s#'.
+//        '.*/\([0-9]\+\)/carotid_intima/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#'.
+//        '"\1","carotid_intima","\2","\3","\4"#\' | '.
+//      'sed -e \'s#,""#,NULL#\' > %s',
+//      $phase,
+//      $filename
+//    ) );
+//
+//    printf( "Searching for phase %d dxa files\n", $phase );
+//    exec( sprintf(
+//      'find /usr/local/mount/alder/%d/dxa -type f,l '.
+//        '\( '.
+//          '-name "dxa_forearm*.dcm" -o '.
+//          '-name "dxa_hip*.dcm" -o '.
+//          '-name "dxa_lateral.dcm" -o '.
+//          '-name "dxa_wbody_bca.dcm" '.
+//          '-o -name "dxa_spine.dcm" '.
+//        '\) '.
+//        '-not -empty -printf "%%p\t%%l\n" | '.
+//      'sed -e \'s#.*/\([0-9]\+\)/dxa/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#"\1","dxa","\2","\3","\4"#\' | '.
+//      'sed -e \'s#,""#,NULL#\' >> %s',
+//      $phase,
+//      $filename
+//    ) );
+//
+//    printf( "Searching for phase %d retinal files\n", $phase );
+//    exec( sprintf(
+//      'find /usr/local/mount/alder/%d/retinal -type f,l -name "retinal*.jpeg" -not -empty -printf "%%p\t%%l\n" | '.
+//      'sed -e \'s#.*/\([0-9]\+\)/retinal/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#"\1","retinal","\2","\3","\4"#\' | '.
+//      'sed -e \'s#,""#,NULL#\' >> %s',
+//      $phase,
+//      $filename
+//    ) );
 
-    printf( "Searching for phase %d dxa files\n", $phase );
+    printf( "Searching for phase %d spirometry files\n", $phase );
     exec( sprintf(
-      'find /usr/local/mount/alder/%d/dxa -type f,l '.
-        '\( '.
-          '-name "dxa_forearm*.dcm" -o '.
-          '-name "dxa_hip*.dcm" -o '.
-          '-name "dxa_lateral.dcm" -o '.
-          '-name "dxa_wbody_bca.dcm" '.
-          '-o -name "dxa_spine.dcm" '.
-        '\) '.
-        '-not -empty -printf "%%p\t%%l\n" | '.
-      'sed -e \'s#.*/\([0-9]\+\)/dxa/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#"\1","dxa","\2","\3","\4"#\' | '.
-      'sed -e \'s#,""#,NULL#\' >> %s',
-      $phase,
-      $filename
-    ) );
-
-    printf( "Searching for phase %d retinal files\n", $phase );
-    exec( sprintf(
-      'find /usr/local/mount/alder/%d/retinal -type f,l -name "retinal*.jpeg" -not -empty -printf "%%p\t%%l\n" | '.
-      'sed -e \'s#.*/\([0-9]\+\)/retinal/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#"\1","retinal","\2","\3","\4"#\' | '.
+      'find /usr/local/mount/alder/%d/spirometry -type f,l -name "*.pdf" -not -empty -printf "%%p\t%%l\n" | '.
+      'sed -e \'s#.*/\([0-9]\+\)/spirometry/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#"\1","spirometry","\2","\3","\4"#\' | '.
       'sed -e \'s#,""#,NULL#\' >> %s',
       $phase,
       $filename
@@ -385,6 +394,52 @@ class import
       ),
       __LINE__
     );
+
+    // create all missing exam and image records
+    printf( "Creating missing spirometry exam records\n" );
+    $this->query(
+      sprintf(
+        'INSERT IGNORE INTO exam (interview_id, scan_type_id) '.
+        'SELECT DISTINCT interview.id, scan_type.id '.
+        'FROM temp_file '.
+        'JOIN %s.participant USING (uid) '.
+        'JOIN %s.study_phase ON temp_file.phase = study_phase.rank '.
+        'JOIN %s.study ON study_phase.study_id = study.id AND study.name = "clsa" '.
+        'JOIN interview '.
+          'ON participant.id = interview.participant_id '.
+          'AND study_phase.id = interview.study_phase_id '.
+        'JOIN scan_type ON temp_file.type = scan_type.name '.
+        'WHERE temp_file.type = "spirometry"',
+        $this->cenozo_database_name,
+        $this->cenozo_database_name,
+        $this->cenozo_database_name
+      ),
+      __LINE__
+    );
+
+    printf( "Creating missing spirometry image records\n" );
+    $this->query(
+      sprintf(
+        'INSERT IGNORE INTO image (exam_id, filename) '.
+        'SELECT DISTINCT exam.id, temp_file.filename '.
+        'FROM temp_file '.
+        'JOIN %s.participant USING (uid) '.
+        'JOIN %s.study_phase ON temp_file.phase = study_phase.rank '.
+        'JOIN %s.study ON study_phase.study_id = study.id AND study.name = "clsa" '.
+        'JOIN interview '.
+          'ON participant.id = interview.participant_id '.
+          'AND study_phase.id = interview.study_phase_id '.
+        'JOIN scan_type ON temp_file.type = scan_type.name '.
+        'JOIN exam '.
+          'ON interview.id = exam.interview_id '.
+          'AND scan_type.id = exam.scan_type_id '.
+        'WHERE temp_file.type = "spirometry"',
+        $this->cenozo_database_name,
+        $this->cenozo_database_name,
+        $this->cenozo_database_name
+      ),
+      __LINE__
+    );
   }
 
   public function import_opal_file( $filename )
@@ -402,6 +457,7 @@ class import
           'lateral',
           'retinal',
           'spine',
+          'spirometry',
           'wbody'
         ]
       )

@@ -73,7 +73,14 @@ class image extends \cenozo\database\record
     else
     {
       // convert the image to a temporary jpeg file
-      $command = sprintf( 'convert %s %s', $path, $temp_path );
+      $command = sprintf(
+        preg_match( "/\.pdf$/", $this->filename ) ?
+          // PDF files need to be sharpenned
+          'convert -density 150 -trim %s -quality 100 -flatten -sharpen 0x1.0 %s' :
+          'convert %s %s',
+        $path,
+        $temp_path
+      );
       $response = util::exec_timeout( $command );
     }
 
