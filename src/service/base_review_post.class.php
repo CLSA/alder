@@ -52,6 +52,7 @@ abstract class base_review_post extends \cenozo\service\post
     $data = [];
     $study_phase_id = array_key_exists( 'study_phase_id', $file ) ? $file['study_phase_id'] : NULL;
     $modality_id = array_key_exists( 'modality_id', $file ) ? $file['modality_id'] : NULL; // reviews only
+    $site_id = array_key_exists( 'site_id', $file ) ? $file['site_id'] : NULL; // reviews only
     $scan_type_id = array_key_exists( 'scan_type_id', $file ) ? $file['scan_type_id'] : NULL; // apex_reviews only
     $user_id = array_key_exists( 'user_id', $file ) ? $file['user_id'] : NULL;
     $process = array_key_exists( 'process', $file ) && $file['process'];
@@ -62,6 +63,7 @@ abstract class base_review_post extends \cenozo\service\post
 
     if( !is_null( $study_phase_id ) ) $modifier->where( 'interview.study_phase_id', '=', $study_phase_id );
     if( !is_null( $modality_id ) ) $modifier->where( 'scan_type.modality_id', '=', $modality_id );
+    if( !is_null( $site_id ) ) $modifier->where( 'interview.site_id', '=', $site_id );
     if( !is_null( $scan_type_id ) ) $modifier->where( 'scan_type.id', '=', $scan_type_id );
 
     // SELECTION TYPE IS NOT UID BASED

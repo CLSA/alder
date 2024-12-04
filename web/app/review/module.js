@@ -306,6 +306,8 @@ cenozoApp.defineModule({
               { name: "UID", value: "uid" },
             ],
             selectionType: "random",
+            siteList: [],
+            siteId: null,
             formattedStartDate: null,
             formattedEndDate: null,
             userList: null,
@@ -373,6 +375,7 @@ cenozoApp.defineModule({
               let data = {};
               if (this.studyPhaseId) data.study_phase_id = this.studyPhaseId;
               if (this.modalityId) data.modality_id = this.modalityId;
+              if (this.siteId) data.site_id = this.siteId;
 
               try {
                 // make sure the user list has been downloaded
@@ -474,6 +477,7 @@ cenozoApp.defineModule({
 
                 if (angular.isDefined(this.studyPhaseId)) data.study_phase_id = this.studyPhaseId;
                 if (angular.isDefined(this.modalityId)) data.modality_id = this.modalityId;
+                if (angular.isDefined(this.siteId)) data.site_id = this.siteId;
 
                 const response = await CnHttpFactory.instance({
                   path: "review",
@@ -547,7 +551,7 @@ cenozoApp.defineModule({
           });
 
           async function init(object) {
-            const [studyPhaseResponse, modalityResponse] = await Promise.all([
+            const [studyPhaseResponse, modalityResponse, siteResponse] = await Promise.all([
               CnHttpFactory.instance({
                 path: "study_phase",
                 data: {
@@ -572,7 +576,17 @@ cenozoApp.defineModule({
                     order: "modality.name",
                   },
                 },
-              }).query()
+              }).query(),
+
+              CnHttpFactory.instance({
+                path: "site",
+                data: {
+                  select: { column: ["id", "name"] },
+                  modifier: {
+                    order: "site.name",
+                  },
+                },
+              }).query(),
             ]);
 
             object.studyPhaseList = studyPhaseResponse.data.reduce((list, item) => {
@@ -586,6 +600,12 @@ cenozoApp.defineModule({
               return list;
             }, []);
             object.modalityList.unshift({ name: "(all)", value: null });
+
+            object.siteList = siteResponse.data.reduce((list, item) => {
+              list.push({ value: item.id, name: item.name });
+              return list;
+            }, []);
+            object.siteList.unshift({ name: "(all)", value: null });
           }
 
           init(this);
