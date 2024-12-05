@@ -91,7 +91,8 @@ abstract class base_review_module extends \cenozo\service\site_restricted_module
       );
     }
 
-    if( !is_null( $this->get_resource() ) )
+    $db_review = $this->get_resource();
+    if( !is_null( $db_review ) )
     {
       // include the user's first/last/user name
       $select->add_column(
@@ -99,6 +100,16 @@ abstract class base_review_module extends \cenozo\service\site_restricted_module
         'formatted_user_id',
         false
       );
+
+      if(
+        $select->has_column( 'prev_interview_review_id' ) ||
+        $select->has_column( 'prev_exam_review_id' ) ||
+        $select->has_column( 'next_exam_review_id' ) ||
+        $select->has_column( 'next_interview_review_id' )
+      ) {
+        $neighbours = $db_review->get_neighbouring_reviews();
+        foreach( $neighbours as $column => $value ) $select->add_constant( $value, $column );
+      }
     }
   }
 }
