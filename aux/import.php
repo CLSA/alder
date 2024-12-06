@@ -90,45 +90,46 @@ class import
 
   public function generate_image_file( $phase, $filename )
   {
-//    printf( "Searching for phase %d carotid_intima files\n", $phase );
-//    exec( sprintf(
-//      'find /usr/local/mount/alder/%d/carotid_intima '.
-//        '-type f,l '.
-//        '\( -name "still*" -o -name "STILL*" \) '.
-//        '-not -empty -printf "%%p\t%%l\n" | '.
-//      'sed -e \'s#'.
-//        '.*/\([0-9]\+\)/carotid_intima/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#'.
-//        '"\1","carotid_intima","\2","\3","\4"#\' | '.
-//      'sed -e \'s#,""#,NULL#\' > %s',
-//      $phase,
-//      $filename
-//    ) );
-//
-//    printf( "Searching for phase %d dxa files\n", $phase );
-//    exec( sprintf(
-//      'find /usr/local/mount/alder/%d/dxa -type f,l '.
-//        '\( '.
-//          '-name "dxa_forearm*.dcm" -o '.
-//          '-name "dxa_hip*.dcm" -o '.
-//          '-name "dxa_lateral.dcm" -o '.
-//          '-name "dxa_wbody_bca.dcm" '.
-//          '-o -name "dxa_spine.dcm" '.
-//        '\) '.
-//        '-not -empty -printf "%%p\t%%l\n" | '.
-//      'sed -e \'s#.*/\([0-9]\+\)/dxa/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#"\1","dxa","\2","\3","\4"#\' | '.
-//      'sed -e \'s#,""#,NULL#\' >> %s',
-//      $phase,
-//      $filename
-//    ) );
-//
-//    printf( "Searching for phase %d retinal files\n", $phase );
-//    exec( sprintf(
-//      'find /usr/local/mount/alder/%d/retinal -type f,l -name "retinal*.jpeg" -not -empty -printf "%%p\t%%l\n" | '.
-//      'sed -e \'s#.*/\([0-9]\+\)/retinal/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#"\1","retinal","\2","\3","\4"#\' | '.
-//      'sed -e \'s#,""#,NULL#\' >> %s',
-//      $phase,
-//      $filename
-//    ) );
+    printf( "Searching for phase %d carotid_intima files\n", $phase );
+    exec( sprintf(
+      'find /usr/local/mount/alder/%d/carotid_intima '.
+        '-type f,l '.
+        '\( -name "still*" -o -name "STILL*" \) '.
+        '-not -empty -printf "%%p\t%%l\n" | '.
+      'sed -e \'s#'.
+        '.*/\([0-9]\+\)/carotid_intima/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#'.
+        '"\1","carotid_intima","\2","\3","\4"#\' | '.
+      'sed -e \'s#,""#,NULL#\' > %s',
+      $phase,
+      $filename
+    ) );
+
+    printf( "Searching for phase %d dxa files\n", $phase );
+    exec( sprintf(
+      'find /usr/local/mount/alder/%d/dxa -type f,l '.
+        '\( '.
+          '-name "dxa_forearm*.dcm" '.
+          '-o -name "dxa_hip*.dcm" '.
+          '-o -name "dxa_lateral.dcm" '.
+          '-o -name "dxa_wbody_bca.dcm" '.
+          '-o -name "dxa_wbody_bmd.dcm" '.
+          '-o -name "dxa_spine.dcm" '.
+        '\) '.
+        '-not -empty -printf "%%p\t%%l\n" | '.
+      'sed -e \'s#.*/\([0-9]\+\)/dxa/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#"\1","dxa","\2","\3","\4"#\' | '.
+      'sed -e \'s#,""#,NULL#\' >> %s',
+      $phase,
+      $filename
+    ) );
+
+    printf( "Searching for phase %d retinal files\n", $phase );
+    exec( sprintf(
+      'find /usr/local/mount/alder/%d/retinal -type f,l -name "retinal*.jpeg" -not -empty -printf "%%p\t%%l\n" | '.
+      'sed -e \'s#.*/\([0-9]\+\)/retinal/\([^/]\+\)/\([^\t]\+\)\t\(.*\)#"\1","retinal","\2","\3","\4"#\' | '.
+      'sed -e \'s#,""#,NULL#\' >> %s',
+      $phase,
+      $filename
+    ) );
 
     printf( "Searching for phase %d spirometry files\n", $phase );
     exec( sprintf(
