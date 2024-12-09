@@ -13,6 +13,8 @@ CREATE PROCEDURE patch_analysis()
 
     IF @test = 0 THEN
       ALTER TABLE analysis ADD COLUMN note TEXT DEFAULT NULL AFTER rating;
+      ALTER TABLE analysis ADD COLUMN quality ENUM("Good", "Re-analysable", "Not Usable")
+      NOT NULL DEFAULT "Good" AFTER rating;
     END IF;
 
   END //
