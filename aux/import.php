@@ -154,7 +154,13 @@ class import
         'uid CHAR(7) NOT NULL, '.
         'filename VARCHAR(45) NOT NULL, '.
         'link VARCHAR(45) NULL DEFAULT NULL, '.
-        'PRIMARY KEY (id) '.
+        'PRIMARY KEY (id), '.
+        'INDEX dk_phase (phase), '.
+        'INDEX dk_type (type), '.
+        'INDEX dk_uid (uid), '.
+        'INDEX dk_filename (filename), '.
+        'INDEX dk_link (link), '.
+        'INDEX dk_type_link (type, link) '.
       ')',
       __LINE__
     );
@@ -473,144 +479,113 @@ class import
     $datatype = $matches[1];
     $phase = $matches[2];
 
-    // parse the CSV file into header and row data
-    $file = file_get_contents( $filename );
-    $file_lines = explode( "\n", $file );
-    sort( $file_lines );
-    $header = [];
-    $rows = [];
-    foreach( $file_lines as $line )
+    // read the header and create a temporary table to hold the data
+    $column_list = [];
+    $user_column_list = [];
+    $column_sql_list = [];
+    foreach( str_getcsv( fgets( fopen( $filename, 'r' ) ) ) as $name )
     {
-      $data = str_getcsv( $line );
-      if( !$data[0] ) continue; // ignore empty lines
-      else if( 'entity_id' == $data[0] )
+      $type = 'varchar(45) DEFAULT NULL';
+      if( 'entity_id' == $name )
       {
-        // parse the header
-        foreach( $data as $index => $column ) $header[$column] = $index;
-        continue;
+        $name = 'uid';
+        $type = 'CHAR(7) NOT NULL';
       }
-      else
+      else if( preg_match( '/datetime/', $name ) )
       {
-        $rows[] = $data;
+        $type = 'datetime DEFAULT NULL';
       }
+
+      $column_list[] = $name;
+      if( preg_match( '/user/', $name ) ) $user_column_list[] = $name;
+      $column_sql_list[] = sprintf( '%s %s', $name, $type );
     }
 
-    // now determine which type of file this is based on the header
-    printf( "Importing phase %d %s data found in \"%s\"\n", $phase, $datatype, $filename );
+    $this->query(
+      sprintf(
+        'CREATE TEMPORARY TABLE opal_data ( %s, UNIQUE KEY uq_uid (uid) ) ENGINE=InnoDB',
+        implode( ', ', $column_sql_list )
+      ),
+      __LINE__
+    );
+
+    $this->query(
+      sprintf(
+        'load data local infile "%s" '.
+        'into table opal_data '.
+        'character set UTF8 '.
+        'fields terminated by "," '.
+        'enclosed by \'"\' '.
+        'lines terminated by "\\n" '.
+        'ignore 1 lines ',
+        $filename
+      ),
+      __LINE__
+    );
+
     if( 'interview' == $datatype )
     {
-      // build a lookup list of sites
-      $result = $this->db->query( sprintf(
-        'SELECT id, REPLACE( name, " DCS", "" ) AS name '.
-        'FROM %s.site '.
-        'WHERE name LIKE "%% DCS"',
-        $this->cenozo_database_name
-      ) );
-
-      if( false === $result ) $this->fatal_error( $this->db->error, __LINE__ );
-
-      $site_list = [];
-      while( $row = $result->fetch_assoc() ) $site_list[$row['name']] = $row['id'];
-      $result->free();
-
-      // add site name aliases
-      $site_list['SimonFraser'] = $site_list['Simon Fraser'];
-      $site_list['Memorial University'] = $site_list['Memorial'];
-      $site_list['University of Manitoba'] = $site_list['Manitoba'];
-      $site_list['University of Victoria'] = $site_list['Victoria'];
-      $site_list['BritishColumbia'] = $site_list['University of BC'];
-      $site_list['British Columbia'] = $site_list['University of BC'];
-      $site_list['UniversityofBC'] = $site_list['University of BC'];
-      $site_list['McMaster'] = $site_list['Hamilton'];
-
-      foreach( $rows as $row_index => $row )
-      {
-        $uid = $row[$header['entity_id']];
-        $token = $row[$header['token']];
-        $start_datetime = preg_replace( '/-[0-9]+$/', '', $row[$header['start_datetime']] );
-        $end_datetime = preg_replace( '/-[0-9]+$/', '', $row[$header['end_datetime']] );
-        $site = preg_replace( '/ DCS$/', '', $row[$header['site']] );
-        $site_id = $site_list[$site];
-
-        $this->query(
-          sprintf(
-            'UPDATE interview '.
-            'JOIN %s.participant ON interview.participant_id = participant.id '.
-            'JOIN %s.study_phase ON interview.study_phase_id = study_phase.id '.
-            'SET site_id = %d, '.
-                'token = "%s", '.
-                'start_datetime = CONVERT_TZ("%s", "Canada/Eastern", "UTC"), '.
-                'end_datetime = CONVERT_TZ("%s", "Canada/Eastern", "UTC") '.
-            'WHERE participant.uid = "%s" '.
-            'AND study_phase.rank = %d',
-            $this->cenozo_database_name,
-            $this->cenozo_database_name,
-            $site_id,
-            $token,
-            $start_datetime,
-            $end_datetime,
-            $uid,
-            $phase
-          ),
-          __LINE__
-        );
-      }
+      // convert site names
+      $this->query( 'UPDATE opal_data SET site = "Simon Fraser" WHERE site = "SimonFraser"', __LINE__ );
+      $this->query( 'UPDATE opal_data SET site = "Memorial" WHERE site = "Memorial University"', __LINE__ );
+      $this->query( 'UPDATE opal_data SET site = "Manitoba" WHERE site = "University of Manitoba"', __LINE__ );
+      $this->query( 'UPDATE opal_data SET site = "Victoria" WHERE site = "University of Victoria"', __LINE__ );
+      $this->query(
+        'UPDATE opal_data SET site = "University of BC" '.
+        'WHERE site IN ("BritishColumbia","British Columbia","UniversityofBC")',
+        __LINE__
+      );
+      $this->query( 'UPDATE opal_data SET site = "Hamilton" WHERE site = "McMaster"', __LINE__ );
+      $this->query( 'UPDATE opal_data SET site = CONCAT( site, " DCS" )', __LINE__ );
+      $this->query(
+        sprintf(
+          'UPDATE opal_data '.
+          'JOIN patrick_cenozo.site ON opal_data.site = site.name '.
+          'JOIN patrick_cenozo.participant using (uid) '.
+          'JOIN interview ON participant.id = interview.participant_id '.
+          'JOIN patrick_cenozo.study_phase ON interview.study_phase_id = study_phase.id '.
+          'SET interview.site_id = site.id, '.
+              'interview.token = opal_data.token, '.
+              'interview.start_datetime = CONVERT_TZ(opal_data.start_datetime, "Canada/Eastern", "UTC"), '.
+              'interview.end_datetime = CONVERT_TZ(opal_data.end_datetime, "Canada/Eastern", "UTC") '.
+          'WHERE study_phase.rank = %d',
+          $phase
+        ),
+        __LINE__
+      );
     }
     else
     {
-      foreach( $rows as $row_index => $row )
+      // import data one user column at a time
+      foreach( $user_column_list as $user_column )
       {
-        $uid = $row[$header['entity_id']];
-        $exam_list = [];
-        foreach( ['user', 'user_1', 'user_2', 'user_3', 'user_4', 'user_5', 'user_6'] as $user_column )
-        {
-          if( array_key_exists( $user_column, $header ) )
-          {
-            $datetime_column = preg_replace( '/user/', 'datetime', $user_column );
-            $datetime = NULL;
-            if( 0 < strlen( $row[$header[$datetime_column]] ) )
-            {
-              $dt_obj = new DateTime( $row[$header[$datetime_column]] );
-              $dt_obj->setTimezone( new DateTimeZone( 'UTC' ) );
-              $datetime = $dt_obj->format( 'Y-m-d H:i:s' );
-            }
-            $side_column = preg_replace( '/user/', 'side', $user_column );
-            $exam_list[] = [
-              'user' => 0 < strlen( $row[$header[$user_column]] ) ? $row[$header[$user_column]] : NULL,
-              'datetime' => $datetime,
-              'side' =>
-                array_key_exists( $side_column, $header ) ?
-                strtolower( $row[$header[$side_column]] ) :
-                NULL,
-            ];
-          }
-        }
+        $datetime_column = str_replace( 'user', 'datetime', $user_column );
+        $side_column = str_replace( 'user', 'side', $user_column );
+        $side = in_array( $side_column, $column_list )
+              ? sprintf( 'opal_data.%s', $side_column )
+              : '"none"';
 
-        // Create the exam records
-        foreach( $exam_list as $exam )
-        {
-          $this->query(
-            sprintf(
-              'UPDATE exam '.
-              'JOIN scan_type ON exam.scan_type_id = scan_type.id '.
-              'JOIN interview ON exam.interview_id = interview.id '.
-              'JOIN %s.participant ON interview.participant_id = participant.id '.
-              'JOIN %s.study_phase ON interview.study_phase_id = study_phase.id AND study_phase.rank = %d '.
-              'SET exam.interviewer = %s, exam.datetime = %s '.
-              'WHERE participant.uid = "%s" '.
-              'AND scan_type.name = "%s" %s',
-              $this->cenozo_database_name,
-              $this->cenozo_database_name,
-              $phase,
-              is_null( $exam['user'] ) ? 'NULL' : sprintf( '"%s"', $exam['user'] ),
-              is_null( $exam['datetime'] ) ? 'NULL' : sprintf( '"%s"', $exam['datetime'] ),
-              $uid,
-              $datatype,
-              is_null( $exam['side'] ) ? '' : sprintf( 'AND scan_type.side = "%s"', $exam['side'] )
-            ),
-            __LINE__
-          );
-        }
+        $this->query(
+          sprintf(
+            'UPDATE opal_data '.
+            'JOIN patrick_cenozo.participant using (uid) '.
+            'JOIN interview ON participant.id = interview.participant_id '.
+            'JOIN exam ON interview.id = exam.interview_id '.
+            'JOIN scan_type ON exam.scan_type_id = scan_type.id '.
+            'JOIN patrick_cenozo.study_phase ON interview.study_phase_id = study_phase.id '.
+            'SET exam.interviewer = opal_data.%s, '.
+                'exam.datetime = CONVERT_TZ(opal_data.%s, "Canada/Eastern", "UTC") '.
+            'WHERE study_phase.rank = %d '.
+            'AND scan_type.name = "%s" '.
+            'AND scan_type.side = %s',
+            $user_column,
+            $datetime_column,
+            $phase,
+            $datatype,
+            $side
+          ),
+          __LINE__
+        );
       }
     }
   }
