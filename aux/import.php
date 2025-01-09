@@ -451,6 +451,8 @@ class import
 
   public function import_opal_file( $filename )
   {
+    $username = $this->settings['db']['username'];
+
     // get the type and phase of the file from the filename
     $preg = sprintf(
       '/(%s)_([0-9])/',
@@ -540,15 +542,18 @@ class import
       $this->query(
         sprintf(
           'UPDATE opal_data '.
-          'JOIN patrick_cenozo.site ON opal_data.site = site.name '.
-          'JOIN patrick_cenozo.participant using (uid) '.
+          'JOIN %s_cenozo.site ON opal_data.site = site.name '.
+          'JOIN %s_cenozo.participant using (uid) '.
           'JOIN interview ON participant.id = interview.participant_id '.
-          'JOIN patrick_cenozo.study_phase ON interview.study_phase_id = study_phase.id '.
+          'JOIN %s_cenozo.study_phase ON interview.study_phase_id = study_phase.id '.
           'SET interview.site_id = site.id, '.
               'interview.token = opal_data.token, '.
               'interview.start_datetime = CONVERT_TZ(opal_data.start_datetime, "Canada/Eastern", "UTC"), '.
               'interview.end_datetime = CONVERT_TZ(opal_data.end_datetime, "Canada/Eastern", "UTC") '.
           'WHERE study_phase.rank = %d',
+          $username,
+          $username,
+          $username,
           $phase
         ),
         __LINE__
@@ -568,16 +573,18 @@ class import
         $this->query(
           sprintf(
             'UPDATE opal_data '.
-            'JOIN patrick_cenozo.participant using (uid) '.
+            'JOIN %s_cenozo.participant using (uid) '.
             'JOIN interview ON participant.id = interview.participant_id '.
             'JOIN exam ON interview.id = exam.interview_id '.
             'JOIN scan_type ON exam.scan_type_id = scan_type.id '.
-            'JOIN patrick_cenozo.study_phase ON interview.study_phase_id = study_phase.id '.
+            'JOIN %s_cenozo.study_phase ON interview.study_phase_id = study_phase.id '.
             'SET exam.interviewer = opal_data.%s, '.
                 'exam.datetime = CONVERT_TZ(opal_data.%s, "Canada/Eastern", "UTC") '.
             'WHERE study_phase.rank = %d '.
             'AND scan_type.name = "%s" '.
             'AND scan_type.side = %s',
+            $username,
+            $username,
             $user_column,
             $datetime_column,
             $phase,
