@@ -47,7 +47,7 @@ class module extends \cenozo\service\site_restricted_module
 
     $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
     $modifier->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
-    $modifier->join( 'site', 'interview.site_id', 'site.id' );
+    $modifier->left_join( 'site', 'interview.site_id', 'site.id' );
 
     // restrict by site
     $db_restrict_site = $this->get_restricted_site();

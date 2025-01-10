@@ -64,7 +64,7 @@ class module extends \cenozo\service\site_restricted_module
     $modifier->join( 'review', 'analysis.review_id', 'review.id' );
     $modifier->join( 'exam', 'review.exam_id', 'exam.id' );
     $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
-    $modifier->join( 'site', 'interview.site_id', 'site.id' );
+    $modifier->left_join( 'site', 'interview.site_id', 'site.id' );
     $modifier->join( 'user', 'review.user_id', 'user.id' );
 
     // only show typists their own analyses

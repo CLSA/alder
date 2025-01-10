@@ -48,7 +48,7 @@ class module extends \cenozo\service\site_restricted_module
     $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
     $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
     $modifier->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
-    $modifier->join( 'site', 'interview.site_id', 'site.id' );
+    $modifier->left_join( 'site', 'interview.site_id', 'site.id' );
     $modifier->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
     $modifier->join( 'modality', 'scan_type.modality_id', 'modality.id' );
 
