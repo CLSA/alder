@@ -85,6 +85,10 @@ class apex_manager extends \cenozo\base_object
     return is_string( $response ) ? $response : NULL;
   }
 
+  /**
+   * Returns whether or not the provided file has been uploaded to the Apex server
+   * @return boolean
+   */
   public function check_for_scan( $filename )
   {
     $data = util::parse_dxa_filename( $filename );
@@ -100,13 +104,11 @@ class apex_manager extends \cenozo\base_object
     $scan_id = sprintf( '%s%s%s', $data['uid'], $phase_string, $short_type_string );
 
     // check if the file is already on the server
-    $response = $this->query( sprintf(
+    return $this->query_one( sprintf(
       "SELECT COUNT(*) FROM dbo.ScanAnalysis WHERE PATIENT_KEY = '%s' AND SCANID = '%s'",
       $patient_id,
       $scan_id
     ) );
-
-    return odbc_fetch_row( $response ) && 1 == odbc_result( $response, 1 );
   }
 
   /**
@@ -165,16 +167,16 @@ class apex_manager extends \cenozo\base_object
       try
       {
         // check if the file is already on the server
-        $response = $this->query( sprintf(
+        $count = $this->query_one( sprintf(
           "SELECT COUNT(*) FROM dbo.ScanAnalysis WHERE PATIENT_KEY = '%s' AND SCANID = '%s'",
           $new_patient_id,
           $new_scan_id
         ) );
 
-        if( !odbc_fetch_row( $response ) )
+        if( is_null( $count ) )
           throw new \Exception( sprintf( 'Unable to query %s Apex database', $this->db_apex_host->name ) );
 
-        if( 1 == odbc_result( $response, 1 ) )
+        if( 1 == $count )
         {
           // a modified patient record already exists
           $modify_patient_record = false;
@@ -186,7 +188,7 @@ class apex_manager extends \cenozo\base_object
 
           if( !$dicom_in_online || !$qdr_online )
             throw new \Exception( sprintf( 'Service(s) on %s are offline', $this->db_apex_host->name ) );
-        
+
           // create a temporary copy of the dicom file and prepare it for apex
           $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
           if( $this->debug ) log::debug( sprintf( 'cp %s %s', $filename, $temp_filename ) );
@@ -239,21 +241,18 @@ class apex_manager extends \cenozo\base_object
           // remove files from the DICOM IN server (whether the move patient command works or not)
           $this->delete_patient( 'in', $new_patient_id );
 
-          $response = $this->query( sprintf(
+          $patient_key = $this->query_one( sprintf(
             "SELECT PATIENT_KEY FROM dbo.PATIENT WHERE IDENTIFIER1 = '%s'",
             $old_patient_id
           ) );
-
-          if( !odbc_fetch_row( $response ) || 0 == odbc_result( $response, 1 ) )
+          if( is_null( $patient_key ) || 0 == $patient_key )
             throw new \Exception( 'Failed to move file into Apex' );
-
-          $patient_key = odbc_result( $response, 1 );
 
           // modify name and identifier in the Apex database (for the first image only)
           $working_patient_id = $old_patient_id;
           if( $modify_patient_record )
           {
-            $response = $this->query( sprintf(
+            $query_response = $this->query( sprintf(
               "UPDATE dbo.PATIENT ".
               "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s' ".
               "WHERE IDENTIFIER1 = '%s'",
@@ -264,11 +263,13 @@ class apex_manager extends \cenozo\base_object
               $old_patient_id
             ) );
 
-            if( false === $response || is_string( $response ) )
+            if( false === $query_response || is_string( $query_response ) )
             {
               // remove the scan from Apex, if we can
-              if( false !== $response ) $this->delete_patient( 'apex', $old_patient_id );
-              throw new \Exception( is_string( $response ) ? $response : 'Unable to update Apex patient record' );
+              if( false !== $query_response ) $this->delete_patient( 'apex', $old_patient_id );
+              throw new \Exception(
+                is_string( $query_response ) ? $query_response : 'Unable to update Apex patient record'
+              );
             }
 
             $working_patient_id = $new_patient_id;
@@ -277,11 +278,11 @@ class apex_manager extends \cenozo\base_object
           }
 
           // modify name and identifier in all associated analysis tables
-          $table_list = ['ScanAnalysis', ucwords( $data['type'] )];
-          if( 'hip' == $data['type'] ) $table_list[] = 'HipHSA';
+          $table_name_list = ['ScanAnalysis', ucwords( $data['type'] )];
+          if( 'hip' == $data['type'] ) $table_name_list[] = 'HipHSA';
           else if( 'wbody' == $data['type'] )
           {
-            $table_list = array_merge( $table_list, [
+            $table_name_list = array_merge( $table_name_list, [
               'WbodyComposition',
               'SubRegionBone',
               'SubRegionComposition',
@@ -291,9 +292,9 @@ class apex_manager extends \cenozo\base_object
           }
 
           $table_error_list = [];
-          foreach( $table_list as $table )
+          foreach( $table_name_list as $table )
           {
-            $response = $this->query( sprintf(
+            $query_response = $this->query( sprintf(
               "UPDATE dbo.%s ".
               "SET %s SCANID = '%s' ".
               "WHERE PATIENT_KEY = '%s'",
@@ -303,7 +304,7 @@ class apex_manager extends \cenozo\base_object
               $patient_key
             ) );
 
-            if( false === $response || is_string( $response ) ) $table_error_list[] = $table;
+            if( false === $query_response || is_string( $query_response ) ) $table_error_list[] = $table;
           }
 
           if( 0 < count( $table_error_list ) )
@@ -338,9 +339,9 @@ class apex_manager extends \cenozo\base_object
   }
 
   /**
-   * Uploads DICOM images to the Apex host
+   * Downloads re-analyzed image and data from the Apex host
    * 
-   * @param $db_apex_analysis The analysis to upload files for (current and base paired file if needed)
+   * @param $db_apex_analysis The analysis to download files for
    * @return boolean
    * @access public
    */
@@ -367,7 +368,148 @@ class apex_manager extends \cenozo\base_object
     $db_apex_analysis->download_datetime = util::get_datetime_object();
     $db_apex_analysis->save();
 
-    // TODO: get analysis metadata from Apex database
+    // get analysis metadata from Apex database and store it in the analysis data column
+    $db_scan_type = $db_apex_analysis->get_apex_exam()->get_exam()->get_scan_type();
+
+    $table_name_list = [];
+    $column_name_list = [];
+    $score_column_name_list = [];
+    if( 'hip' == $db_scan_type->name )
+    {
+      $table_name_list = ['Hip','HipHSA'];
+      $column_name_list = [
+        'axis_length',
+        'fs_act','fs_bmd','fs_br','fs_cmp','fs_csa','fs_csmi','fs_ed','fs_pcd','fs_sect_mod','fs_width',
+        'htot_area','htot_bmc','htot_bmd',
+        'inter_area','inter_bmc','inter_bmd',
+        'it_act','it_bmd','it_br','it_cmp','it_csa','it_csmi','it_ed','it_pcd','it_sect_mod','it_width',
+        'neck_area','neck_bmc','neck_bmd',
+        'nn_act','nn_bmd','nn_br','nn_cmp','nn_csa','nn_csmi','nn_ed','nn_pcd','nn_sect_mod','nn_width',
+        'physician_comment',
+        'roi_height','roi_type','roi_width',
+        'shaft_neck_angle',
+        'side',
+        'troch_area','troch_bmc','troch_bmd',
+        'wards_area','wards_bmc','wards_bmd'
+      ];
+      $score_column_name_list = [
+        'htot_t','htot_z','inter_t','inter_z','neck_t','neck_z','troch_t','troch_z','wards_t','wards_z'
+      ];
+    }
+    else if( 'spine' == $db_scan_type->name )
+    {
+      $table_name_list = ['Spine'];
+      $column_name_list = [
+        'l1_area','l1_bmc','l1_bmd','l1_included',
+        'l2_area','l2_bmc','l2_bmd','l2_included',
+        'l3_area','l3_bmc','l3_bmd','l3_included',
+        'l4_area','l4_bmc','l4_bmd','l4_included',
+        'no_regions',
+        'physician_comment',
+        'roi_height','roi_type','roi_width',
+        'size',
+        'starting_region',
+        'std_tot_bmd',
+        'tot_area','tot_bmc','tot_bmd'
+      ];
+      $score_column_name_list = [
+        'l1_t','l1_z','l2_t','l2_z','l3_t','l3_z','l4_t','l4_z','tot_t','tot_z'
+      ];
+    }
+    else if( in_array( $db_scan_type->name, ['forearm', 'wbody'] ) )
+    {
+      $table_name_list = [
+        'Wbody',
+        'WbodyComposition',
+        'AndroidGynoidComposition',
+        'ObesityIndices',
+        'SubRegionBone',
+        'SubRegionComposition'
+      ];
+      if( 'forearm' == $db_scan_type->name ) array_unshift( $table_name_list, 'Forearm' );
+
+      $column_name_list = [
+        'android_fat','android_gynoid_ratio','android_lean','android_percent_fat',
+        'appendage_lean_mass_height_2',
+        'body_mass_index',
+        'brain_fat','fat_mass','fat_mass_height_squared','fat_std',
+        'global_area','global_bmc','global_bmd','global_fat','global_lean','global_mass','global_pfat',
+        'gynoid_fat','gynoid_lean','gynoid_percent_fat',
+        'head_area','head_bmc','head_bmd','head_fat','head_lean','head_mass','head_pfat',
+        'l_leg_fat','l_leg_lean','l_leg_mass','l_leg_pfat',
+        'l_s_area','l_s_bmc','l_s_bmd',
+        'larm_area','larm_bmc','larm_bmd','larm_fat','larm_lean','larm_mass','larm_pfat',
+        'lean_mass_height_squared','lean_std',
+        'lleg_area','lleg_bmc','lleg_bmd',
+        'lrib_area','lrib_bmc','lrib_bmd',
+        'net_avg_area','net_avg_bmc','net_avg_bmd','net_avg_fat','net_avg_lean','net_avg_mass','net_avg_pfat',
+        'no_regions',
+        'pelv_area','pelv_bmc','pelv_bmd',
+        'physician_comment',
+        'r_leg_fat','r_leg_lean','r_leg_mass','r_leg_pfat',
+        'rarm_area','rarm_bmc','rarm_bmd','rarm_fat','rarm_lean','rarm_mass','rarm_pfat',
+        'reg10_area','reg10_bmc','reg10_bmd','reg10_fat','reg10_lean','reg10_mass','reg10_name','reg10_pfat',
+        'reg11_area','reg11_bmc','reg11_bmd','reg11_fat','reg11_lean','reg11_mass','reg11_name','reg11_pfat',
+        'reg12_area','reg12_bmc','reg12_bmd','reg12_fat','reg12_lean','reg12_mass','reg12_name','reg12_pfat',
+        'reg13_area','reg13_bmc','reg13_bmd','reg13_fat','reg13_lean','reg13_mass','reg13_name','reg13_pfat',
+        'reg14_area','reg14_bmc','reg14_bmd','reg14_fat','reg14_lean','reg14_mass','reg14_name','reg14_pfat',
+        'reg1_area','reg1_bmc','reg1_bmd','reg1_fat','reg1_lean','reg1_mass','reg1_name','reg1_pfat',
+        'reg2_area','reg2_bmc','reg2_bmd','reg2_fat','reg2_lean','reg2_mass','reg2_name','reg2_pfat',
+        'reg3_area','reg3_bmc','reg3_bmd','reg3_fat','reg3_lean','reg3_mass','reg3_name','reg3_pfat',
+        'reg4_area','reg4_bmc','reg4_bmd','reg4_fat','reg4_lean','reg4_mass','reg4_name','reg4_pfat',
+        'reg5_area','reg5_bmc','reg5_bmd','reg5_fat','reg5_lean','reg5_mass','reg5_name','reg5_pfat',
+        'reg6_area','reg6_bmc','reg6_bmd','reg6_fat','reg6_lean','reg6_mass','reg6_name','reg6_pfat',
+        'reg7_area','reg7_bmc','reg7_bmd','reg7_fat','reg7_lean','reg7_mass','reg7_name','reg7_pfat',
+        'reg8_area','reg8_bmc','reg8_bmd','reg8_fat','reg8_lean','reg8_mass','reg8_name','reg8_pfat',
+        'reg9_area','reg9_bmc','reg9_bmd','reg9_fat','reg9_lean','reg9_mass','reg9_name','reg9_pfat',
+        'rleg_area','rleg_bmc','rleg_bmd',
+        'rrib_area','rrib_bmc','rrib_bmd',
+        'subtot_area','subtot_bmc','subtot_bmd','subtot_fat','subtot_lean','subtot_mass','subtot_pfat',
+        't_s_area','t_s_bmc','t_s_bmd',
+        'tissue_analysis_method',
+        'total_fat_mass','total_lean_mass','total_percent_fat',
+        'trunk_fat','trunk_lean','trunk_limb_fat_mass_ratio','trunk_mass','trunk_pfat',
+        'water_lbm',
+        'wbtot_area','wbtot_bmc','wbtot_bmd','wbtot_fat','wbtot_lean','wbtot_mass','wbtot_pfat'
+      ];
+      $score_column_name_list = ['wbtot_t','wbtot_z'];
+    }
+
+    if( 0 < count( $table_name_list ) )
+    {
+      $modifier = lib::create( 'database\modifier' );
+      $modifier->join( 'ScanAnalysis', 'Patient.PATIENT_KEY', 'ScanAnalysis.PATIENT_KEY' );
+      $modifier->where( 'IDENTIFIER1', '=', 'TODO' );
+
+      // join to all data tables
+      foreach( $table_name_list as $table_name )
+        $modifier->join( $table_name, 'ScanAnalysis.SCANID', sprintf( '%s.SCANID', $table_name ) );
+
+      $row = $this->query_row( sprintf(
+        'SELECT * FROM Patient %s',
+        $modifier->get_sql()
+      ) );
+      if( is_null( $row ) ) throw new \Exception( 'Unable to read analysis data from Apex database' );
+
+      // TODO: calculate T and Z scores (columns in $score_column_name_list
+
+      // create an object containing all columns
+      $list = [];
+      foreach( $column_name_list as $column_name )
+      {
+        if( !array_key_exists( $column_name, $row ) )
+        {
+          throw new \Exception( sprintf(
+            'Column "%s" missing while reading analysis data from Apex database',
+            $column_name
+          ) );
+        }
+        $list[$column_name] = $row[$column_name];
+      }
+
+      $db_apex_analysis->data = util::json_encode( $list );
+      $db_apex_analysis->save();
+    }
 
     return true;
   }
@@ -517,6 +659,44 @@ class apex_manager extends \cenozo\base_object
     if( false === $this->db ) return 'Failed to connect to Apex database.';
     if( $this->debug ) log::debug( $sql );
     return odbc_exec( $this->db, $sql );
+  }
+
+  /**
+   * Convenience method that returns the first value of the first row of a query and frees the result
+   * @param string $sql
+   * @return string (NULL if there was an error)
+   */
+  private function query_one( $sql )
+  {
+    $query_response = $this->query( $sql );
+    $success = odbc_fetch_row( $query_response );
+    $value = $success ? odbc_result( $query_response, 1 ) : NULL;
+    odbc_free_result( $query_response );
+    return $value;
+  }
+
+  /** 
+   * Convenience method that returns the first row of a query as an associative array and frees the result
+   * @param string $sql
+   * @return array (NULL if there was an error)
+   */
+  private function query_row( $sql )
+  {
+    $query_response = $this->query( $sql );
+    $success = odbc_fetch_row( $query_response );
+    $row = NULL;
+    if( $success )
+    {
+      $row = [];
+      for( $i = 1; $i <= odbc_num_fields( $result ); $i++ )
+      {
+        $field = odbc_field_name( $result, $i );
+        $row[$field] = odbc_result( $result, $field );
+      }
+    }
+    odbc_free_result( $query_response );
+
+    return $row;
   }
 
   /**

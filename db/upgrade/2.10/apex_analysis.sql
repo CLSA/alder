@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS apex_analysis (
   image_id INT(10) UNSIGNED NOT NULL,
   pass TINYINT(1) NULL DEFAULT NULL,
   download_datetime DATETIME NULL DEFAULT NULL,
+  data LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT 'null' CHECK (json_valid(`value`)),
   note TEXT NULL DEFAULT NULL,
   PRIMARY KEY (id),
   INDEX fk_image_id (image_id ASC),
