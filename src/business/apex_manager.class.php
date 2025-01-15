@@ -235,7 +235,7 @@ class apex_manager extends \cenozo\base_object
 
           $select = lib::create( 'database\select' );
           $select->from( 'dbo.PATIENT' );
-          $select->add_column( 'PATIENT_KEY' );
+          $select->add_column( 'PATIENT_KEY', NULL, false );
           $modifier = lib::create( 'database\modifier' );
           $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
           $patient_key = $this->query_one( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
@@ -248,7 +248,7 @@ class apex_manager extends \cenozo\base_object
           {
             $modifier = lib::create( 'database\modifier' );
             $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
-            $query_response = $this->query( sprintf(
+            $query_response = $this->query_execute( sprintf(
               "UPDATE dbo.PATIENT ".
               "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s' %s",
               $new_patient_id,
@@ -291,7 +291,7 @@ class apex_manager extends \cenozo\base_object
           {
             $modifier = lib::create( 'database\modifier' );
             $modifier->where( 'PATIENT_KEY', '=', $patient_key );
-            $query_response = $this->query( sprintf(
+            $query_response = $this->query_execute( sprintf(
               "UPDATE dbo.%s ".
               "SET %s SCANID = '%s' %s",
               $table,
@@ -503,14 +503,14 @@ class apex_manager extends \cenozo\base_object
     {
       $select = lib::create( 'database\select' );
       $select->from( 'dbo.Patient' );
-      $select->add_column( '*' );
+      $select->add_column( '*', NULL, false );
       $modifier = lib::create( 'database\modifier' );
-      $modifier->join( 'ScanAnalysis', 'Patient.PATIENT_KEY', 'ScanAnalysis.PATIENT_KEY' );
+      $modifier->join( 'dbo.ScanAnalysis', 'dbo.Patient.PATIENT_KEY', 'dbo.ScanAnalysis.PATIENT_KEY' );
       $modifier->where( 'IDENTIFIER1', '=', $short_identifier );
 
       // join to all data tables
       foreach( $table_name_list as $table_name )
-        $modifier->join( $table_name, 'ScanAnalysis.SCANID', sprintf( '%s.SCANID', $table_name ) );
+        $modifier->join( $table_name, 'dbo.ScanAnalysis.SCANID', sprintf( 'dbo.%s.SCANID', $table_name ) );
 
       $row = $this->query_row( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
       if( is_null( $row ) )
@@ -523,7 +523,7 @@ class apex_manager extends \cenozo\base_object
       foreach( $column_name_list as $column_name )
       {
         // row column names are all in upper case
-        $row_column_name = strtoupper( $column_name ); 
+        $row_column_name = strtoupper( $column_name );
         if( !array_key_exists( $row_column_name, $row ) )
         {
           throw lib::create( 'database\runtime',
@@ -587,10 +587,26 @@ class apex_manager extends \cenozo\base_object
     }
     else if ( 'apex' == $type )
     {
+      // delete P and R files
+      $select = lib::create( 'database\select' );
+      $select->from( 'dbo.Patient' );
+      $select->add_column( 'PFILE_NAME', NULL, false );
       $modifier = lib::create( 'database\modifier' );
-      $modifier->where( '', '=',  );
+      $modifier->join( 'dbo.ScanAnalysis', 'dbo.Patient.PATIENT_KEY', 'dbo.ScanAnalysis.PATIENT_KEY' );
+      if( !is_null( $identifier ) ) $modifier->where( 'IDENTIFIER1', '=', $identifier );
+
+      $pfile_list = [];
+      $pfile_list = $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
+
+      foreach( $pfile_list as $pfile )
+      {
+        $glob = preg_replace( '/\.P[0-9]*/', '.*', $pfile );
+        $this->ssh( sprintf( 'del /s /q E:\QDR\Data\%s', $glob ) );
+      }
+
+      $modifier = lib::create( 'database\modifier' );
       IF( !is_null( $identifier ) ) $modifier->where( 'IDENTIFIER1', '=', $identifier );
-      return $this->query( sprintf( 'DELETE FROM dbo.PATIENT %s', $modifier->get_sql() ) );
+      return $this->query_execute( sprintf( 'DELETE FROM dbo.PATIENT %s', $modifier->get_sql() ) );
     }
 
     return NULL;
@@ -682,7 +698,7 @@ class apex_manager extends \cenozo\base_object
    * 
    * @access private
    */
-  private function query( $sql )
+  private function query_execute( $sql )
   {
     if( is_null( $this->db ) )
     {
@@ -703,27 +719,40 @@ class apex_manager extends \cenozo\base_object
   }
 
   /**
-   * Convenience method that returns the first value of the first row of a query and frees the result
+   * Convenience method that returns all rows of a query as an array of associative arrays and frees the result
    * @param string $sql
-   * @return string (NULL if there was an error)
+   * @return array (NULL if there was an error)
    */
-  private function query_one( $sql )
+  private function query_all( $sql )
   {
-    $query_response = $this->query( $sql );
-    $success = odbc_fetch_row( $query_response );
-    $value = $success ? odbc_result( $query_response, 1 ) : NULL;
+    $query_response = $this->query_execute( $sql );
+    $rows = [];
+    while( odbc_fetch_row( $query_response ) )
+    {
+      $num_fields = odbc_num_fields( $query_response );
+      if( 0 < $num_fields )
+      {
+        for( $i = 1; $i <= $num_fields; $i++ )
+        {
+          $field = odbc_field_name( $query_response, $i );
+          $row[$field] = odbc_result( $query_response, $field );
+        }
+        $rows[] = $row;
+      }
+    }
     odbc_free_result( $query_response );
-    return $value;
+
+    return $rows;
   }
 
-  /** 
+  /**
    * Convenience method that returns the first row of a query as an associative array and frees the result
    * @param string $sql
    * @return array (NULL if there was an error)
    */
   private function query_row( $sql )
   {
-    $query_response = $this->query( $sql );
+    $query_response = $this->query_execute( $sql );
     $success = odbc_fetch_row( $query_response );
     $row = NULL;
     if( $success )
@@ -738,6 +767,70 @@ class apex_manager extends \cenozo\base_object
     odbc_free_result( $query_response );
 
     return $row;
+  }
+
+  /**
+   * Conveience method that returns a the first column of a query as an array
+   * @param string $sql
+   * @return array (NULL if there was an error)
+   */
+  private function query_col( $sql )
+  {
+    $query_response = $this->query_execute( $sql );
+    $col = [];
+    while( odbc_fetch_row( $query_response ) )
+    {
+      $num_fields = odbc_num_fields( $query_response );
+      if( 0 < $num_fields )
+      {
+        $field = odbc_field_name( $query_response, 1 );
+        $col[] = odbc_result( $query_response, $field );
+      }
+    }
+    odbc_free_result( $query_response );
+
+    return $col;
+  }
+
+  /**
+   * Convenience method that returns the first value of the first row of a query and frees the result
+   * @param string $sql
+   * @return string (NULL if there was an error)
+   */
+  private function query_one( $sql )
+  {
+    $query_response = $this->query_execute( $sql );
+    $success = odbc_fetch_row( $query_response );
+    $value = $success ? odbc_result( $query_response, 1 ) : NULL;
+    odbc_free_result( $query_response );
+    return $value;
+  }
+
+  /**
+   * Convenience method that returns all rows of a query as an array of associative arrays and frees the result
+   * @param string $sql
+   * @return array (NULL if there was an error)
+   */
+  private function query_rows( $sql )
+  {
+    $query_response = $this->query_execute( $sql );
+    $rows = [];
+    while( odbc_fetch_row( $query_response ) )
+    {
+      $num_fields = odbc_num_fields( $query_response );
+      if( 0 < $num_fields )
+      {
+        for( $i = 1; $i <= $num_fields; $i++ )
+        {
+          $field = odbc_field_name( $query_response, $i );
+          $row[$field] = odbc_result( $query_response, $field );
+        }
+        $rows[] = $row;
+      }
+    }
+    odbc_free_result( $query_response );
+
+    return $rows;
   }
 
   /**
@@ -759,5 +852,5 @@ class apex_manager extends \cenozo\base_object
    * @var boolean
    * @access private
    */
-  private $debug = false;
+  private $debug = true;
 }
