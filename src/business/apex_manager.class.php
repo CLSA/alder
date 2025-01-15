@@ -104,7 +104,7 @@ class apex_manager extends \cenozo\base_object
     $scan_id = sprintf( '%s%s%s', $data['uid'], $phase_string, $short_type_string );
 
     // check if the file is already on the server
-    return $this->query_one( sprintf(
+    return 0 < $this->query_one( sprintf(
       "SELECT COUNT(*) FROM dbo.ScanAnalysis WHERE PATIENT_KEY = '%s' AND SCANID = '%s'",
       $patient_id,
       $scan_id
