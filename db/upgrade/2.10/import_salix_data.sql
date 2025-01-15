@@ -38,7 +38,7 @@ CREATE PROCEDURE import_salix_data()
           "AND study_phase.id = interview.study_phase_id ",
         "JOIN exam ON interview.id = exam.interview_id AND scan_type.id = exam.scan_type_id ",
         "WHERE study.name = 'clsa' ",
-        "AND apex_deployment.status = 'completed' ",
+        "AND apex_deployment.status IN( 'completed', 'exported' ) ",
         "AND apex_deployment.user_id IS NOT NULL ",
         "AND apex_deployment.import_datetime IS NOT NULL"
       );
