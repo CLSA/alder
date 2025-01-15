@@ -104,11 +104,13 @@ class apex_manager extends \cenozo\base_object
     $scan_id = sprintf( '%s%s%s', $data['uid'], $phase_string, $short_type_string );
 
     // check if the file is already on the server
-    return 0 < $this->query_one( sprintf(
-      "SELECT COUNT(*) FROM dbo.ScanAnalysis WHERE PATIENT_KEY = '%s' AND SCANID = '%s'",
-      $patient_id,
-      $scan_id
-    ) );
+    $select = lib::create( 'database\select' );
+    $select->from( 'dbo.ScanAnalysis' );
+    $select->add_column( 'COUNT(*)', NULL, false );
+    $modifier = lib::create( 'database\modifier' );
+    $modifier->where( 'PATIENT_KEY', '=', $patient_id );
+    $modifier->where( 'SCANID', '=', $scan_id );
+    return 0 < $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
   }
 
   /**
@@ -166,17 +168,7 @@ class apex_manager extends \cenozo\base_object
 
       try
       {
-        // check if the file is already on the server
-        $count = $this->query_one( sprintf(
-          "SELECT COUNT(*) FROM dbo.ScanAnalysis WHERE PATIENT_KEY = '%s' AND SCANID = '%s'",
-          $new_patient_id,
-          $new_scan_id
-        ) );
-
-        if( is_null( $count ) )
-          throw new \Exception( sprintf( 'Unable to query %s Apex database', $this->db_apex_host->name ) );
-
-        if( 1 == $count )
+        if( $this->check_for_scan( $file ) )
         {
           // a modified patient record already exists
           $modify_patient_record = false;
@@ -241,10 +233,12 @@ class apex_manager extends \cenozo\base_object
           // remove files from the DICOM IN server (whether the move patient command works or not)
           $this->delete_patient( 'in', $new_patient_id );
 
-          $patient_key = $this->query_one( sprintf(
-            "SELECT PATIENT_KEY FROM dbo.PATIENT WHERE IDENTIFIER1 = '%s'",
-            $old_patient_id
-          ) );
+          $select = lib::create( 'database\select' );
+          $select->from( 'dbo.PATIENT' );
+          $select->add_column( 'PATIENT_KEY' );
+          $modifier = lib::create( 'database\modifier' );
+          $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
+          $patient_key = $this->query_one( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
           if( is_null( $patient_key ) || 0 == $patient_key )
             throw new \Exception( 'Failed to move file into Apex' );
 
@@ -252,15 +246,16 @@ class apex_manager extends \cenozo\base_object
           $working_patient_id = $old_patient_id;
           if( $modify_patient_record )
           {
+            $modifier = lib::create( 'database\modifier' );
+            $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
             $query_response = $this->query( sprintf(
               "UPDATE dbo.PATIENT ".
-              "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s' ".
-              "WHERE IDENTIFIER1 = '%s'",
+              "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s' %s",
               $new_patient_id,
               $new_patient_id,
               $type_string,
               $data['uid'],
-              $old_patient_id
+              $modifier->get_sql()
             ) );
 
             if( false === $query_response || is_string( $query_response ) )
@@ -294,14 +289,15 @@ class apex_manager extends \cenozo\base_object
           $table_error_list = [];
           foreach( $table_name_list as $table )
           {
+            $modifier = lib::create( 'database\modifier' );
+            $modifier->where( 'PATIENT_KEY', '=', $patient_key );
             $query_response = $this->query( sprintf(
               "UPDATE dbo.%s ".
-              "SET %s SCANID = '%s' ".
-              "WHERE PATIENT_KEY = '%s'",
+              "SET %s SCANID = '%s' %s",
               $table,
               $patient_key != $new_patient_id ? sprintf( "PATIENT_KEY = '%s',", $new_patient_id ) : '',
               $new_scan_id,
-              $patient_key
+              $modifier->get_sql()
             ) );
 
             if( false === $query_response || is_string( $query_response ) ) $table_error_list[] = $table;
@@ -505,6 +501,9 @@ class apex_manager extends \cenozo\base_object
 
     if( 0 < count( $table_name_list ) )
     {
+      $select = lib::create( 'database\select' );
+      $select->from( 'dbo.Patient' );
+      $select->add_column( '*' );
       $modifier = lib::create( 'database\modifier' );
       $modifier->join( 'ScanAnalysis', 'Patient.PATIENT_KEY', 'ScanAnalysis.PATIENT_KEY' );
       $modifier->where( 'IDENTIFIER1', '=', $short_identifier );
@@ -513,10 +512,7 @@ class apex_manager extends \cenozo\base_object
       foreach( $table_name_list as $table_name )
         $modifier->join( $table_name, 'ScanAnalysis.SCANID', sprintf( '%s.SCANID', $table_name ) );
 
-      $row = $this->query_row( sprintf(
-        'SELECT * FROM Patient %s',
-        str_replace( '"', "'", $modifier->get_sql() ) // MSSQL requires single quote, not double
-      ) );
+      $row = $this->query_row( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
       if( is_null( $row ) )
         throw lib::create( 'exception\runtime', 'Unable to read analysis data from Apex database', __METHOD__ );
 
@@ -591,9 +587,10 @@ class apex_manager extends \cenozo\base_object
     }
     else if ( 'apex' == $type )
     {
-      $sql = 'DELETE FROM dbo.PATIENT';
-      IF( !is_null( $identifier ) ) $sql .= sprintf( " WHERE IDENTIFIER1 = '%s'", $identifier );
-      return $this->query( $sql );
+      $modifier = lib::create( 'database\modifier' );
+      $modifier->where( '', '=',  );
+      IF( !is_null( $identifier ) ) $modifier->where( 'IDENTIFIER1', '=', $identifier );
+      return $this->query( sprintf( 'DELETE FROM dbo.PATIENT %s', $modifier->get_sql() ) );
     }
 
     return NULL;
@@ -696,8 +693,12 @@ class apex_manager extends \cenozo\base_object
       );
     }
 
-    if( false === $this->db ) return 'Failed to connect to Apex database.';
+    // note that SQL debugging does not include replacing double quotes with single quotes
     if( $this->debug ) log::debug( $sql );
+
+    // convert all double quotes to single quotes for MSSQL
+    $sql = str_replace( '"', "'", $sql );
+    if( false === $this->db ) return 'Failed to connect to Apex database.';
     return odbc_exec( $this->db, $sql );
   }
 
