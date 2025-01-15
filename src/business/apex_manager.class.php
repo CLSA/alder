@@ -347,6 +347,13 @@ class apex_manager extends \cenozo\base_object
    */
   public function download_files( $db_apex_analysis )
   {
+    // get analysis metadata from Apex database and store it in the analysis data column
+    $db_exam = $db_apex_analysis->get_apex_review()->get_exam();
+    $db_scan_type = $db_exam->get_scan_type();
+    $db_interview = $db_exam->get_interview();
+    $db_study_phase = $db_interview->get_study_phase();
+    $db_participant = $db_interview->get_participant();
+
     // get the current analysis image only
     // (don't pass the apex host as we don't need to know if the unanalysed scan is present)
     $image = $db_apex_analysis->get_images_for_apex( NULL, true );
@@ -355,21 +362,43 @@ class apex_manager extends \cenozo\base_object
     $short_type_string = strtoupper(
       is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
     );
-    $identifier = sprintf( '%s\%s\%s_%s', $data['type'], $data['side'], $data['uid'], $short_type_string );
+    $short_identifier = sprintf( '%s_%s', $data['uid'], $short_type_string );
+    $long_identifier = sprintf( '%s\%s\%s', $data['type'], $data['side'], $short_identifier );
 
-    $response = $this->scp_dir_from_apex( sprintf( 'E:\outgoing\%s', $identifier ), TEMP_PATH );
-    log::debug( $response );
+    $response = $this->scp_dir_from_apex( sprintf( 'E:\outgoing\%s', $long_identifier ), TEMP_PATH );
     if( 0 != $response['exitcode'] ) return false;
 
-    // TODO: transfer file to supplementary directory
+    // transfer file to supplementary directory
+    $file_list = glob( sprintf( '%s/%s/*', TEMP_PATH, $short_identifier ) );
+    if( 1 != count( $file_list ) )
+      throw lib::create( 'exception\runtime', 'Unable to read analysis data from Apex database', __METHOD__ );
 
-    $this->delete_patient( 'out', $identifier );
+    $scan_type = $db_scan_type->name;
+    if( 'none' != $scan_type ) $scan_type .= sprintf( '_%s', $db_scan_type->side );
+    $supplementary_filename = sprintf(
+      '%s/%d/dxa/%s/dxa_%s.reanalysed.dcm',
+      SUPPLEMENTARY_PATH,
+      $db_study_phase->rank,
+      $db_participant->uid,
+      $scan_type
+    );
+
+    $transferred_to_supplementary = (
+      is_writable( dirname( $supplementary_filename ) ) &&
+      copy( $file_list[0], $supplementary_filename )
+    );
+
+    if( !$transferred_to_supplementary )
+    {
+      log::warning( sprintf(
+        'Unable to transfer re-analyzed file from "%s" to "%s"',
+        $file_list[0],
+        $supplementary_filename
+      ) );
+    }
 
     $db_apex_analysis->download_datetime = util::get_datetime_object();
     $db_apex_analysis->save();
-
-    // get analysis metadata from Apex database and store it in the analysis data column
-    $db_scan_type = $db_apex_analysis->get_apex_exam()->get_exam()->get_scan_type();
 
     $table_name_list = [];
     $column_name_list = [];
@@ -388,7 +417,6 @@ class apex_manager extends \cenozo\base_object
         'physician_comment',
         'roi_height','roi_type','roi_width',
         'shaft_neck_angle',
-        'side',
         'troch_area','troch_bmc','troch_bmd',
         'wards_area','wards_bmc','wards_bmd'
       ];
@@ -479,7 +507,7 @@ class apex_manager extends \cenozo\base_object
     {
       $modifier = lib::create( 'database\modifier' );
       $modifier->join( 'ScanAnalysis', 'Patient.PATIENT_KEY', 'ScanAnalysis.PATIENT_KEY' );
-      $modifier->where( 'IDENTIFIER1', '=', 'TODO' );
+      $modifier->where( 'IDENTIFIER1', '=', $short_identifier );
 
       // join to all data tables
       foreach( $table_name_list as $table_name )
@@ -487,9 +515,10 @@ class apex_manager extends \cenozo\base_object
 
       $row = $this->query_row( sprintf(
         'SELECT * FROM Patient %s',
-        $modifier->get_sql()
+        str_replace( '"', "'", $modifier->get_sql() ) // MSSQL requires single quote, not double
       ) );
-      if( is_null( $row ) ) throw new \Exception( 'Unable to read analysis data from Apex database' );
+      if( is_null( $row ) )
+        throw lib::create( 'exception\runtime', 'Unable to read analysis data from Apex database', __METHOD__ );
 
       // TODO: calculate T and Z scores (columns in $score_column_name_list
 
@@ -497,19 +526,30 @@ class apex_manager extends \cenozo\base_object
       $list = [];
       foreach( $column_name_list as $column_name )
       {
-        if( !array_key_exists( $column_name, $row ) )
+        // row column names are all in upper case
+        $row_column_name = strtoupper( $column_name ); 
+        if( !array_key_exists( $row_column_name, $row ) )
         {
-          throw new \Exception( sprintf(
-            'Column "%s" missing while reading analysis data from Apex database',
-            $column_name
-          ) );
+          throw lib::create( 'database\runtime',
+            sprintf(
+              'Column "%s" missing while reading analysis data from Apex database',
+              $row_column_name
+            ),
+            __METHOD__
+          );
         }
-        $list[$column_name] = $row[$column_name];
+        $list[$column_name] = $row[$row_column_name];
       }
+
+      // add side if there is one
+      if( 'none' != $db_scan_type->side ) $list['side'] = $db_scan_type->side;
 
       $db_apex_analysis->data = util::json_encode( $list );
       $db_apex_analysis->save();
     }
+
+    // clean up the exported "report" file on the Apex server (if the transfer was successful)
+    if( $transferred_to_supplementary ) $this->delete_patient( 'out', $long_identifier );
 
     return true;
   }
@@ -688,10 +728,10 @@ class apex_manager extends \cenozo\base_object
     if( $success )
     {
       $row = [];
-      for( $i = 1; $i <= odbc_num_fields( $result ); $i++ )
+      for( $i = 1; $i <= odbc_num_fields( $query_response ); $i++ )
       {
-        $field = odbc_field_name( $result, $i );
-        $row[$field] = odbc_result( $result, $field );
+        $field = odbc_field_name( $query_response, $i );
+        $row[$field] = odbc_result( $query_response, $field );
       }
     }
     odbc_free_result( $query_response );
