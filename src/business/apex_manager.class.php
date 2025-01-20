@@ -399,7 +399,34 @@ class apex_manager extends \cenozo\base_object
     $table_name_list = [];
     $column_name_list = [];
     $score_column_name_list = [];
+
     if( 'hip' == $db_scan_type->name )
+    {
+      $table_name_list = ['Forearm'];
+      $column_name_list = [
+        'arm_length',
+        'physician_comment',
+        'r_13_area','r_13_bmc','r_13_bmd',
+        'r_mid_area','r_mid_bmc','r_mid_bmd',
+        'r_ud_area','r_ud_bmc','r_ud_bmd',
+        'roi_height','roi_type','roi_width',
+        'rtot_area','rtot_bmc','rtot_bmd',
+        'ru13tot_area','ru13tot_bmc','ru13tot_bmd',
+        'rumidtot_area','rumidtot_bmc','rumidtot_bmd',
+        'rutot_bmc','rutot_bmd',
+        'ruudtot_area','ruudtot_bmc','ruudtot_bmd',
+        'u_13_area','u_13_bmc','u_13_bmd',
+        'u_mid_area','u_mid_bmc','u_mid_bmd',
+        'u_ud_area','u_ud_bmc','u_ud_bmd',
+        'utot_area','utot_bmc','utot_bmd'
+      ];
+      $score_column_name_list = [
+        'r_13_t','r_13_z','r_mid_t','r_mid_z','r_ud_t','r_ud_z','rtot_t','rtot_z','ru13tot_t','ru13tot_z',
+        'rutot_t','rutot_z','ruudtot_t','ruudtot_z','u_13_t','u_13_z','u_mid_t','u_mid_z','u_ud_t','u_ud_z',
+        'utot_t','utot_z'
+      ];
+    }
+    else if( 'hip' == $db_scan_type->name )
     {
       $table_name_list = ['Hip','HipHSA'];
       $column_name_list = [
@@ -431,7 +458,6 @@ class apex_manager extends \cenozo\base_object
         'no_regions',
         'physician_comment',
         'roi_height','roi_type','roi_width',
-        'size',
         'starting_region',
         'std_tot_bmd',
         'tot_area','tot_bmc','tot_bmd'
@@ -440,7 +466,7 @@ class apex_manager extends \cenozo\base_object
         'l1_t','l1_z','l2_t','l2_z','l3_t','l3_z','l4_t','l4_z','tot_t','tot_z'
       ];
     }
-    else if( in_array( $db_scan_type->name, ['forearm', 'wbody'] ) )
+    else if( 'wbody' == $db_scan_type->name )
     {
       $table_name_list = [
         'Wbody',
@@ -450,7 +476,6 @@ class apex_manager extends \cenozo\base_object
         'SubRegionBone',
         'SubRegionComposition'
       ];
-      if( 'forearm' == $db_scan_type->name ) array_unshift( $table_name_list, 'Forearm' );
 
       $column_name_list = [
         'android_fat','android_gynoid_ratio','android_lean','android_percent_fat',
