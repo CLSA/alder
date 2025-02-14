@@ -183,7 +183,7 @@ class apex_manager extends \cenozo\base_object
 
           // create a temporary copy of the dicom file and prepare it for apex
           $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
-          if( $this->debug ) log::debug( sprintf( 'cp %s %s', $filename, $temp_filename ) );
+          if( self::$debug ) log::debug( sprintf( 'cp %s %s', $filename, $temp_filename ) );
           copy( $filename, $temp_filename );
 
           $response = $this->get_patient_id( $temp_filename );
@@ -198,7 +198,7 @@ class apex_manager extends \cenozo\base_object
           if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to modify DICOM tags' );
 
           $response = $this->scp_file_to_apex( $temp_filename, 'E:\incoming\incoming' );
-          if( $this->debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
+          if( self::$debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
           unlink( $temp_filename );
           if( 0 != $response['exitcode'] )
             throw new \Exception( sprintf( 'Failed to copy file to %s', $this->db_apex_host->name ) );
@@ -364,7 +364,7 @@ class apex_manager extends \cenozo\base_object
     $response = $this->scp_dir_from_apex( sprintf( 'E:\outgoing\%s', $long_identifier ), TEMP_PATH );
     if( 0 != $response['exitcode'] ) return false;
 
-    // transfer file to supplementary directory
+    if( self::$debug ) log::debug( sprintf( '%s/%s/*', TEMP_PATH, $short_identifier ) );
     $file_list = glob( sprintf( '%s/%s/*', TEMP_PATH, $short_identifier ) );
     if( 1 != count( $file_list ) )
       throw lib::create( 'exception\runtime', 'Unable to read analysis data from Apex database', __METHOD__ );
@@ -379,18 +379,27 @@ class apex_manager extends \cenozo\base_object
       $scan_type
     );
 
-    $transferred_to_supplementary = (
-      is_writable( dirname( $supplementary_filename ) ) &&
-      copy( $file_list[0], $supplementary_filename )
-    );
-
-    if( !$transferred_to_supplementary )
+    // transfer file to supplementary directory
+    $transferred_to_supplementary = false;
+    if( self::$debug )
     {
-      log::warning( sprintf(
-        'Unable to transfer re-analyzed file from "%s" to "%s"',
-        $file_list[0],
-        $supplementary_filename
-      ) );
+      if( self::$debug ) log::debug( sprintf( 'cp %s %s', $file_list[0], $supplementary_filename ) );
+    }
+    else
+    {
+      $transferred_to_supplementary = (
+        is_writable( dirname( $supplementary_filename ) ) &&
+        copy( $file_list[0], $supplementary_filename )
+      );
+
+      if( !$transferred_to_supplementary )
+      {
+        log::warning( sprintf(
+          'Unable to transfer re-analyzed file from "%s" to "%s"',
+          $file_list[0],
+          $supplementary_filename
+        ) );
+      }
     }
 
     $db_apex_analysis->download_datetime = util::get_datetime_object();
@@ -398,9 +407,8 @@ class apex_manager extends \cenozo\base_object
 
     $table_name_list = [];
     $column_name_list = [];
-    $score_column_name_list = [];
 
-    if( 'hip' == $db_scan_type->name )
+    if( 'forearm' == $db_scan_type->name )
     {
       $table_name_list = ['Forearm'];
       $column_name_list = [
@@ -420,11 +428,6 @@ class apex_manager extends \cenozo\base_object
         'u_ud_area','u_ud_bmc','u_ud_bmd',
         'utot_area','utot_bmc','utot_bmd'
       ];
-      $score_column_name_list = [
-        'r_13_t','r_13_z','r_mid_t','r_mid_z','r_ud_t','r_ud_z','rtot_t','rtot_z','ru13tot_t','ru13tot_z',
-        'rutot_t','rutot_z','ruudtot_t','ruudtot_z','u_13_t','u_13_z','u_mid_t','u_mid_z','u_ud_t','u_ud_z',
-        'utot_t','utot_z'
-      ];
     }
     else if( 'hip' == $db_scan_type->name )
     {
@@ -443,9 +446,6 @@ class apex_manager extends \cenozo\base_object
         'troch_area','troch_bmc','troch_bmd',
         'wards_area','wards_bmc','wards_bmd'
       ];
-      $score_column_name_list = [
-        'htot_t','htot_z','inter_t','inter_z','neck_t','neck_z','troch_t','troch_z','wards_t','wards_z'
-      ];
     }
     else if( 'spine' == $db_scan_type->name )
     {
@@ -461,9 +461,6 @@ class apex_manager extends \cenozo\base_object
         'starting_region',
         'std_tot_bmd',
         'tot_area','tot_bmc','tot_bmd'
-      ];
-      $score_column_name_list = [
-        'l1_t','l1_z','l2_t','l2_z','l3_t','l3_z','l4_t','l4_z','tot_t','tot_z'
       ];
     }
     else if( 'wbody' == $db_scan_type->name )
@@ -521,11 +518,16 @@ class apex_manager extends \cenozo\base_object
         'water_lbm',
         'wbtot_area','wbtot_bmc','wbtot_bmd','wbtot_fat','wbtot_lean','wbtot_mass','wbtot_pfat'
       ];
-      $score_column_name_list = ['wbtot_t','wbtot_z'];
     }
 
     if( 0 < count( $table_name_list ) )
     {
+      // add columns needed by the tz reference
+      $column_name_list = array_merge(
+        ['scan_date', 'sex', 'birthdate', 'ethnicity'],
+        $column_name_list
+      );
+
       $select = lib::create( 'database\select' );
       $select->from( 'dbo.Patient' );
       $select->add_column( '*', NULL, false );
@@ -541,10 +543,8 @@ class apex_manager extends \cenozo\base_object
       if( is_null( $row ) )
         throw lib::create( 'exception\runtime', 'Unable to read analysis data from Apex database', __METHOD__ );
 
-      // TODO: calculate T and Z scores (columns in $score_column_name_list
-
       // create an object containing all columns
-      $list = [];
+      $apex_data = [];
       foreach( $column_name_list as $column_name )
       {
         // row column names are all in upper case
@@ -559,13 +559,19 @@ class apex_manager extends \cenozo\base_object
             __METHOD__
           );
         }
-        $list[$column_name] = $row[$row_column_name];
+        $apex_data[$column_name] = $row[$row_column_name];
       }
 
-      // add side if there is one
-      if( 'none' != $db_scan_type->side ) $list['side'] = $db_scan_type->side;
+      // add scan type and side
+      $apex_data['scan_type'] = $db_scan_type->name;
+      if( 'none' != $db_scan_type->side ) $apex_data['side'] = $db_scan_type->side;
 
-      $db_apex_analysis->data = util::json_encode( $list );
+      // calculate T and Z scores
+      $tz_reference = lib::create( 'business\tz_reference' );
+      $tz_reference::$debug = self::$debug;
+      $tz_reference->compute_tz_scores( $apex_data );
+
+      $db_apex_analysis->data = util::json_encode( $apex_data );
       $db_apex_analysis->save();
     }
 
@@ -653,7 +659,7 @@ class apex_manager extends \cenozo\base_object
       $this->db_apex_host->ssh_address,
       preg_replace( '/"/', '\\"', $command )
     );
-    if( $this->debug ) log::debug( $ssh_command );
+    if( self::$debug ) log::debug( $ssh_command );
     return util::exec_timeout( $ssh_command, $this->timeout );
   }
 
@@ -673,7 +679,7 @@ class apex_manager extends \cenozo\base_object
       // replace backslashes with two backslashes
       preg_replace( '#\\\#', '\\\\\\', $destination )
     );
-    if( $this->debug ) log::debug( $scp_command );
+    if( self::$debug ) log::debug( $scp_command );
     return util::exec_timeout( $scp_command, $this->timeout );
   }
 
@@ -693,7 +699,7 @@ class apex_manager extends \cenozo\base_object
       preg_replace( '#\\\#', '\\\\\\', $dir ),
       $destination
     );
-    if( $this->debug ) log::debug( $scp_command );
+    if( self::$debug ) log::debug( $scp_command );
     return util::exec_timeout( $scp_command, $this->timeout );
   }
 
@@ -703,7 +709,7 @@ class apex_manager extends \cenozo\base_object
       'dcmdump --load-short --print-short --search "0010,0020" %s',
       $filename
     );
-    if( $this->debug ) log::debug( $command );
+    if( self::$debug ) log::debug( $command );
     return util::exec_timeout( $command, $this->timeout );
   }
 
@@ -714,7 +720,7 @@ class apex_manager extends \cenozo\base_object
       $patient_id,
       $filename
     );
-    if( $this->debug ) log::debug( $command );
+    if( self::$debug ) log::debug( $command );
     return util::exec_timeout( $command, $this->timeout );
   }
 
@@ -735,7 +741,7 @@ class apex_manager extends \cenozo\base_object
     }
 
     // note that SQL debugging does not include replacing double quotes with single quotes
-    if( $this->debug ) log::debug( $sql );
+    if( self::$debug ) log::debug( $sql );
 
     // convert all double quotes to single quotes for MSSQL
     $sql = str_replace( '"', "'", $sql );
@@ -877,5 +883,5 @@ class apex_manager extends \cenozo\base_object
    * @var boolean
    * @access private
    */
-  private $debug = true;
+  public static $debug = false;
 }
