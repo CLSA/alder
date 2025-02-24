@@ -76,17 +76,20 @@ class tz_reference extends \cenozo\base_object
   /**
    * Computes all T and Z scores for any DXA scan as an associative array
    * 
+   * @param string $type One of hip, spine, forearm, lateral or wbody
+   * @param string $side One of right or left (used for forearm and hip only, otherwise ignored)
    * @param associative array $apex_data
    *   Note that the following variables are expected in the $apex_data parameter:
-   *     "scan_type" (hip, spine, forearm, lateral or wbody)
-   *     "side" The side of the scan (either 'L', 'R', or ignored if they type isn't hip or forearm)
    *     "scan_date" The date the scan was taken in YYYY-MM-DD format
    *     "birthdate" The participant's date of birth in YYYY-MM-DD format
    *     "sex" (M or F)
    *     "ethnicity" (W, O, P, I, H, or B)
+   * @return associative array
    */
-  function compute_tz_scores( &$apex_data )
+  function compute_tz_scores( $type, $side, $apex_data )
   {
+    $score_data = [];
+
     $bonerange_list = [
       // forearm
       'ru13tot_bmd' => '1..',
@@ -137,29 +140,29 @@ class tz_reference extends \cenozo\base_object
     $source = 'N'; // NHANES
     $prefix = NULL;
     $reftype = NULL;
-    if( 'forearm' == $apex_data['scan_type'] )
+    if( 'forearm' == $type )
     {
       $source = 'H'; // Hologic
-      $prefix = sprintf( '%s_fa_', $apex_data['side'] );
+      $prefix = sprintf( '%s_fa_', $side );
       $reftype = 'R';
     }
-    else if( 'hip' == $apex_data['scan_type'] )
+    else if( 'hip' == $type )
     {
-      $prefix = sprintf( '%s_hip_', $apex_data['side'] );
+      $prefix = sprintf( '%s_hip_', $side );
       $reftype = 'H';
     }
-    else if( 'lateral' == $apex_data['scan_type'] )
+    else if( 'lateral' == $type )
     {
       $prefix = 'del_';
       $reftype = 'L';
     }
-    else if( 'spine' == $apex_data['scan_type'] )
+    else if( 'spine' == $type )
     {
       $source = 'H'; // Hologic
       $prefix = 'sp_';
       $reftype = 'S';
     }
-    else if( 'wbody' == $apex_data['scan_type'] )
+    else if( 'wbody' == $type )
     {
       $prefix = 'wb_';
       $reftype = 'W';
@@ -167,7 +170,7 @@ class tz_reference extends \cenozo\base_object
 
     $bmd_data = [];
 
-    if( 'spine' == $apex_data['scan_type'] )
+    if( 'spine' == $type )
     {
       // AP lumbar spine:
       // - identify the included vertebral levels
@@ -251,11 +254,17 @@ class tz_reference extends \cenozo\base_object
 
     foreach( $bmd_data as $bmd_key => $bmd_value )
     {
-      // DETERMINE THE T VALUE /////////////////////////////////////////////////////////////////////
+      // DETERMINE THE T SCORE AND PR VALUE ////////////////////////////////////////////////////////
       $t_score_name = (
-        'spine' == $apex_data['scan_type'] && preg_match( '/^tot_/', $bmd_key ) ?
+        'spine' == $type && preg_match( '/^tot_/', $bmd_key ) ?
         'tot_t' :
         str_replace( '_bmd', '_t', $bmd_key )
+      );
+
+      $pr_value_name = (
+        'spine' == $type && preg_match( '/^tot_/', $bmd_key ) ?
+        'tot_pr' :
+        str_replace( '_bmd', '_pr', $bmd_key )
       );
 
       // build the reference key by concatenating the key values with a semicolon (;)
@@ -265,7 +274,7 @@ class tz_reference extends \cenozo\base_object
           $reftype,
           'F', // sex
           '_', // ethnic
-          'spine' == $apex_data['scan_type'] && preg_match( '/L[14]_/', $bmd_key ) ? 'A' : '_', // method
+          'spine' == $type && preg_match( '/L[14]_/', $bmd_key ) ? 'A' : '_', // method
           $source,
           array_key_exists( $bmd_key, $bonerange_list ) ? $bonerange_list[$bmd_key] : '_'
         ]
@@ -280,9 +289,14 @@ class tz_reference extends \cenozo\base_object
         $y_value = $points[$age_young][0];
         $l_value = $points[$age_young][1];
         $std = $points[$age_young][2];
+
         $t_score = $y_value * ( pow( $x_value / $y_value, $l_value ) - 1.0 ) / ( $l_value * $std );
-        if( self::$debug ) log::debug( sprintf( 'Setting score: %s => %s', $t_score_name, $t_score ) );
-        $apex_data[$t_score_name] = $t_score;
+        if( self::$debug ) log::debug( sprintf( 'Setting: %s => %s', $t_score_name, $t_score ) );
+        $score_data[$t_score_name] = $t_score;
+
+        $pr_value = 100 * $x_value / $y_value;
+        if( self::$debug ) log::debug( sprintf( 'Setting: %s => %s', $pr_value_name, $pr_value ) );
+        $score_data[$pr_value_name] = $pr_value;
       }
       else
       {
@@ -290,16 +304,23 @@ class tz_reference extends \cenozo\base_object
         continue;
       }
 
-      // DETERMINE THE Z VALUE /////////////////////////////////////////////////////////////////////
+      // DETERMINE THE Z SCORE AND AM VALUE ////////////////////////////////////////////////////////
       $z_score = 0;
       $z_score_name = (
-        'spine' == $apex_data['scan_type'] && preg_match( '/^tot_/', $bmd_key ) ?
+        'spine' == $type && preg_match( '/^tot_/', $bmd_key ) ?
         'tot_z' :
         str_replace( '_bmd', '_z', $bmd_key )
       );
 
+      $am_value = 0;
+      $am_value_name = (
+        'spine' == $type && preg_match( '/^tot_/', $bmd_key ) ?
+        'tot_am' :
+        str_replace( '_bmd', '_am', $bmd_key )
+      );
+
       // U_UD_BMD for males is always 0
-      if( 'M' != $apex_data['sex'] || $bmd_key != 'u_ud_bmd' )
+      if( 'M' != $apex_data['sex'] || 'u_ud_bmd' != $bmd_key )
       {
         // build the reference key by concatenating the key values with a semicolon (;)
         $reference_key = implode(
@@ -310,10 +331,10 @@ class tz_reference extends \cenozo\base_object
             is_null( $apex_data['ethnicity'] ) ||
               in_array( $apex_data['ethnicity'], ['', 'W', 'O', 'P', 'I'] ) ||
               (
-                'forearm' == $apex_data['scan_type'] &&
+                'forearm' == $type &&
                 in_array( $apex_data['ethnicity'], ['H', 'B'] )
               ) ? '_' : $apex_data['ethnicity'],
-            'spine' == $apex_data['scan_type'] && preg_match( '/l[14]_/', $bmd_key ) ? 'A' : '_', // method
+            'spine' == $type && preg_match( '/l[14]_/', $bmd_key ) ? 'A' : '_', // method
             $source,
             is_null( $bonerange_list[$bmd_key] ) ? '_' : $bonerange_list[$bmd_key]
           ]
@@ -389,12 +410,18 @@ class tz_reference extends \cenozo\base_object
           $std = ( (1.0-$u)*$minref_std ) + ( $u*$maxref_std );
 
           $z_score = $y_value * ( pow( $x_value / $y_value, $l_value ) - 1.0 ) / ( $l_value * $std );
+          $am_value = 100 * $x_value / $y_value;
         }
       }
 
-      if( self::$debug ) log::debug( sprintf( 'Setting score: %s => %s', $z_score_name, $z_score ) );
-      $apex_data[$z_score_name] = $z_score;
+      if( self::$debug ) log::debug( sprintf( 'Setting: %s => %s', $z_score_name, $z_score ) );
+      $score_data[$z_score_name] = $z_score;
+
+      if( self::$debug ) log::debug( sprintf( 'Setting: %s => %s', $am_value_name, $am_value ) );
+      $score_data[$am_value_name] = $am_value;
     }
+
+    return $score_data;
   }
 
   /**

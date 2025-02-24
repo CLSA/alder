@@ -11,6 +11,7 @@ if( '/aux' == substr( getcwd(), -4 ) ) chdir( '..' );
 
 require_once 'settings.ini.php';
 require_once 'settings.local.ini.php';
+require_once $SETTINGS['path']['CENOZO'].'/src/arguments.class.php';
 require_once $SETTINGS['path']['CENOZO'].'/src/initial.class.php';
 require_once $SETTINGS['path']['CENOZO'].'/src/base_object.class.php';
 require_once 'src/business/tz_reference.class.php';
@@ -24,17 +25,46 @@ require_once 'src/util.class.php';
 
 $initial = new \cenozo\initial( true );
 
-$tz_reference = new \alder\business\tz_reference();
-$tz_reference::$debug = true;
-$contents = file_get_contents( $argv[1] );
-$apex_data = (array) json_decode( $contents );
-$tz_reference->compute_tz_scores( $apex_data );
+$arguments = new arguments( __FILE__ );
+$arguments->set_description( "Calculates T/Z scores and PR/AM values from Apex data stored in a JSON file." );
+$arguments->add_option(
+  's', // short name
+  'side', // long name
+  'The side of the scan: left or right (used for forearm and hip only)',
+  true, // must include value
+  'none' // default
+);
+$arguments->add_option(
+  't', // short name
+  'type', // long name
+  'The type of scan: hip, spine, forearm, lateral or wbody',
+  true, // must include value
+  'spine' // default
+);
+$arguments->add_input(
+  'FILENAME',
+  'The name of the JSON file containing Apex scan data'
+);
 
-$tz_data = [];
-foreach( $apex_data as $column => $value )
+$args = $arguments->parse_arguments( $argv );
+$side = $args['option_list']['side'];
+$type = $args['option_list']['type'];
+$filename = $args['input_list']['FILENAME'];
+
+$tz_reference = new \alder\business\tz_reference();
+$contents = file_get_contents( $filename );
+$apex_data = json_decode( $contents );
+
+// if a single object is passed then turn it into a single element array
+if( is_object( $apex_data ) ) $apex_data = [$apex_data];
+
+foreach( $apex_data as $index => $object )
 {
-  if( preg_match( '/_[tz]$/', $column ) )
-  {
-    printf( "%s: %s\n", $column, $value );
-  }
+  $score_data = $tz_reference->compute_tz_scores( $type, $side, (array)$object );
+
+  // print the header
+  if( 0 == $index ) printf( "%s\n", implode( ',', array_keys( $score_data ) ) );
+
+  // print the data
+  printf( "%s\n", implode( ',', array_values( $score_data ) ) );
 }

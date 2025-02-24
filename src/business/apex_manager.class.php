@@ -562,14 +562,11 @@ class apex_manager extends \cenozo\base_object
         $apex_data[$column_name] = $row[$row_column_name];
       }
 
-      // add scan type and side
-      $apex_data['scan_type'] = $db_scan_type->name;
-      if( 'none' != $db_scan_type->side ) $apex_data['side'] = $db_scan_type->side;
-
       // calculate T and Z scores
       $tz_reference = lib::create( 'business\tz_reference' );
       $tz_reference::$debug = self::$debug;
-      $tz_reference->compute_tz_scores( $apex_data );
+      $score_data = $tz_reference->compute_tz_scores( $db_scan_type->name, $db_scan_type->side, $apex_data );
+      $apex_data = array_merge( $apex_data, $score_data );
 
       $db_apex_analysis->data = util::json_encode( $apex_data );
       $db_apex_analysis->save();
