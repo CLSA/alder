@@ -145,7 +145,7 @@ class apex_analysis extends \cenozo\database\record
     // we can return now if only the current image is required
     if( $current_image_only ) return $image;
 
-    $images[] = $image;
+    $images = [$image];
 
     // get the base paired file, if necessary
     if( in_array( $db_scan_type->name, ['forearm', 'hip', 'spine'] ) )
@@ -194,7 +194,7 @@ class apex_analysis extends \cenozo\database\record
             '/%d/dxa/%s/%s',
             $base_image['rank'],
             $uid,
-            $base_image['filename']
+            preg_replace( '/\.dcm/', '.reanalysed.dcm', $base_image['filename'] )
           )
         ];
 

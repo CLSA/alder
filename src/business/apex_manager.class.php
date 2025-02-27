@@ -135,12 +135,12 @@ class apex_manager extends \cenozo\base_object
     $image_list = $db_apex_analysis->get_images_for_apex( $this->db_apex_host );
     foreach( $image_list as $image )
     {
-      $file = $image['filename'];
-      $data = util::parse_dxa_filename( $file );
-      $filename = $file;
+      $result = ['file' => $image['filename'], 'error' => NULL];
+      $data = util::parse_dxa_filename( $result['file'] );
 
       // add base paths to relative filenames
-      if( preg_match( '/reanalysed/', $filename ) )
+      $filename = $result['file'];
+      if( $image['reanalysed'] )
       {
         if( 0 === preg_match( sprintf( '#%s#', SUPPLEMENTARY_PATH ), $filename ) )
           $filename = sprintf( '%s%s', SUPPLEMENTARY_PATH, $filename );
@@ -150,8 +150,6 @@ class apex_manager extends \cenozo\base_object
         if( 0 === preg_match( sprintf( '#%s#', IMAGES_PATH ), $filename ) )
           $filename = sprintf( '%s%s', IMAGES_PATH, $filename );
       }
-
-      $result = ['file' => $file, 'error' => NULL];
 
       $phase_string = sprintf( '%d%s', $data['phase']['rank'], $data['reanalysed'] ? 'R' : '' );
       $type_string = is_null( $data['side'] ) ?
@@ -168,7 +166,7 @@ class apex_manager extends \cenozo\base_object
 
       try
       {
-        if( $this->check_for_scan( $file ) )
+        if( $this->check_for_scan( $result['file'] ) )
         {
           // a modified patient record already exists
           $modify_patient_record = false;
