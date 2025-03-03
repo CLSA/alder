@@ -652,7 +652,7 @@ class apex_manager extends \cenozo\base_object
     $ssh_port = array_key_exists( 1, $address_parts ) ? $address_parts[1] : NULL;
 
     $ssh_command = sprintf(
-      'ssh -i %s %s %s@%s "%s"',
+      'ssh -o StrictHostKeyChecking=no -i %s %s %s@%s "%s"',
       $this->keyfile,
       is_null( $ssh_port ) ? '' : sprintf( '-p%d', $ssh_port ),
       $this->db_apex_host->ssh_username,
@@ -675,7 +675,7 @@ class apex_manager extends \cenozo\base_object
     $ssh_port = array_key_exists( 1, $address_parts ) ? $address_parts[1] : NULL;
 
     $scp_command = sprintf(
-      'scp -i %s %s %s %s@%s:%s',
+      'scp -o StrictHostKeyChecking=no -i %s %s %s %s@%s:%s',
       $this->keyfile,
       is_null( $ssh_port ) ? '' : sprintf( '-p%d', $ssh_port ),
       $file,
@@ -700,7 +700,7 @@ class apex_manager extends \cenozo\base_object
     $ssh_port = array_key_exists( 1, $address_parts ) ? $address_parts[1] : NULL;
 
     $scp_command = sprintf(
-      'scp -i %s %s -r %s@%s:%s %s',
+      'scp -o StrictHostKeyChecking=no -i %s %s -r %s@%s:%s %s',
       $this->keyfile,
       is_null( $ssh_port ) ? '' : sprintf( '-p%d', $ssh_port ),
       $this->db_apex_host->ssh_username,
