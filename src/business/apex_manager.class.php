@@ -647,11 +647,16 @@ class apex_manager extends \cenozo\base_object
    */
   private function ssh( $command )
   {
+    $address_parts = explode( ':', $this->db_apex_host->ssh_address );
+    $ssh_address = $address_parts[0];
+    $ssh_port = array_key_exists( 1, $address_parts ) ? $address_parts[1] : NULL;
+
     $ssh_command = sprintf(
-      'ssh -i %s %s@%s "%s"',
+      'ssh -i %s %s %s@%s "%s"',
       $this->keyfile,
+      is_null( $ssh_port ) ? '' : sprintf( '-p%d', $ssh_port ),
       $this->db_apex_host->ssh_username,
-      $this->db_apex_host->ssh_address,
+      $ssh_address,
       preg_replace( '/"/', '\\"', $command )
     );
     if( self::$debug ) log::debug( $ssh_command );
@@ -665,12 +670,17 @@ class apex_manager extends \cenozo\base_object
    */
   private function scp_file_to_apex( $file, $destination )
   {
+    $address_parts = explode( ':', $this->db_apex_host->ssh_address );
+    $ssh_address = $address_parts[0];
+    $ssh_port = array_key_exists( 1, $address_parts ) ? $address_parts[1] : NULL;
+
     $scp_command = sprintf(
-      'scp -i %s %s %s@%s:%s',
+      'scp -i %s %s %s %s@%s:%s',
       $this->keyfile,
+      is_null( $ssh_port ) ? '' : sprintf( '-p%d', $ssh_port ),
       $file,
       $this->db_apex_host->ssh_username,
-      $this->db_apex_host->ssh_address,
+      $ssh_address,
       // replace backslashes with two backslashes
       preg_replace( '#\\\#', '\\\\\\', $destination )
     );
@@ -685,11 +695,16 @@ class apex_manager extends \cenozo\base_object
    */
   private function scp_dir_from_apex( $dir, $destination )
   {
+    $address_parts = explode( ':', $this->db_apex_host->ssh_address );
+    $ssh_address = $address_parts[0];
+    $ssh_port = array_key_exists( 1, $address_parts ) ? $address_parts[1] : NULL;
+
     $scp_command = sprintf(
-      'scp -i %s -r %s@%s:%s %s',
+      'scp -i %s %s -r %s@%s:%s %s',
       $this->keyfile,
+      is_null( $ssh_port ) ? '' : sprintf( '-p%d', $ssh_port ),
       $this->db_apex_host->ssh_username,
-      $this->db_apex_host->ssh_address,
+      $ssh_address,
       // replace backslashes with two backslashes
       preg_replace( '#\\\#', '\\\\\\', $dir ),
       $destination
