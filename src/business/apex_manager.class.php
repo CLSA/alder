@@ -677,7 +677,7 @@ class apex_manager extends \cenozo\base_object
     $scp_command = sprintf(
       'scp -o StrictHostKeyChecking=no -i %s %s %s %s@%s:%s',
       $this->keyfile,
-      is_null( $ssh_port ) ? '' : sprintf( '-p%d', $ssh_port ),
+      is_null( $ssh_port ) ? '' : sprintf( '-P%d', $ssh_port ),
       $file,
       $this->db_apex_host->ssh_username,
       $ssh_address,
@@ -702,7 +702,7 @@ class apex_manager extends \cenozo\base_object
     $scp_command = sprintf(
       'scp -o StrictHostKeyChecking=no -i %s %s -r %s@%s:%s %s',
       $this->keyfile,
-      is_null( $ssh_port ) ? '' : sprintf( '-p%d', $ssh_port ),
+      is_null( $ssh_port ) ? '' : sprintf( '-P%d', $ssh_port ),
       $this->db_apex_host->ssh_username,
       $ssh_address,
       // replace backslashes with two backslashes
