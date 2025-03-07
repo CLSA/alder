@@ -26,6 +26,11 @@ class apex_manager extends \cenozo\base_object
     $this->keyfile = $setting_manager->get_setting( 'apex', 'keyfile' );
     $this->password = $setting_manager->get_setting( 'apex', 'db_password' );
     $this->timeout = $setting_manager->get_setting( 'apex', 'timeout' );
+    $this->dgate_in_path = $setting_manager->get_setting( 'apex', 'dgate_in' );
+    $this->dgate_out_path = $setting_manager->get_setting( 'apex', 'dgate_out' );
+    $this->incoming_path = $setting_manager->get_setting( 'apex', 'incoming' );
+    $this->outgoing_path = $setting_manager->get_setting( 'apex', 'outgoing' );
+    $this->qdr_data_path = $setting_manager->get_setting( 'apex', 'qdr_data' );
   }
 
   /**
@@ -51,15 +56,15 @@ class apex_manager extends \cenozo\base_object
   {
     $responses = [];
     // check if Conquest IN is online
-    $response = $this->ssh( 'C:\dicomserverIN\dgate64.exe -v --echo:CONQUESTSRV1' );
+    $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:CONQUESTSRV1', $this->dgate_in_path ) );
     $responses['DICOM In'] = 1 === preg_match( '/ is UP/', $response['output'] );
 
     // check if Conquest OUT is online
-    $response = $this->ssh( 'C:\dicomserverOUT\dgate64.exe -v --echo:CONQUESTSRV2' );
+    $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:CONQUESTSRV2', $this->dgate_out_path ) );
     $responses['DICOM Out'] = 1 === preg_match( '/ is UP/', $response['output'] );
 
     // check if apex is online
-    $response = $this->ssh( 'C:\dicomserverIN\dgate64.exe -v --echo:DEXA' );
+    $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:DEXA', $this->dgate_in_path ) );
     $responses['DICOM Apex'] = 1 === preg_match( '/ is UP/', $response['output'] );
 
     // check if qdr is online
@@ -123,7 +128,7 @@ class apex_manager extends \cenozo\base_object
   public function upload_files( $db_apex_analysis )
   {
     // start by checking if the necessary servers are online
-    $response = $this->ssh( 'C:\dicomserverIN\dgate64.exe -v --echo:CONQUESTSRV1' );
+    $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:CONQUESTSRV1', $this->dgate_in_path ) );
     $dicom_in_online = 1 === preg_match( '/ is UP/', $response['output'] );
 
     $response = $this->ssh( 'tasklist /FI "IMAGENAME eq qdr.exe" /FO LIST' );
@@ -195,7 +200,7 @@ class apex_manager extends \cenozo\base_object
           $response = $this->set_patient_id( $temp_filename, $new_patient_id );
           if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to modify DICOM tags' );
 
-          $response = $this->scp_file_to_apex( $temp_filename, 'E:\incoming\incoming' );
+          $response = $this->scp_file_to_apex( $temp_filename, sprintf( '%s\incoming', $this->incoming_path ) );
           if( self::$debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
           unlink( $temp_filename );
           if( 0 != $response['exitcode'] )
@@ -206,7 +211,7 @@ class apex_manager extends \cenozo\base_object
           for( $i = 1; $i <= 15; $i++ )
           {
             sleep(1);
-            $response = $this->ssh( sprintf( 'dir E:\incoming\%s', $new_patient_id ) );
+            $response = $this->ssh( sprintf( 'dir %s\%s', $this->incoming_path, $new_patient_id ) );
             if( 0 == $response['exitcode'] )
             {
               $file_registered = true;
@@ -223,7 +228,8 @@ class apex_manager extends \cenozo\base_object
           // move file to Apex DICOM server
           $response = $this->ssh(
             sprintf(
-              'C:\dicomserverIN\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
+              '%s\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
+              $this->dgate_in_path,
               $new_patient_id
             )
           );
@@ -333,7 +339,7 @@ class apex_manager extends \cenozo\base_object
   }
 
   /**
-   * Downloads re-analyzed image and data from the Apex host
+   * Downloads re-analysed image and data from the Apex host
    * 
    * @param $db_apex_analysis The analysis to download files for
    * @return boolean
@@ -349,7 +355,7 @@ class apex_manager extends \cenozo\base_object
     $db_participant = $db_interview->get_participant();
 
     // get the current analysis image only
-    // (don't pass the apex host as we don't need to know if the unanalysed scan is present)
+    // (don't pass the apex host as we don't need to know if the un-analysed scan is present)
     $image = $db_apex_analysis->get_images_for_apex( NULL, true );
     $data = util::parse_dxa_filename( $image['filename'] );
 
@@ -359,13 +365,12 @@ class apex_manager extends \cenozo\base_object
     $short_identifier = sprintf( '%s_%s', $data['uid'], $short_type_string );
     $long_identifier = sprintf( '%s\%s\%s', $data['type'], $data['side'], $short_identifier );
 
-    $response = $this->scp_dir_from_apex( sprintf( 'E:\outgoing\%s', $long_identifier ), TEMP_PATH );
-    if( 0 != $response['exitcode'] ) return false;
+    $response = $this->scp_dir_from_apex( sprintf( '%s\%s', $this->outgoing_path, $long_identifier ), TEMP_PATH );
+    if( 0 != $response['exitcode'] ) return 'Unable to download re-analysed scan from Apex.';
 
     if( self::$debug ) log::debug( sprintf( '%s/%s/*', TEMP_PATH, $short_identifier ) );
     $file_list = glob( sprintf( '%s/%s/*', TEMP_PATH, $short_identifier ) );
-    if( 1 != count( $file_list ) )
-      throw lib::create( 'exception\runtime', 'Unable to read analysis data from Apex database', __METHOD__ );
+    if( 1 != count( $file_list ) ) return 'Unable to download re-analysed scan from Apex.';
 
     $scan_type = $db_scan_type->name;
     if( 'none' != $scan_type ) $scan_type .= sprintf( '_%s', $db_scan_type->side );
@@ -390,14 +395,7 @@ class apex_manager extends \cenozo\base_object
         copy( $file_list[0], $supplementary_filename )
       );
 
-      if( !$transferred_to_supplementary )
-      {
-        log::warning( sprintf(
-          'Unable to transfer re-analyzed file from "%s" to "%s"',
-          $file_list[0],
-          $supplementary_filename
-        ) );
-      }
+      //if( !$transferred_to_supplementary ) return 'Unable to transfer re-analysed file to Data Vault.';
     }
 
     $db_apex_analysis->download_datetime = util::get_datetime_object();
@@ -522,7 +520,7 @@ class apex_manager extends \cenozo\base_object
     {
       // add columns needed by the tz reference
       $column_name_list = array_merge(
-        ['scan_date', 'sex', 'birthdate', 'ethnicity'],
+        ['scan_date', 'sex', 'birthdate', 'ethnicity', 'height', 'weight'],
         $column_name_list
       );
 
@@ -538,26 +536,28 @@ class apex_manager extends \cenozo\base_object
         $modifier->join( $table_name, 'dbo.ScanAnalysis.SCANID', sprintf( 'dbo.%s.SCANID', $table_name ) );
 
       $row = $this->query_row( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
-      if( is_null( $row ) )
-        throw lib::create( 'exception\runtime', 'Unable to read analysis data from Apex database', __METHOD__ );
+      if( is_null( $row ) ) return 'Unable to read analysis data from Apex database.';
 
       // create an object containing all columns
+      $height = NULL;
+      $weight = NULL;
       $apex_data = [];
       foreach( $column_name_list as $column_name )
       {
         // row column names are all in upper case
         $row_column_name = strtoupper( $column_name );
+
         if( !array_key_exists( $row_column_name, $row ) )
         {
-          throw lib::create( 'database\runtime',
-            sprintf(
-              'Column "%s" missing while reading analysis data from Apex database',
-              $row_column_name
-            ),
-            __METHOD__
+          return sprintf(
+            'Column "%s" missing while reading analysis data from Apex database.',
+            $row_column_name
           );
         }
-        $apex_data[$column_name] = $row[$row_column_name];
+
+        if( 'height' == $column_name ) $height = $row[$row_column_name];
+        else if( 'weight' == $column_name ) $weight = $row[$row_column_name];
+        else $apex_data[$column_name] = $row[$row_column_name];
       }
 
       // calculate T and Z scores
@@ -568,6 +568,80 @@ class apex_manager extends \cenozo\base_object
 
       $db_apex_analysis->data = util::json_encode( $apex_data );
       $db_apex_analysis->save();
+
+      if(
+        'hip' == $db_scan_type->name &&
+        !is_null( $db_interview->previous_fracture ) &&
+        !is_null( $db_interview->parent_hip_fracture ) &&
+        !is_null( $db_interview->current_smoker ) &&
+        !is_null( $db_interview->glucocorticoid ) &&
+        !is_null( $db_interview->rheumatoid_arthritis ) &&
+        !is_null( $db_interview->secondary_osteoporosis ) &&
+        !is_null( $db_interview->alcohol )
+      ) {
+        // calculate the frax score
+
+        // start by creating the input.txt files needed by the blackbox.exe program hosted on the Apex server
+        $input_filename = sprintf( '%s/input.%s.txt', TEMP_PATH, $db_apex_analysis->id );
+        $input_values = [
+          't', // type 't' or 'z'
+          19, // countryCode
+          util::get_interval( $apex_data['scan_date'], $apex_data['birthdate'] )->y, // age int
+          'M' == $apex_data['sex'] ? 0 : 1, // sex int 0 = male, 1 = female
+          $weight / ( $height/100 * $height/100 ), // bmi double
+          $db_interview->previous_fracture ? '0' : '1',
+          $db_interview->parent_hip_fracture ? '0' : '1',
+          $db_interview->current_smoker ? '0' : '1',
+          $db_interview->glucocorticoid ? '0' : '1',
+          $db_interview->rheumatoid_arthritis ? '0' : '1',
+          $db_interview->secondary_osteoporosis ? '0' : '1',
+          $db_interview->alcohol ? '0' : '1',
+          $apex_data['neck_t'], // hip scan neck_t score
+        ];
+        $input = implode( ',', $input_values );
+        if( self::$debug ) log::debug( sprintf( 'writing FRAX input "%s" to file %s', $input, $input_filename ) );
+        file_put_contents( $input_filename, $input, LOCK_EX );
+
+        // upload the input file to the apex server and run blackbox.exe
+        $response = $this->scp_file_to_apex( $input_filename, sprintf( '%s\input.txt', $this->qdr_data_path ) );
+        if( self::$debug ) log::debug( sprintf( 'rm %s', $input_filename ) );
+        unlink( $input_filename );
+        if( 0 != $response['exitcode'] )
+        {
+          return sprintf( 'Failed to copy frax input.txt file to %s.', $this->db_apex_host->name );
+        }
+
+        $response = $this->ssh( sprintf( '%s\blackbox.exe', $this->qdr_data_path ) );
+        if( 0 != $response['exitcode'] || $response['output'] )
+        {
+          return sprintf(
+            'Failed to run frax calculator%s.',
+            $response['output'] ? sprintf( ' (%s)', $response['output'] ) : ''
+          );
+        }
+
+        // get the 4 frax values from the output.txt file and clean up
+        $response = $this->ssh( sprintf( 'more %s\output.txt', $this->qdr_data_path ) );
+        if( self::$debug ) log::debug( sprintf( 'raw frax response: %s', $response['output'] ) );
+        $parts = explode( ',', trim( $response['output'] ) );
+        if( 17 != count( $parts ) ) return 'FRAX calculator returned unexepcted result.';
+        if( '_' == $parts[13] || '_' == $parts[14] || '_' == $parts[15] || '_' == $parts[16] )
+          return 'FRAX calculator was unable to generate risk scores.';
+
+        $apex_data['osteoporotic_fracture_risk'] = $parts[13];
+        $apex_data['hip_fracture_risk'] = $parts[14];
+        $apex_data['osteoporotic_fracture_risk_bmd'] = $parts[15];
+        $apex_data['hip_fracture_risk_bmd'] = $parts[16];
+
+        $db_apex_analysis->data = util::json_encode( $apex_data );
+        $db_apex_analysis->save();
+
+        $this->ssh( sprintf(
+          'del /s /q %s\input.txt %s\output.txt',
+          $this->qdr_data_path,
+          $this->qdr_data_path
+        ) );
+      }
     }
 
     // clean up the exported "report" file on the Apex server (if the transfer was successful)
@@ -589,7 +663,8 @@ class apex_manager extends \cenozo\base_object
     if( 'in' == $type )
     {
       return $this->ssh( sprintf(
-        'C:\dicomserverIN\dgate64.exe -v --deletepatient:%s',
+        '%s\dgate64.exe -v --deletepatient:%s',
+        $this->dgate_in_path,
         is_null( $identifier ) ? '*' : $identifier
       ) );
     }
@@ -597,14 +672,16 @@ class apex_manager extends \cenozo\base_object
     {
       // deleting outgoing patients involves delecting a directory only (as defined by the identifier)
       $response = $this->ssh( sprintf(
-        'del /s /q E:\outgoing\%s',
+        'del /s /q %s\%s',
+        $this->outgoing_path,
         is_null( $identifier ) ? '*' : $identifier
       ) );
 
       if( $response )
       {
         $response = $this->ssh( sprintf(
-          'rmdir E:\outgoing\%s',
+          'rmdir %s\%s',
+          $this->outgoing_path,
           is_null( $identifier ) ? '*' : $identifier
         ) );
       }
@@ -627,7 +704,7 @@ class apex_manager extends \cenozo\base_object
       foreach( $pfile_list as $pfile )
       {
         $glob = preg_replace( '/\.P[0-9]*/', '.*', $pfile );
-        $this->ssh( sprintf( 'del /s /q E:\QDR\Data\%s', $glob ) );
+        $this->ssh( sprintf( 'del /s /q %s\%s', $glob, $this->qdr_data_path ) );
       }
 
       $modifier = lib::create( 'database\modifier' );

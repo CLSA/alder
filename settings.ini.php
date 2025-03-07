@@ -13,7 +13,7 @@ global $SETTINGS;
 $SETTINGS['general']['application_name'] = 'alder';
 $SETTINGS['general']['instance_name'] = $SETTINGS['general']['application_name'];
 $SETTINGS['general']['version'] = '2.10';
-$SETTINGS['general']['build'] = 'c1a73ff';
+$SETTINGS['general']['build'] = 'e8aeac1';
 
 // the location of alder internal path
 $SETTINGS['path']['APPLICATION'] = str_replace( '/settings.ini.php', '', __FILE__ );
@@ -33,3 +33,10 @@ $SETTINGS['apex']['db_password'] = '';
 
 // the timeout used when communicating with an Apex server (in seconds)
 $SETTINGS['apex']['timeout'] = 5;
+
+// various paths on Apex servers
+$SETTINGS['apex']['dgate_in'] = 'C:\dicomserverIN';
+$SETTINGS['apex']['dgate_out'] = 'C:\dicomserverOUT';
+$SETTINGS['apex']['incoming'] = 'E:\incoming';
+$SETTINGS['apex']['outgoing'] = 'E:\outgoing';
+$SETTINGS['apex']['qdr_data'] = 'E:\QDR\Data';

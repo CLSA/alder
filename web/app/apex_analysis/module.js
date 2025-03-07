@@ -22,6 +22,10 @@ cenozoApp.defineModule({
         type: "datetime",
         isConstant: true,
       },
+      data: {
+        title: "Data",
+        type: "hidden",
+      },
       pass: {
         title: "Pass",
         type: "boolean",
@@ -121,6 +125,7 @@ cenozoApp.defineModule({
             parentModel: CnApexAnalysisModelFactory.instance(),
             isLoading: true,
             hostId: null,
+            analysisData: [],
             deletingImages: false,
             downloadingImage: false,
             downloadResult: null,
@@ -163,7 +168,7 @@ cenozoApp.defineModule({
 
                 // update the view record in case the download date has changed
                 this.downloadResult = response.data;
-                await this.parentModel.viewModel.onView();
+                await this.onView();
               } finally {
                 this.downloadingImage = false;
               }
@@ -174,6 +179,7 @@ cenozoApp.defineModule({
               try {
                 await this.parentModel.viewModel.onView();
                 this.hostId = 0 < this.parentModel.hostList.length ? this.parentModel.hostList[0].value : null;
+                this.analysisData = JSON.parse(this.parentModel.viewModel.record.data);
               } finally {
                 this.isLoading = false;
               }
@@ -254,7 +260,7 @@ cenozoApp.defineModule({
                 image.status = (image.uploaded ? "Successfully uploded to " : "Not uploaded to ") + hostName;
 
                 if (image.reanalysed) {
-                  image.name += " (reanalysed)";
+                  image.name += " (re-analysed)";
                   this.baseImage = image;
                 } else {
                   this.currentImage = image;

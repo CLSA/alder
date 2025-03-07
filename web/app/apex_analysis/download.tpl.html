@@ -1,7 +1,7 @@
 <div class="record-view rounded">
   <div class="container-fluid bg-primary rounded-top">
     <h4>
-      Apex Workstation Reanalysis Download for {{ model.parentModel.viewModel.record.uid }}
+      Apex Workstation Re-Analysis Download for {{ model.parentModel.viewModel.record.uid }}
       <span ng-if="model.isLoading">(Loading&hellip;)</span>
     </h4>
   </div>
@@ -25,7 +25,21 @@
           </div>
           <hr />
           <div class="input-group">
-            <div class="form-group first-form-group">
+            <div ng-if="null != model.downloadResult" class="form-group">
+              <div class="col-sm-3"></div>
+              <div
+                class="col-sm-9"
+                ng-class="true === model.downloadResult ? 'text-success' : 'text-danger'"
+                ng-bind-html="
+                  true === model.downloadResult ?
+                    'Re-analysis data successfully downloaded. <i class=\'glyphicon glyphicon-ok\'></i>' :
+                    'Error while downloading re-analysed image:<br>' +
+                    model.downloadResult +
+                    ' <i class=\'glyphicon glyphicon-remove\'></i>'
+                "
+              ></div>
+            </div>
+            <div class="form-group">
               <label for="hostId" class="control-label col-sm-3">Download Date</label>
               <div class="col-sm-9">
                 <input
@@ -33,20 +47,17 @@
                   class="form-control"
                   readonly
                 ></input>
-                <span
-                  ng-if="null != model.downloadResult"
-                  ng-class="model.downloadResult ? 'text-success' : 'text-danger'"
-                >
-                  {{
-                    model.downloadResult ?
-                    "Reanalysed image successfully downloaded" :
-                    "Error while downloading reanalysed image"
-                  }}
-                  <i
-                    class="glyphicon"
-                    ng-class="model.downloadResult ? 'glyphicon-ok': 'glyphicon-remove'"
-                  ></i>
-                </span>
+              </div>
+            </div>
+            <!-- TODO: separate analysis data into columns, maybe add a header, etc -->
+            <div ng-repeat="(key, value) in model.analysisData" class="form-group" style="padding-bottom: 0px;">
+              <label for="hostId" class="control-label col-sm-3" ng-bind-html="key.ucWords()"></label>
+              <div class="col-sm-9">
+                <input
+                  ng-model="value"
+                  class="form-control"
+                  readonly
+                ></input>
               </div>
             </div>
             <div class="text-right">

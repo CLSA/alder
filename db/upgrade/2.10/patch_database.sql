@@ -11,6 +11,7 @@ SOURCE setting.sql
 SOURCE calculate_rating.sql
 SOURCE modality.sql
 SOURCE scan_type.sql
+SOURCE interview.sql
 
 SOURCE apex_host.sql
 SOURCE apex_review.sql
