@@ -31,4 +31,6 @@ INSERT IGNORE INTO service ( subject, method, resource, restricted ) VALUES
 ( 'apex_review', 'GET', 0, 0 ),
 ( 'apex_review', 'GET', 1, 0 ),
 ( 'apex_review', 'PATCH', 1, 1 ),
-( 'apex_review', 'POST', 0, 1 );
+( 'apex_review', 'POST', 0, 1 ),
+( 'user_ip_address', 'GET', 0, 0 ),
+( 'user_ip_address', 'GET', 1, 0 );
