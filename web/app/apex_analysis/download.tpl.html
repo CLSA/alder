@@ -40,24 +40,35 @@
               ></div>
             </div>
             <div class="form-group">
-              <label for="hostId" class="control-label col-sm-3">Download Date</label>
+              <label for="downloadDatetime" class="control-label col-sm-3">Download Date</label>
               <div class="col-sm-9">
                 <input
+                  id="downloadDatetime"
                   ng-model="model.parentModel.viewModel.formattedRecord.download_datetime"
                   class="form-control"
                   readonly
                 ></input>
               </div>
             </div>
-            <!-- TODO: separate analysis data into columns, maybe add a header, etc -->
-            <div ng-repeat="(key, value) in model.analysisData" class="form-group" style="padding-bottom: 0px;">
-              <label for="hostId" class="control-label col-sm-3" ng-bind-html="key.ucWords()"></label>
-              <div class="col-sm-9">
-                <input
-                  ng-model="value"
-                  class="form-control"
-                  readonly
-                ></input>
+            <div ng-if="!model.isLoading" class="form-group">
+              <div ng-if="0 == model.analysisDataRows.length">
+                <div class="col-sm-3"></div>
+                <label class="control-label col-sm-9" style="text-align: left;">
+                  Scan metadata has not been downloaded from Apex.
+                </label>
+              </div>
+              <div ng-repeat="row in model.analysisDataRows" class="container-fluid">
+                <div ng-repeat="(key, value) in row" class="col-sm-3 col-slim" style="padding-bottom: 0px;">
+                  <label for="{{ key }}" class="control-label col-sm-7" ng-bind-html="key"></label>
+                  <div class="col-sm-5 col-slim">
+                    <input
+                      id="{{ key }}"
+                      ng-model="value"
+                      class="form-control"
+                      readonly
+                    ></input>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="text-right">

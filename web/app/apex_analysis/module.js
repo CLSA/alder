@@ -126,6 +126,7 @@ cenozoApp.defineModule({
             isLoading: true,
             hostId: null,
             analysisData: [],
+            analysisDataRows: [],
             deletingImages: false,
             downloadingImage: false,
             downloadResult: null,
@@ -180,6 +181,26 @@ cenozoApp.defineModule({
                 await this.parentModel.viewModel.onView();
                 this.hostId = 0 < this.parentModel.hostList.length ? this.parentModel.hostList[0].value : null;
                 this.analysisData = JSON.parse(this.parentModel.viewModel.record.data);
+                let row = null;
+                this.analysisDataRows = Object.entries(this.analysisData).reduce(
+                  (list,value,index)=>{
+                    // group into rows containing 4 entries
+                    if(0 == index%4) {
+                      if (null != row) list.push(row);
+                      row = {};
+                    }
+
+                    // the key is the first value in the array, transformed to a human readable string
+                    let k = value[0].replace(/_/g, " ").toUpperCase();
+
+                    // format floating point values
+                    let v = Number(value[1]) === value[1] && value[1]%1 !== 0 ? value[1].toFixed(2) : value[1];
+
+                    row[k] = v;
+                    return list;
+                  },
+                  []
+                );
               } finally {
                 this.isLoading = false;
               }
