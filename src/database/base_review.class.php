@@ -44,66 +44,83 @@ abstract class base_review extends \cenozo\database\record
     ];
 
     // Get the previous and next interviews for this user.
-    // This is done by getting the previous or next UID in alphabetical order that the user of the current
-    // review is also assigned to, then returning the first review in scan-type alphabetical order.
-
-    $base_interview_mod = lib::create( 'database\modifier' );
-    $base_interview_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
-    $base_interview_mod->join( 'exam', 'interview.id', 'exam.interview_id' );
-    $base_interview_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
-    $base_interview_mod->where( 'interview.study_phase_id', '=', $db_current_interview->study_phase_id );
-    $base_interview_mod->where( sprintf( '%s.user_id', $review_table ), '=', $this->user_id );
-    $base_interview_mod->limit( 1 );
-
-    $base_review_mod = lib::create( 'database\modifier' );
-    $base_review_mod->join( 'exam', 'interview.id', 'exam.interview_id' );
-    $base_review_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
-    $base_review_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
-    $base_review_mod->where( sprintf( '%s.user_id', $review_table ), '=', $this->user_id );
-    $base_review_mod->order( 'scan_type.name' );
-    $base_review_mod->order( 'scan_type.side' );
-    $base_review_mod->limit( 1 );
-
-    $interview_sel = lib::create( 'database\select' );
-    $interview_sel->add_column( 'id' );
-    $interview_mod = clone $base_interview_mod;
-    $interview_mod->where( 'participant.uid', '<', $db_current_participant->uid );
-    $interview_mod->order_desc( 'participant.uid' );
-
-    $interview_list = $interview_class_name::select( $interview_sel, $interview_mod );
-    if( 0 < count( $interview_list ) )
-    {
-      $prev_interview_id = current( $interview_list )['id'];
-
-      // now use the previous interview ID to get the previous review
-      $review_sel = lib::create( 'database\select' );
-      $review_sel->add_table_column( $review_table, 'id' );
-      $review_mod = clone $base_review_mod;
-      $review_mod->where( 'interview.id', '=', $prev_interview_id );
-
-      $review_list = $interview_class_name::select( $review_sel, $review_mod );
-      if( 0 < count( $review_list ) ) $neighbours['prev_interview_review_id'] = current( $review_list )['id'];
-    }
-
-    $interview_sel = lib::create( 'database\select' );
-    $interview_sel->add_column( 'id' );
-    $interview_mod = clone $base_interview_mod;
-    $interview_mod->where( 'participant.uid', '>', $db_current_participant->uid );
+    // This is done by getting a list of all interviews that the user has a review for, sorting them by
+    // site and uid, then finding the interview before and after the current interview.
+    $interview_mod = lib::create( 'database\modifier' );
+    $interview_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
+    $interview_mod->join( 'exam', 'interview.id', 'exam.interview_id' );
+    $interview_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
+    $interview_mod->left_join( 'site', 'interview.site_id', 'site.id' );
+    $interview_mod->where( 'interview.study_phase_id', '=', $db_current_interview->study_phase_id );
+    $interview_mod->where( sprintf( '%s.user_id', $review_table ), '=', $this->user_id );
+    $interview_mod->order( 'site.name' );
     $interview_mod->order( 'participant.uid' );
 
+    $interview_sel = lib::create( 'database\select' );
+    $interview_sel->add_column( 'id' );
+    $interview_sel->set_distinct( true );
+
+    // find the index of this interview in the list
     $interview_list = $interview_class_name::select( $interview_sel, $interview_mod );
+
     if( 0 < count( $interview_list ) )
     {
-      $next_interview_id = current( $interview_list )['id'];
+      $current_index = NULL;
+      foreach( $interview_list as $index => $interview )
+      {
+        if( $interview['id'] == $db_current_interview->id )
+        {
+          $current_index = $index;
+          break;
+        }
+      }
 
-      // now use the next interview ID to get the next review
-      $review_sel = lib::create( 'database\select' );
-      $review_sel->add_table_column( $review_table, 'id' );
-      $review_mod = clone $base_review_mod;
-      $review_mod->where( 'interview.id', '=', $next_interview_id );
+      if( is_null( $current_index ) )
+      {
+        // if we can't find the current interview then something is wrong
+        throw lib::create( 'exception\runtime',
+          sprintf(
+            'Cannot find previous/next interviews for %s %d',
+            $review_table,
+            $this->id
+          ),
+          __METHOD__
+        );
+      }
 
-      $review_list = $interview_class_name::select( $review_sel, $review_mod );
-      if( 0 < count( $review_list ) ) $neighbours['next_interview_review_id'] = current( $review_list )['id'];
+      $prev_index = $current_index - 1;
+      if( array_key_exists( $prev_index, $interview_list ) )
+      {
+        // get the user's first review for the prev interview (sorted by scan type)
+        $exam_sel = lib::create( 'database\select' );
+        $exam_sel->add_table_column( $review_table, 'id' );
+        $exam_mod = lib::create( 'database\modifier' );
+        $exam_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
+        $exam_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
+        $exam_mod->order( 'CONCAT( scan_type.name, scan_type.side )' );
+        $exam_mod->limit( 1 );
+
+        $db_prev_interview = lib::create( 'database\interview', $interview_list[$prev_index]['id'] );
+        $row = current( $db_prev_interview->get_exam_list( $exam_sel, $exam_mod ) );
+        $neighbours['prev_interview_review_id'] = $row['id'];
+      }
+
+      $next_index = $current_index + 1;
+      if( array_key_exists( $next_index, $interview_list ) )
+      {
+        // get the user's first review for the next interview (sorted by scan type)
+        $exam_sel = lib::create( 'database\select' );
+        $exam_sel->add_table_column( $review_table, 'id' );
+        $exam_mod = lib::create( 'database\modifier' );
+        $exam_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
+        $exam_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
+        $exam_mod->order( 'CONCAT( scan_type.name, scan_type.side )' );
+        $exam_mod->limit( 1 );
+
+        $db_next_interview = lib::create( 'database\interview', $interview_list[$next_index]['id'] );
+        $row = current( $db_next_interview->get_exam_list( $exam_sel, $exam_mod ) );
+        $neighbours['next_interview_review_id'] = $row['id'];
+      }
     }
 
     // Get the previous and next exam for this user.
