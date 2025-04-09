@@ -37,6 +37,8 @@ define( 'SYSTEM_ALDER_BASE_ERRNO',     750000 );
 /**
  * "runtime" error codes
  */
+define( 'RUNTIME__ALDER_DATABASE_BASE_REVIEW__GET_NEIGHBOURING_REVIEWS__ERRNO',
+        RUNTIME_ALDER_BASE_ERRNO + 1 );
 
 /**
  * "system" error codes
