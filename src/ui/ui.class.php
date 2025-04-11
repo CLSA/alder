@@ -38,7 +38,7 @@ class ui extends \cenozo\ui\ui
     if( !is_null( $module ) )
     {
       $module->add_child( 'exam' );
-      $module->add_choose( 'code_group' );
+      $module->add_child( 'code_group' );
     }
 
     $module = $this->get_module( 'modality' );

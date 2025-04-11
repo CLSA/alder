@@ -1,6 +1,6 @@
 cenozoApp.defineModule({
   name: "code",
-  models: ["list", "view"],
+  models: ["add", "list", "view"],
   create: (module) => {
     angular.extend(module, {
       identifier: {
