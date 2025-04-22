@@ -705,7 +705,7 @@ cenozoApp.defineModule({
                 await Promise.all(
                   this.analysisList.map(async (analysis) => {
                     const response = await CnHttpFactory.instance({
-                      path: ["analysis", analysis.analysisId, "analysis_selection?full=1"].join("/"),
+                      path: ["apex_analysis", analysis.analysisId, "apex_analysis_selection?full=1"].join("/"),
                     }).query();
                     analysis.selectionList = response.data;
 
