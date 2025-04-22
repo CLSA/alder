@@ -1,0 +1,59 @@
+cenozoApp.defineModule({
+  name: "selection",
+  models: ["add", "list", "view"],
+  create: (module) => {
+    angular.extend(module, {
+      identifier: {
+        parent: {
+          subject: "scan_type",
+          column: "scan_type.id",
+        },
+      },
+      name: {
+        singular: "selection",
+        plural: "selections",
+        possessive: "selection's",
+      },
+      columnList: {
+        apex: {
+          title: "Apex",
+          type: "boolean",
+        },
+        rank: {
+          title: "Rank",
+          type: "rank",
+        },
+        name: {
+          title: "Name",
+        },
+        description: {
+          title: "Description",
+          align: "left",
+        },
+      },
+      defaultOrder: {
+        column: "apex",
+        reverse: false,
+      },
+    });
+
+    module.addInputGroup("", {
+      apex: {
+        title: "Apex",
+        type: "boolean",
+      },
+      rank: {
+        title: "Rank",
+        type: "rank",
+      },
+      name: {
+        title: "Name",
+        type: "string",
+      },
+      description: {
+        title: "Description",
+        type: "text",
+      },
+    });
+  },
+});

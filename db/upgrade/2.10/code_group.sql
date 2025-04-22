@@ -86,6 +86,9 @@ CALL patch_code_group();
 DROP PROCEDURE IF EXISTS patch_code_group;
 
 
+SELECT "Adding new Spirometry code_group" AS "";
 
-
-
+INSERT IGNORE INTO code_group(scan_type_id, apex, rank, name, value, description)
+SELECT scan_type.id, 0, 1, "Graph Measurements", 0, "Validation of graph display measurements."
+FROM scan_type
+WHERE name = "spirometry";

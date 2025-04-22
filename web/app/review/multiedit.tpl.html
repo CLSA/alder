@@ -31,7 +31,7 @@
                 <select
                   id="studyPhaseId"
                   ng-model="model.studyPhaseId"
-                  ng-change="model.selectionChanged()"
+                  ng-change="model.updateForm()"
                   ng-options="item.value as item.name for item in model.studyPhaseList"
                   class="form-control"
                 ></select>
@@ -43,7 +43,7 @@
                 <select
                   id="modalityId"
                   ng-model="model.modalityId"
-                  ng-change="model.selectionChanged()"
+                  ng-change="model.updateForm()"
                   ng-options="item.value as item.name for item in model.modalityList"
                   class="form-control"
                 ></select>
@@ -67,7 +67,7 @@
                   <select
                     id="siteId"
                     ng-model="model.siteId"
-                    ng-change="model.selectionChanged()"
+                    ng-change="model.updateForm()"
                     ng-options="item.value as item.name for item in model.siteList"
                     class="form-control"
                   ></select>
@@ -131,7 +131,7 @@
                   id="uidListString"
                   name="uidListString"
                   cn-elastic
-                  cn-change="model.selectionChanged('uid')"
+                  cn-change="model.updateForm('uid')"
                   ng-model="model.uidData.uidListString"
                   class="form-control no-rounding"
                 ></textarea>

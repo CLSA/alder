@@ -39,6 +39,7 @@ class ui extends \cenozo\ui\ui
     {
       $module->add_child( 'exam' );
       $module->add_child( 'code_group' );
+      $module->add_child( 'selection' );
     }
 
     $module = $this->get_module( 'modality' );
@@ -60,6 +61,9 @@ class ui extends \cenozo\ui\ui
       $module->add_choose( 'apex_review' );
       $module->add_choose( 'review' );
     }
+
+    $module = $this->get_module( 'selection' );
+    if( !is_null( $module ) ) $module->add_child( 'selection_option' );
 
     $module = $this->get_module( 'apex_host' );
     if( !is_null( $module ) ) $module->add_choose( 'image' );

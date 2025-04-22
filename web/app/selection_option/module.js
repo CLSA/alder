@@ -1,0 +1,43 @@
+cenozoApp.defineModule({
+  name: "selection_option",
+  models: ["add", "list", "view"],
+  create: (module) => {
+    angular.extend(module, {
+      identifier: {
+        parent: {
+          subject: "selection",
+          column: "selection.rank",
+        },
+      },
+      name: {
+        singular: "option",
+        plural: "options",
+        possessive: "option's",
+      },
+      columnList: {
+        rank: {
+          title: "Rank",
+          type: "rank",
+        },
+        name: {
+          title: "Name",
+        },
+      },
+      defaultOrder: {
+        column: "rank",
+        reverse: false,
+      },
+    });
+
+    module.addInputGroup("", {
+      rank: {
+        title: "Rank",
+        type: "rank",
+      },
+      name: {
+        title: "Name",
+        type: "string",
+      },
+    });
+  },
+});

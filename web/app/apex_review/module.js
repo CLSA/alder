@@ -346,7 +346,7 @@ cenozoApp.defineModule({
                   this.bulkData.endDate = response;
                   this.formattedEndDate = CnSession.formatValue(response, "date", true);
                 }
-                await this.selectionChanged("bulk");
+                await this.updateForm("bulk");
               }
             },
 
@@ -355,7 +355,7 @@ cenozoApp.defineModule({
                 Number(this.bulkData.examsPer.replace(/[^0-9]/g, ""));
             },
 
-            selectionChanged: async function (type) {
+            updateForm: async function (type) {
               if ((
                 "bulk" == this.selectionType &&
                 angular.isDefined(this.bulkData.startDate) &&
@@ -682,6 +682,7 @@ cenozoApp.defineModule({
                   annotations: false,
                   imageId: record.image_id,
                   codeGroupList: [],
+                  selectionList: [],
                   pass: record.pass,
                   download_datetime: record.download_datetime,
                   note: record.note,
@@ -697,6 +698,24 @@ cenozoApp.defineModule({
 
                     // add a working property to all codes
                     analysis.codeGroupList.forEach(g => g.code_list.map(c => { c.working = false; return c }));
+                  })
+                );
+
+                // load the selections for all analyses
+                await Promise.all(
+                  this.analysisList.map(async (analysis) => {
+                    const response = await CnHttpFactory.instance({
+                      path: ["analysis", analysis.analysisId, "analysis_selection?full=1"].join("/"),
+                    }).query();
+                    analysis.selectionList = response.data;
+
+                    // add an empty option and working property to all selections
+                    analysis.selectionList.forEach(
+                      s => {
+                        s.option_list.unshift({id: null, name: "(no change required)"});
+                        s.working = false;
+                      }
+                    );
                   })
                 );
 
@@ -728,10 +747,65 @@ cenozoApp.defineModule({
               );
             },
 
+            selectionChanged: async function(selection) {
+              selection.working = true;
+
+              // see if the analysis_selection already exists
+              let analysisSelectionId = null;
+              try {
+                const response = await CnHttpFactory.instance({
+                  path:
+                    "apex_analysis_selection/apex_analysis_id=" + this.currentAnalysis.analysisId +
+                    ";selection_id=" + selection.id,
+                  onError: function (error) {
+                    if (404 == error.status) {
+                      // a 404 just means there is no selection
+                    } else {
+                      CnModalMessageFactory.httpError(error);
+                    }
+                  },
+                }).get();
+                analysisSelectionId = response.data.id;
+              } catch (error) {
+                // errors are handled above in the onError function
+              }
+
+              try {
+                // upsert the selection there is a selection_option_id, otherwise delete it
+                if (selection.selection_option_id) {
+                  if (null == analysisSelectionId) {
+                    await CnHttpFactory.instance({
+                      path: "apex_analysis_selection",
+                      data: {
+                        apex_analysis_id: this.currentAnalysis.analysisId,
+                        selection_id: selection.id,
+                        selection_option_id: selection.selection_option_id,
+                      },
+                    }).post();
+                  } else {
+                    await CnHttpFactory.instance({
+                      path: "apex_analysis_selection/" + analysisSelectionId,
+                      data: { selection_option_id: selection.selection_option_id }
+                    }).patch();
+                  }
+                } else {
+                  if (null != analysisSelectionId) {
+                    await CnHttpFactory.instance({
+                      path: "apex_analysis_selection/" + analysisSelectionId
+                    }).delete();
+                  }
+                }
+              } catch (error) {
+                // errors are handled above in the onError functions
+              } finally {
+                selection.working = false;
+              }
+            },
+
             toggleCode: async function(code) {
               code.working = true;
               try {
-                // remove the code if it is seleted, add it if not
+                // remove the code if it is selected, add it if not
                 let data = {};
                 data[code.selected ? "remove" : "add"] = code.id;
 

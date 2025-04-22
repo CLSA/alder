@@ -9,19 +9,49 @@
           <span ng-if="model.viewModel.isLoading">(Loading&hellip;)</span>
         </h4>
       </div>
-      <fieldset ng-disabled="!model.viewModel.analysisModel.getEditEnabled() || model.viewModel.analysisModel.viewModel.isLoading">
+      <fieldset ng-disabled="
+        !model.viewModel.analysisModel.getEditEnabled() ||
+        model.viewModel.analysisModel.viewModel.isLoading
+      ">
         <div class="vertical-spacer">
           <cn-apex-analysis-view model="model.viewModel.analysisModel"></cn-apex-analysis-view>
         </div>
         <form
           name="form"
           class="form-horizontal"
-          ng-if="0 < model.viewModel.currentAnalysis.codeGroupList.length"
+          ng-if="
+            0 < model.viewModel.currentAnalysis.codeGroupList.length ||
+            0 < model.viewModel.currentAnalysis.selectionList.length
+          "
           novalidate
         >
+          <div ng-if="0 < model.viewModel.currentAnalysis.selectionList.length">
+            <div ng-if="0 < model.viewModel.currentAnalysis.selectionList.length" class="container-fluid bg-info">
+              <label class="control-label" style="padding: 4px 0px;">Selections</label>
+            </div>
+            <div class="container-fluid" style="padding-top: 0.5em;">
+              <div class="form-group" ng-repeat="selection in model.viewModel.currentAnalysis.selectionList">
+                <label
+                  class="control-label col-sm-4"
+                  ng-bind-html="selection.name"
+                  uib-tooltip-html="selection.description"
+                ></label>
+                <div class="col-sm-8">
+                  <select
+                    ng-attr-id="selection_{{ selection.id }}"
+                    class="form-control"
+                    ng-model="selection.selection_option_id"
+                    ng-options="item.id as item.name for item in selection.option_list"
+                    ng-change="model.viewModel.selectionChanged(selection)"
+                    ng-disabled="!model.viewModel.isTypist() || selection.working"
+                  ></select>
+                </div>
+              </div>
+            </div>
+          </div>
           <div ng-repeat="group in model.viewModel.currentAnalysis.codeGroupList">
             <div class="container-fluid bg-info" uib-tooltip-html="model.viewModel.getCodeDescription(group)">
-              <label class="control-label" ng-bind-html="group.name"></label>
+              <label class="control-label" style="padding: 4px 0px;" ng-bind-html="group.name"></label>
             </div>
             <div class="container-fluid" style="padding-top: 0.5em;">
               <div
@@ -47,10 +77,10 @@
           <div class="form-footer text-right rounded-bottom bg-info">
           </div>
         </form>
-      </fieldset>
-    </div>
+      </div>
+    </fieldset>
   </div>
-  <div class="col-sm-6" style="padding-left: 0px">
+  <div class="col-sm-6" style="padding-left: 0px;">
     <cn-image-display model="model.viewModel.imageDisplayModel"></cn-image-display>
   </div>
 </div>

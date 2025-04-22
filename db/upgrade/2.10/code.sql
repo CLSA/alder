@@ -553,3 +553,22 @@ DELIMITER ;
 
 CALL rebuild_code_tables();
 DROP PROCEDURE IF EXISTS rebuild_code_tables;
+
+
+SELECT "Adding new Spirometry codes" AS "";
+
+SELECT code_group.id INTO @code_group_id
+FROM code_group
+JOIN scan_type on code_group.scan_type_id = scan_type.id
+WHERE scan_type.name = "spirometry"
+AND code_group.rank = 1;
+
+INSERT IGNORE INTO code(code_group_id, rank, name, value, description) VALUES
+(@code_group_id, 1, "start", 0, "There is not a good start."),
+(@code_group_id, 2, "peak", 0, "There is not a good peak."),
+(@code_group_id, 3, "early", 0, "There is early termination."),
+(@code_group_id, 4, "effort", 0, "There is not effort for more than 6 seconds."),
+(@code_group_id, 5, "cough", 0, "There is a cough."),
+(@code_group_id, 6, "end", 0, "There is not a proper end criteria."),
+(@code_group_id, 7, "curves", 0, "There are no acceptable curves."),
+(@code_group_id, 8, "repro", 0, "The reproducibility is <200 or >200.");

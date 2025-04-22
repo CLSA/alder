@@ -19,6 +19,11 @@ SOURCE apex_analysis.sql
 SOURCE apex_analysis_has_code.sql
 SOURCE import_salix_data.sql
 
+SOURCE selection.sql
+SOURCE selection_option.sql
+SOURCE analysis_selection.sql
+SOURCE apex_analysis_selection.sql
+
 SOURCE overview.sql
 SOURCE application_type_has_overview.sql
 SOURCE role_has_overview.sql

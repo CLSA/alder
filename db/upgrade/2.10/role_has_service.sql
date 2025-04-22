@@ -18,7 +18,10 @@ CREATE PROCEDURE patch_role_has_service()
       "SELECT role.id, service.id ",
       "FROM ", @cenozo, ".role, service ",
       "WHERE role.name = 'administrator' ",
-      "AND service.subject IN ('apex_analysis', 'apex_host', 'apex_review') ",
+      "AND service.subject IN ( ",
+        "'analysis_selection', 'apex_analysis', 'apex_analysis_selection', 'apex_host', ",
+        "'apex_review', 'selection', 'selection_option' ",
+      ") ",
       "AND service.restricted = 1"
     );
     PREPARE statement FROM @sql;
@@ -30,7 +33,7 @@ CREATE PROCEDURE patch_role_has_service()
       "SELECT role.id, service.id ",
       "FROM ", @cenozo, ".role, service ",
       "WHERE role.name = 'typist' ",
-      "AND service.subject IN( 'analysis', 'apex_analysis' ) ",
+      "AND service.subject IN( 'analysis', 'analysis_selection', 'apex_analysis', 'apex_analysis_selection' ) ",
       "AND service.restricted = 1"
     );
     PREPARE statement FROM @sql;

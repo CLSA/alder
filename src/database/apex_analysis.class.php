@@ -13,7 +13,7 @@ use cenozo\lib, cenozo\log, alder\util;
  */
 class apex_analysis extends \cenozo\database\record
 {
-  /** 
+  /**
    * Override parent save method to make sure only one analysis can have a download datetime
    * 
    * @throws exception\permission
@@ -43,7 +43,7 @@ class apex_analysis extends \cenozo\database\record
       static::db()->execute( $sql );
     }
   }
-  
+
   /**
    * Returns a list of all codes for this apex_analysis
    */
@@ -93,6 +93,56 @@ class apex_analysis extends \cenozo\database\record
     }
 
     return $code_list;
+  }
+
+  /**
+   * Returns a list of all selections for this apex_analysis
+   */
+  public function get_selections()
+  {
+    $apex_analysis_selection_class_name = lib::get_class_name( 'database\apex_analysis_selection' );
+
+    $selection_list = [];
+    $db_scan_type = $this->get_image()->get_exam()->get_scan_type();
+    $selection_mod = lib::create( 'database\modifier' );
+    $selection_mod->where( 'selection.apex', '=', false );
+    $selection_mod->order( 'rank' );
+    foreach( $db_scan_type->get_selection_object_list( $selection_mod ) as $db_selection )
+    {
+      // get the record's option for this selection
+      $db_apex_analysis_selection = $apex_analysis_selection_class_name::get_unique_record(
+        ['apex_analysis_id', 'selection_id'],
+        [$this->id, $db_selection->id]
+      );
+
+      $selection = [
+        'id' => $db_selection->id,
+        'rank' => $db_selection->rank,
+        'name' => $db_selection->name,
+        'description' => $db_selection->description,
+        'option_list' => [],
+        'selection_option_id' =>
+          is_null( $db_apex_analysis_selection ) ? NULL : $db_apex_analysis_selection->selection_option_id
+      ];
+
+      $option_sel = lib::create( 'database\select' );
+      $option_sel->add_table_column( 'selection_option', 'id' );
+      $option_sel->add_column( 'rank' );
+      $option_sel->add_column( 'name' );
+      $option_mod = lib::create( 'database\modifier' );
+      $option_mod->order( "selection_option.rank" );
+      foreach( $db_selection->get_selection_option_list($option_sel, $option_mod) as $option )
+      {
+        $selection['option_list'][] = [
+          'id' => $option['id'],
+          'name' => $option['name']
+        ];
+      }
+
+      $selection_list[] = $selection;
+    }
+
+    return $selection_list;
   }
 
   /**
