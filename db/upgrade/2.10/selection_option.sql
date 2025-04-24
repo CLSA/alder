@@ -17,3 +17,33 @@ CREATE TABLE IF NOT EXISTS selection_option (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
+
+SELECT id INTO @selection_id FROM selection WHERE name = "Grading";
+INSERT IGNORE INTO selection_option (selection_id, rank, name) VALUES
+(@selection_id, 1, "A"),
+(@selection_id, 1, "B"),
+(@selection_id, 1, "C"),
+(@selection_id, 1, "D"),
+(@selection_id, 1, "E"),
+(@selection_id, 1, "F");
+
+SELECT id INTO @selection_id FROM selection WHERE name = "Best FEV1";
+INSERT IGNORE INTO selection_option (selection_id, rank, name) VALUES
+(@selection_id, 1, "Trial #1"),
+(@selection_id, 1, "Trial #2"),
+(@selection_id, 1, "Trial #3");
+
+SELECT id INTO @selection_id FROM selection WHERE name = "Best FVC";
+INSERT IGNORE INTO selection_option (selection_id, rank, name) VALUES
+(@selection_id, 1, "Trial #1"),
+(@selection_id, 1, "Trial #2"),
+(@selection_id, 1, "Trial #3"),
+(@selection_id, 1, "Trial #4");
+
+SELECT id INTO @selection_id FROM selection WHERE name = "Best PEF";
+INSERT IGNORE INTO selection_option (selection_id, rank, name) VALUES
+(@selection_id, 1, "Trial #1"),
+(@selection_id, 1, "Trial #2"),
+(@selection_id, 1, "Trial #3"),
+(@selection_id, 1, "Trial #4"),
+(@selection_id, 1, "Trial #5");

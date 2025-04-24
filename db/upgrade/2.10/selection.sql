@@ -19,3 +19,10 @@ CREATE TABLE IF NOT EXISTS selection (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
+
+SELECT id INTO @scan_type_id FROM scan_type WHERE name = "spirometry";
+INSERT IGNORE INTO selection (scan_type_id, rank, name) VALUES
+(@scan_type_id, 1, "Grading"),
+(@scan_type_id, 2, "Best FEV1"),
+(@scan_type_id, 3, "Best FVC"),
+(@scan_type_id, 4, "Best PEF");
