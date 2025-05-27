@@ -1,7 +1,6 @@
 cenozoApp.defineModule({
   name: "exam",
   models: ["list", "view"],
-  defaultTab: "review",
   create: (module) => {
     angular.extend(module, {
       identifier: {

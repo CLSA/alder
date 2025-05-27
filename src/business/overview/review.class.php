@@ -19,17 +19,21 @@ class review extends \cenozo\business\overview\base_overview
   protected function build( $modifier = NULL )
   {
     $study_phase_class_name = lib::get_class_name( 'database\study_phase' );
+    $review_type = lib::create( 'business\session' )->get_user()->get_apex_user() ? 'apex_review' : 'review';
 
-    $status_column = 
+    $status_column = sprintf(
       'IF( '.
-        'review.id IS NULL, '.
+        '%s.id IS NULL, '.
         '"Not reviewed", '.
         'IF( '.
-          'review.end_datetime IS NULL, '.
+          '%s.end_datetime IS NULL, '.
           '"Review assigned", '.
           '"Review completed" '.
         ') '.
-      ')';
+      ')',
+      $review_type,
+      $review_type
+    );
 
     $select = lib::create( 'database\select' );
     $select->add_table_column( 'study_phase', 'name', 'study_phase' );
@@ -42,7 +46,9 @@ class review extends \cenozo\business\overview\base_overview
     $modifier->join( 'interview', 'study_phase.id', 'interview.study_phase_id' );
     $modifier->join( 'exam', 'interview.id', 'exam.interview_id' );
     $modifier->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
-    $modifier->left_join('review', 'exam.id', 'review.exam_id' );
+    $modifier->join( 'modality', 'scan_type.modality_id', 'modality.id' );
+    $modifier->left_join( $review_type, 'exam.id', sprintf( '%s.exam_id', $review_type ) );
+    if( 'apex_review' == $review_type ) $modifier->where( 'modality.name', '=', 'dxa' );
     $modifier->group( 'study_phase.rank' );
     $modifier->group( 'scan_type.name' );
     $modifier->group( $status_column );

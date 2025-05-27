@@ -56,6 +56,12 @@ class module extends \cenozo\service\site_restricted_module
     $db_restrict_site = $this->get_restricted_site();
     if( !is_null( $db_restrict_site ) ) $modifier->where( 'interview.site_id', '=', $db_restrict_site->id );
 
+    // when listing exams exclude non DXA scans from apex users
+    if( is_null( $this->get_resource() ) && lib::create( 'business\session' )->get_user()->get_apex_user() )
+    {
+      $modifier->where( 'modality.name', '=', 'dxa' );
+    }
+
     // add the list of user reviews via the review table
     $this->add_list_column( 'user_list', 'user', 'name', $select, $modifier, 'review' );
 

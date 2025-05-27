@@ -11,9 +11,9 @@ cenozoApp.defineModule({
         },
       },
       name: {
-        singular: "apex review",
-        plural: "apex reviews",
-        possessive: "apex review's",
+        singular: "review",
+        plural: "reviews",
+        possessive: "review's",
       },
       columnList: {
         uid: {

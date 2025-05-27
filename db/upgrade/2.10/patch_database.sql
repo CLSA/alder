@@ -18,6 +18,7 @@ SOURCE apex_review.sql
 SOURCE apex_analysis.sql
 SOURCE apex_analysis_has_code.sql
 SOURCE import_salix_data.sql
+SOURCE apex_user.sql
 
 SOURCE selection.sql
 SOURCE selection_option.sql

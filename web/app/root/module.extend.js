@@ -30,8 +30,8 @@ cenozoApp.extendModule({
                 if (angular.isFunction(oldLink)) oldLink(scope, element, attrs);
                 const el = angular.element(element[0].querySelector(".inner-view-frame div"));
                 el.append(
-                  '<cn-apex-review-list model="apexReviewModel"></cn-apex-review-list>' +
-                  '<div class="vertical-spacer"></div>' + 
+                  CnSession.user.apexUser ?
+                  '<cn-apex-review-list model="reviewModel"></cn-apex-review-list>' :
                   '<cn-review-list model="reviewModel"></cn-review-list>'
                 );
                 $compile(element.contents())(scope);
@@ -40,13 +40,12 @@ cenozoApp.extendModule({
             controller: function ($scope) {
               oldController($scope);
 
-              $scope.apexReviewModel = CnApexReviewModelFactory.instance();
-              $scope.apexReviewModel.listModel.heading =
-                "Outstanding " + apexReviewModule.name.singular.ucWords() + " List";
-
-              $scope.reviewModel = CnReviewModelFactory.instance();
-              $scope.reviewModel.listModel.heading =
-                "Outstanding " + reviewModule.name.singular.ucWords() + " List";
+              $scope.reviewModel = (
+                CnSession.user.apexUser ?
+                CnApexReviewModelFactory.instance() :
+                CnReviewModelFactory.instance()
+              );
+              $scope.reviewModel.listModel.heading = "Outstanding Review List";
             },
           });
         }

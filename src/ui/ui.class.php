@@ -20,7 +20,9 @@ class ui extends \cenozo\ui\ui
   {
     parent::build_module_list();
 
-    $db_role = lib::create( 'business\session' )->get_role();
+    $session = lib::create( 'business\session' );
+    $db_role = $session->get_role();
+    $review_type = $session->get_user()->get_apex_user() ? 'apex_review' : 'review';
 
     // add child actions to certain modules
     $module = $this->get_module( 'interview' );
@@ -29,8 +31,7 @@ class ui extends \cenozo\ui\ui
     $module = $this->get_module( 'exam' );
     if( !is_null( $module ) )
     {
-      $module->add_child( 'review' );
-      $module->add_child( 'apex_review' );
+      $module->add_child( $review_type );
       $module->add_action( 'display', '/{identifier}' );
     }
 
@@ -56,11 +57,7 @@ class ui extends \cenozo\ui\ui
     if( !is_null( $module ) ) $module->add_child( 'code' );
 
     $module = $this->get_module( 'code' );
-    if( !is_null( $module ) )
-    {
-      $module->add_choose( 'apex_review' );
-      $module->add_choose( 'review' );
-    }
+    if( !is_null( $module ) ) $module->add_choose( $review_type );
 
     $module = $this->get_module( 'selection' );
     if( !is_null( $module ) ) $module->add_child( 'selection_option' );
@@ -81,16 +78,14 @@ class ui extends \cenozo\ui\ui
    */
   protected function build_listitem_list()
   {
-    $db_role = lib::create( 'business\session' )->get_role();
+    $review_type = lib::create( 'business\session' )->get_user()->get_apex_user() ? 'apex_review' : 'review';
 
     parent::build_listitem_list();
 
     // add application-specific lists to the base list
-    $this->add_listitem( 'Apex Hosts', 'apex_host' );
-    $this->add_listitem( 'Apex Reviews', 'apex_review' );
     $this->add_listitem( 'Interviews', 'interview' );
     $this->add_listitem( 'Modalities', 'modality' );
-    $this->add_listitem( 'Reviews', 'review' );
+    $this->add_listitem( 'Reviews', $review_type );
   }
 
   /**
@@ -99,7 +94,10 @@ class ui extends \cenozo\ui\ui
 
   protected function get_utility_items()
   {
-    $db_role = lib::create( 'business\session' )->get_role();
+    $session = lib::create( 'business\session' );
+    $db_role = $session->get_role();
+    $review_type = $session->get_user()->get_apex_user() ? 'apex_review' : 'review';
+
     $list = parent::get_utility_items();
     unset( $list['Participant Export'] );
     unset( $list['Participant Multiedit'] );
@@ -107,8 +105,7 @@ class ui extends \cenozo\ui\ui
     unset( $list['Tracing'] );
     if( 2 < $db_role->tier )
     {
-      $list['Apex Review Multiedit'] = array( 'subject' => 'apex_review', 'action' => 'multiedit' );
-      $list['Review Multiedit'] = array( 'subject' => 'review', 'action' => 'multiedit' );
+      $list['Review Multiedit'] = array( 'subject' => $review_type, 'action' => 'multiedit' );
     }
     return $list;
   }

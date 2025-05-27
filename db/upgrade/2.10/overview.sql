@@ -21,6 +21,23 @@ DROP PROCEDURE IF EXISTS patch_overview;
     EXECUTE statement;
     DEALLOCATE PREPARE statement;
 
+    SELECT "Merging apex_review and review overviews" AS "";
+
+    SET @sql = CONCAT(
+      "DELETE FROM ", @cenozo, ".overview WHERE name = 'apex_review'"
+    );
+    PREPARE statement FROM @sql;
+    EXECUTE statement;
+    DEALLOCATE PREPARE statement;
+
+    SET @sql = CONCAT(
+      "UPDATE ", @cenozo, ".overview ",
+      "SET description = 'Overview of reviews'"
+    );
+    PREPARE statement FROM @sql;
+    EXECUTE statement;
+    DEALLOCATE PREPARE statement;
+
   END //
 DELIMITER ;
 
