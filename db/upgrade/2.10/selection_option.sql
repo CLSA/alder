@@ -21,29 +21,41 @@ ENGINE = InnoDB;
 SELECT id INTO @selection_id FROM selection WHERE name = "Grading";
 INSERT IGNORE INTO selection_option (selection_id, rank, name) VALUES
 (@selection_id, 1, "A"),
-(@selection_id, 1, "B"),
-(@selection_id, 1, "C"),
-(@selection_id, 1, "D"),
-(@selection_id, 1, "E"),
-(@selection_id, 1, "F");
+(@selection_id, 2, "B"),
+(@selection_id, 3, "C"),
+(@selection_id, 4, "D"),
+(@selection_id, 5, "E"),
+(@selection_id, 6, "F");
 
 SELECT id INTO @selection_id FROM selection WHERE name = "Best FEV1";
 INSERT IGNORE INTO selection_option (selection_id, rank, name) VALUES
 (@selection_id, 1, "Trial #1"),
-(@selection_id, 1, "Trial #2"),
-(@selection_id, 1, "Trial #3");
+(@selection_id, 2, "Trial #2"),
+(@selection_id, 3, "Trial #3"),
+(@selection_id, 4, "Trial #4"),
+(@selection_id, 5, "Trial #5"),
+(@selection_id, 6, "Trial #6"),
+(@selection_id, 7, "Trial #7"),
+(@selection_id, 8, "Trial #8");
 
 SELECT id INTO @selection_id FROM selection WHERE name = "Best FVC";
 INSERT IGNORE INTO selection_option (selection_id, rank, name) VALUES
 (@selection_id, 1, "Trial #1"),
-(@selection_id, 1, "Trial #2"),
-(@selection_id, 1, "Trial #3"),
-(@selection_id, 1, "Trial #4");
+(@selection_id, 2, "Trial #2"),
+(@selection_id, 3, "Trial #3"),
+(@selection_id, 4, "Trial #4"),
+(@selection_id, 5, "Trial #5"),
+(@selection_id, 6, "Trial #6"),
+(@selection_id, 7, "Trial #7"),
+(@selection_id, 8, "Trial #8");
 
 SELECT id INTO @selection_id FROM selection WHERE name = "Best PEF";
 INSERT IGNORE INTO selection_option (selection_id, rank, name) VALUES
 (@selection_id, 1, "Trial #1"),
-(@selection_id, 1, "Trial #2"),
-(@selection_id, 1, "Trial #3"),
-(@selection_id, 1, "Trial #4"),
-(@selection_id, 1, "Trial #5");
+(@selection_id, 2, "Trial #2"),
+(@selection_id, 3, "Trial #3"),
+(@selection_id, 4, "Trial #4"),
+(@selection_id, 5, "Trial #5"),
+(@selection_id, 6, "Trial #6"),
+(@selection_id, 7, "Trial #7"),
+(@selection_id, 8, "Trial #8");
