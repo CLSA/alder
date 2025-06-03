@@ -15,10 +15,6 @@ cenozoApp.defineModule({
         possessive: "selection's",
       },
       columnList: {
-        apex: {
-          title: "Apex",
-          type: "boolean",
-        },
         rank: {
           title: "Rank",
           type: "rank",
@@ -38,10 +34,6 @@ cenozoApp.defineModule({
     });
 
     module.addInputGroup("", {
-      apex: {
-        title: "Apex",
-        type: "boolean",
-      },
       rank: {
         title: "Rank",
         type: "rank",
