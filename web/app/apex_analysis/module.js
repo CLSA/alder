@@ -17,8 +17,13 @@ cenozoApp.defineModule({
     });
 
     module.addInputGroup("", {
+      upload_datetime: {
+        title: "Uploaded On",
+        type: "datetime",
+        isConstant: true,
+      },
       download_datetime: {
-        title: "Download",
+        title: "Downloaded On",
         type: "datetime",
         isConstant: true,
       },
@@ -34,46 +39,10 @@ cenozoApp.defineModule({
         title: "Analysis Notes",
         type: "text",
       },
+      apex_host_id: { column: "apex_host.id", type: "hidden" },
       apex_review_id: { type: "hidden" },
       uid: { column: "participant.uid", type: "hidden" },
     });
-
-    /* ############################################################################################## */
-    cenozo.providers.directive("cnApexAnalysisDownload", [
-      "CnApexAnalysisDownloadFactory",
-      "CnSession",
-      "$state",
-      function (CnApexAnalysisDownloadFactory, CnSession, $state) {
-        return {
-          templateUrl: module.getFileUrl("download.tpl.html"),
-          restrict: "E",
-          controller: async function ($scope, $element) {
-            $scope.model = CnApexAnalysisDownloadFactory.instance();
-            $scope.viewParent = async function () {
-              await $state.go(
-                "apex_review.view",
-                { identifier: $scope.model.parentModel.viewModel.record.apex_review_id }
-              );
-            };
-            await $scope.model.onView();
-
-            CnSession.setBreadcrumbTrail([
-              { title: "Apex Review" },
-              {
-                title: $scope.model.parentModel.viewModel.record.apex_review_id,
-                go: async function () {
-                  $state.go(
-                    "apex_review.view",
-                    { identifier: $scope.model.parentModel.viewModel.record.apex_review_id }
-                  );
-                },
-              },
-              { title: "Download", }
-            ]);
-          },
-        };
-      },
-    ]);
 
     /* ############################################################################################## */
     cenozo.providers.directive("cnApexAnalysisUpload", [
@@ -113,115 +82,12 @@ cenozoApp.defineModule({
     ]);
 
     /* ############################################################################################## */
-    cenozo.providers.factory("CnApexAnalysisDownloadFactory", [
-      "CnApexAnalysisModelFactory",
-      "CnHttpFactory",
-      "CnModalMessageFactory",
-      "CnModalConfirmFactory",
-      function (CnApexAnalysisModelFactory, CnHttpFactory, CnModalMessageFactory, CnModalConfirmFactory) {
-        var object = function () {
-
-          angular.extend(this, {
-            parentModel: CnApexAnalysisModelFactory.instance(),
-            isLoading: true,
-            hostId: null,
-            analysisData: [],
-            analysisDataRows: [],
-            deletingImages: false,
-            downloadingImage: false,
-            downloadResult: null,
-
-            deleteImages: async function() {
-              if (!this.hostId) return;
-              const hostName = this.parentModel.hostList.findByProperty("value", this.hostId).name;
-
-              try {
-                // confirm with the user first
-                const response = await CnModalConfirmFactory.instance({
-                  title: "Delete all Images on " + hostName,
-                  message:
-                    "Are you sure you wish to delete all images on " + hostName + "?  " +
-                    "This operation cannot be reversed and any existing images and analysis will be lost."
-                }).show();
-
-                if (response) {
-                  this.deletingImages = true;
-                  await CnHttpFactory.instance({
-                    path: "apex_host/" + this.hostId,
-                    data: { delete: true },
-                  }).patch();
-                }
-              } finally {
-                this.deletingImages = false;
-              }
-            },
-
-            downloadImage: async function() {
-              if (!this.hostId) return;
-              const hostName = this.parentModel.hostList.findByProperty("value", this.hostId).name;
-
-              angular.extend(this, { downloadResult: null, downloadingImage: true });
-              try {
-                const response = await CnHttpFactory.instance({
-                  path: "apex_host/" + this.hostId,
-                  data: { download: this.parentModel.viewModel.record.id },
-                }).patch();
-
-                // update the view record in case the download date has changed
-                this.downloadResult = response.data;
-                await this.onView();
-              } finally {
-                this.downloadingImage = false;
-              }
-            },
-
-            onView: async function() {
-              angular.extend(this, { isLoading: true, hostId: null });
-              try {
-                await this.parentModel.viewModel.onView();
-                this.hostId = 0 < this.parentModel.hostList.length ? this.parentModel.hostList[0].value : null;
-                this.analysisData = JSON.parse(this.parentModel.viewModel.record.data);
-                let row = null;
-                this.analysisDataRows = Object.entries(this.analysisData).reduce(
-                  (list,value,index)=>{
-                    // group into rows containing 4 entries
-                    if(0 == index%4) {
-                      if (null != row) list.push(row);
-                      row = {};
-                    }
-
-                    // the key is the first value in the array, transformed to a human readable string
-                    let k = value[0].replace(/_/g, " ").toUpperCase();
-
-                    // format floating point values
-                    let v = Number(value[1]) === value[1] && value[1]%1 !== 0 ? value[1].toFixed(2) : value[1];
-
-                    row[k] = v;
-                    return list;
-                  },
-                  []
-                );
-              } finally {
-                this.isLoading = false;
-              }
-            },
-          });
-        };
-
-        return {
-          instance: function () {
-            return new object();
-          },
-        };
-      },
-    ]);
-
-    /* ############################################################################################## */
     cenozo.providers.factory("CnApexAnalysisUploadFactory", [
       "CnApexAnalysisModelFactory",
+      "CnSession",
       "CnHttpFactory",
-      "CnModalConfirmFactory",
-      function (CnApexAnalysisModelFactory, CnHttpFactory, CnModalConfirmFactory) {
+      "CnModalMessageFactory",
+      function (CnApexAnalysisModelFactory, CnSession, CnHttpFactory, CnModalMessageFactory) {
         var object = function () {
 
           angular.extend(this, {
@@ -229,35 +95,76 @@ cenozoApp.defineModule({
             isLoading: true,
             currentImage: null,
             baseImage: null,
-            hostId: null,
-            checkingHostStatus: false,
-            hostStatus: null,
             imageStatus: null,
-            deletingImages: false,
             uploadingImages: false,
 
-            checkHostStatus: async function() {
-              angular.extend(this, {
-                checkingHostStatus: true,
-                hostStatus: null,
-              });
+            checkApexHostStatus: async function() {
+              if (!this.parentModel.viewModel.record.apex_host_id) return;
 
               try {
+                const modal = CnModalMessageFactory.instance({
+                  title: "Checking Apex Status",
+                  message: "Please wait...",
+                  html: true,
+                  block: true,
+                });
+
+                modal.show();
+
                 // get the host's status
                 const response = await CnHttpFactory.instance({
-                  path: "apex_host/" + this.hostId,
+                  path: "apex_host/" + this.parentModel.viewModel.record.apex_host_id,
                   data: { select: { column: 'status' } },
+                  onError: (error) => {
+                    modal.close();
+                    modal.message = "Unable to connect to Apex workstation.";
+                    modal.block = false;
+                    modal.show();
+                  },
                 }).get();
 
-                this.hostStatus = JSON.parse(response.data.status);
+                const status = JSON.parse(response.data.status);
+                modal.close();
+                modal.message = "<h4>Results:</h4><ul>";
+                for (let key in status) {
+                  let value = status[key];
+                  modal.message += `
+                    <li>
+                      ${key}: 
+                      <span ng-class="text-${value ? 'success' : 'danger'}">
+                        ${null == value ? "failed" : value ? "online" : "offline"}
+                        <i class="glyphicon" ng-class="glyphicon-${value ? 'ok' : 'remove'}"></i>
+                      </span>
+                    </li>
+                  `;
+                }
+                modal.message += "</ul>";
+
+                if (!status['DICOM In'] || !status['DICOM Apex'] || !status['QDR']) {
+                  modal.message += `
+                    <div
+                      class="input-group text-danger"
+                      ng-if="!${status['DICOM In']} || !${status['DICOM Apex']} || !${status['QDR']}"
+                    >
+                      <h4>Please Note:</h4>
+                      <div class="container-fluid">
+                        Before images can be sent to the selected Apex workstation,
+                        DICOM In, DICOM Apex and QDR must all be online.<br />
+                        Please check the Apex workstation and try again once all software is running.
+                      </div>
+                    </div>
+                  `;
+                }
+
+                modal.block = false;
+                modal.show();
+
               } finally {
-                this.checkingHostStatus = false;
               }
             },
 
             checkImageStatus: async function() {
-              if (!this.hostId) return;
-              const hostName = this.parentModel.hostList.findByProperty("value", this.hostId).name;
+              if (!this.parentModel.viewModel.record.apex_host_id) return;
 
               // get the image(s) associated with this analysis
               const response = await CnHttpFactory.instance({
@@ -265,7 +172,7 @@ cenozoApp.defineModule({
                   "apex_analysis/" +
                   this.parentModel.viewModel.record.id +
                   "/image?apex_host_id=" +
-                  this.hostId
+                  this.parentModel.viewModel.record.apex_host_id
                 ),
               }).query();
 
@@ -278,7 +185,7 @@ cenozoApp.defineModule({
                 if (null != image.number) image.name = image.name + " #" + image.number;
 
                 // set the UI-friendly image status
-                image.status = (image.uploaded ? "Successfully uploded to " : "Not uploaded to ") + hostName;
+                image.status = (image.uploaded ? "Successfully" : "Not") + " uploaded to Apex";
 
                 if (image.reanalysed) {
                   image.name += " (re-analysed)";
@@ -289,54 +196,27 @@ cenozoApp.defineModule({
               });
             },
 
-            deleteImages: async function() {
-              if (!this.hostId) return;
-              const hostName = this.parentModel.hostList.findByProperty("value", this.hostId).name;
-
-              try {
-                // confirm with the user first
-                const response = await CnModalConfirmFactory.instance({
-                  title: "Delete all Images on " + hostName,
-                  message:
-                    "Are you sure you wish to delete all images on " + hostName + "?  " +
-                    "This operation cannot be reversed and any existing images and analysis will be lost."
-                }).show();
-
-                if (response) {
-                  this.deletingImages = true;
-                  await CnHttpFactory.instance({
-                    path: "apex_host/" + this.hostId,
-                    data: { delete: true },
-                  }).patch();
-                  await this.checkImageStatus();
-                }
-              } finally {
-                this.deletingImages = false;
-              }
-            },
-
             uploadImages: async function() {
-              if (!this.hostId) return;
-              const hostName = this.parentModel.hostList.findByProperty("value", this.hostId).name;
+              if (!this.parentModel.viewModel.record.apex_host_id) return;
 
               this.uploadingImages = true;
               try {
                 let fileList = [];
                 if (null != this.currentImage) {
                   this.currentImage.uploaded = null;
-                  this.currentImage.status = "Uploading image to " + hostName + " ...";
+                  this.currentImage.status = "Uploading image to Apex workstation ...";
                   fileList.push(this.currentImage.filename);
                 }
                 if (null != this.baseImage) {
                   this.baseImage.uploaded = null;
-                  this.baseImage.status = "Uploading image to " + hostName + " ...";
+                  this.baseImage.status = "Uploading image to Apex workstation ...";
                   fileList.push(this.baseImage.filename);
                 }
 
                 if (0 == fileList.length) return;
 
                 const response = await CnHttpFactory.instance({
-                  path: "apex_host/" + this.hostId,
+                  path: "apex_host/" + this.parentModel.viewModel.record.apex_host_id,
                   data: { upload: this.parentModel.viewModel.record.id },
                 }).patch();
                 await this.checkImageStatus();
@@ -350,7 +230,7 @@ cenozoApp.defineModule({
                   angular.extend(workingImage, {
                     uploaded: null == image.error,
                     error: image.error,
-                    status: null == image.error ? ("Successfully uploded to " + hostName) : image.error,
+                    status: null == image.error ? "Successfully uploded to Apex workstation" : image.error,
                   });
                 });
               } finally {
@@ -359,10 +239,9 @@ cenozoApp.defineModule({
             },
 
             onView: async function() {
-              angular.extend(this, { isLoading: true, hostId: null, currentImage: null, baseImage: null });
+              angular.extend(this, { isLoading: true, currentImage: null, baseImage: null });
               try {
                 await this.parentModel.viewModel.onView();
-                this.hostId = 0 < this.parentModel.hostList.length ? this.parentModel.hostList[0].value : null;
                 await this.checkImageStatus();
               } finally {
                 this.isLoading = false;
@@ -374,46 +253,6 @@ cenozoApp.defineModule({
         return {
           instance: function () {
             return new object();
-          },
-        };
-      },
-    ]);
-
-    /* ############################################################################################## */
-    cenozo.providers.factory("CnApexAnalysisModelFactory", [
-      "CnBaseModelFactory",
-      "CnApexAnalysisViewFactory",
-      "CnHttpFactory",
-      function (CnBaseModelFactory, CnApexAnalysisViewFactory, CnHttpFactory) {
-        var object = function (root) {
-          CnBaseModelFactory.construct(this, module);
-
-          angular.extend(this, {
-            viewModel: CnApexAnalysisViewFactory.instance(this, root),
-            hostList: null,
-
-            getMetadata: async function() {
-              const [metadataResponse, hostResponse] = await Promise.all([
-                this.$$getMetadata(),
-
-                CnHttpFactory.instance({
-                  path: "apex_host",
-                  data: { select: { column: "name" }, modifier: { order: "name" } },
-                }).query(),
-              ]);
-
-              this.hostList = hostResponse.data.reduce((list, item) => {
-                list.push({ value: item.id, name: item.name });
-                return list;
-              }, []);
-            },
-          });
-        };
-
-        return {
-          root: new object(true),
-          instance: function () {
-            return new object(false);
           },
         };
       },

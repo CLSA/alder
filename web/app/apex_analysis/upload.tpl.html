@@ -6,63 +6,12 @@
     </h4>
   </div>
   <form name="form" class="form-horizontal" novalidate>
-    <fieldset ng-disabled="model.isLoading || model.uploadingImages || model.deletingImages">
+    <fieldset ng-disabled="model.isLoading || model.uploadingImages">
       <div class="form-body" style="padding-bottom: 1em;">
-        <div class="container-fluid">
-          <label for="hostId" class="control-label">Apex Workstation</label>
-          <div class="input-group">
-            <div class="row">
-              <div class="col-sm-10">
-                <select
-                  id="hostId"
-                  ng-model="model.hostId"
-                  ng-change="model.onHostChange()"
-                  ng-options="item.value as item.name for item in model.parentModel.hostList"
-                  class="form-control"
-                ></select>
-              </div>
-              <div class="btn-group col-sm-2">
-                <button
-                  type="button"
-                  class="btn btn-primary full-width"
-                  ng-click="model.checkHostStatus()"
-                  ng-disabled="model.checkingHostStatus"
-                >
-                  Check Status
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="vertical-spacer">
-            <div ng-show="model.checkingHostStatus">Checking status...</div>
-            <div ng-if="null != model.hostStatus">
-              <ul>
-                <li ng-repeat="(key, value) in model.hostStatus">
-                  {{ key }}:
-                  <span ng-class="value ? 'text-success' : 'text-danger'">
-                    {{ null == value ? "failed" : value ? "online" : "offline" }}
-                    <i class="glyphicon" ng-class="value ? 'glyphicon-ok' : 'glyphicon-remove'"></i>
-                  </span>
-                </li>
-              </ul>
-              <div
-                class="input-group text-danger"
-                ng-if="
-                  !model.hostStatus['DICOM In'] ||
-                  !model.hostStatus['DICOM Apex'] ||
-                  !model.hostStatus['QDR']
-                "
-              >
-                <h4>Please Note:</h4>
-                <div class="container-fluid">
-                  Before images can be sent to the selected Apex workstation,
-                  DICOM In, DICOM Apex and QDR must all be online.<br />
-                  Please check the Apex workstation and try again once all software is running.
-                </div>
-              </div>
-            </div>
-          </div>
-          <hr />
+        <div class="container-fluid" ng-if="!model.parentModel.viewModel.record.apex_host_id">
+          There is no Apex workstation associated with the reviewer.
+        </div>
+        <div class="container-fluid" ng-if="model.parentModel.viewModel.record.apex_host_id">
           <div class="input-group">
             <div class="form-group first-form-group" ng-if="null != model.currentImage">
               <label for="hostId" class="control-label col-sm-3">Re-Analysis Image</label>
@@ -90,27 +39,25 @@
                 </span>
               </div>
             </div>
-            <div class="text-right">
-              <div class="btn-group">
-                <button type="button" class="btn btn-primary" ng-click="model.deleteImages()">
-                  <span ng-if="model.deletingImages">Deleting Images...</span>
-                  <span ng-if="!model.deletingImages">Delete all Images</span>
-                </button>
-                <button type="button" class="btn btn-primary" ng-click="model.uploadImages()">
-                  <span ng-if="model.uploadingImages">
-                    Uploading Image{{ null == model.baseImage ? "" : "s" }}...
-                  </span>
-                  <span ng-if="!model.uploadingImages">
-                    <i class="glyphicon glyphicon-cloud-upload"></i>
-                    Upload Image{{ null == model.baseImage ? "" : "s" }}
-                  </span>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
       <div class="form-footer text-right rounded-buttom bg-info">
+        <div class="pull-left">
+          <div class="btn-group" ng-if="model.parentModel.viewModel.record.apex_host_id">
+            <button type="button" class="btn btn-default" ng-click="model.checkApexHostStatus()">
+              Check Apex Status
+            </button>
+            <button type="button" class="btn btn-default" ng-click="model.uploadImages()">
+              <span ng-if="model.uploadingImages">
+                Uploading Image{{ null == model.baseImage ? "" : "s" }}...
+              </span>
+              <span ng-if="!model.uploadingImages">
+                Upload Image{{ null == model.baseImage ? "" : "s" }}
+              </span>
+            </button>
+          </div>
+        </div>
         <div class="btn-group">
           <button type="button" class="btn btn-primary" ng-click="viewParent()">View Apex Review</button>
         </div>

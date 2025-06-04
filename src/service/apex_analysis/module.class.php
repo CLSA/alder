@@ -67,6 +67,7 @@ class module extends \cenozo\service\site_restricted_module
     $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
     $modifier->left_join( 'site', 'interview.site_id', 'site.id' );
     $modifier->join( 'user', 'apex_review.user_id', 'user.id' );
+    $modifier->left_join( 'apex_host', 'user.id', 'apex_host.user_id' );
 
     // only show typists their own analyses
     if( 'typist' == $db_role->name ) $modifier->where( 'apex_review.user_id', '=', $db_user->id );

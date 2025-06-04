@@ -37,6 +37,5 @@ class module extends \cenozo\service\user\module
       $modifier->join( 'role', 'access.role_id', 'role.id' );
       $modifier->where( 'role.name', '=', 'typist' );
     }
-
   }
 }

@@ -126,6 +126,7 @@ cenozoApp.defineModule({
         type: "text",
         isExcluded: function($state, model) { return "add"; },
       },
+      apex_host_id: { column: "apex_host.id", type: "hidden" },
       prev_interview_review_id: { type: "hidden" },
       prev_exam_review_id: { type: "hidden" },
       next_exam_review_id: { type: "hidden" },
@@ -144,66 +145,6 @@ cenozoApp.defineModule({
         },
       });
     }
-
-    if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.upload)) {
-      module.addExtraOperation("view", {
-        title: "Upload",
-        operation: async function ($state, model) {
-          await $state.go(
-            "apex_analysis.upload",
-            { identifier: model.viewModel.currentAnalysis.analysisId }
-          );
-        },
-        isIncluded: function ($state, model) {
-          return model.isRole("administrator", "typist") && null == model.viewModel.record.end_datetime;
-        },
-        isDisabled: function ($state, model) {
-          return null == model.viewModel.currentAnalysis;
-        },
-        help: "Upload images to an Apex workstation for re-analysis.",
-      });
-    }
-
-    if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.download)) {
-      module.addExtraOperation("view", {
-        title: "Download",
-        operation: async function ($state, model) {
-          await $state.go(
-            "apex_analysis.download",
-            { identifier: model.viewModel.currentAnalysis.analysisId }
-          );
-        },
-        isIncluded: function ($state, model) {
-          return model.isRole("administrator", "typist") && null == model.viewModel.record.end_datetime;
-        },
-        isDisabled: function ($state, model) {
-          return null == model.viewModel.currentAnalysis;
-        },
-        help: "Download re-analysed images and data from an Apex workstation.",
-      });
-    }
-
-    module.addExtraOperation("view", {
-      title: "Close",
-      operation: async function ($state, model) {
-        model.viewModel.setState("complete");
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist") && null == model.viewModel.record.end_datetime;
-      },
-      help: "Mark the review as completed."
-    });
-
-    module.addExtraOperation("view", {
-      title: "Re-Open",
-      operation: async function ($state, model) {
-        model.viewModel.setState("reopen");
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist") && null != model.viewModel.record.end_datetime;
-      },
-      help: "Re-open the review."
-    });
 
     module.addExtraOperation("view", {
       title: "<i class='glyphicon glyphicon-fast-backward'></i> Prev Interview",
@@ -255,6 +196,71 @@ cenozoApp.defineModule({
       isIncluded: function ($state, model) {
         return model.isRole("typist", "administrator");
       },
+    });
+
+    if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.upload)) {
+      module.addExtraOperation("view", {
+        title: "<i class='glyphicon glyphicon-upload'></i> Upload",
+        classes: "btn-info",
+        operation: async function ($state, model) {
+          await $state.go(
+            "apex_analysis.upload",
+            { identifier: model.viewModel.currentAnalysis.analysisId }
+          );
+        },
+        isIncluded: function ($state, model) {
+          return model.isRole("administrator", "typist") && null == model.viewModel.record.end_datetime;
+        },
+        isDisabled: function ($state, model) {
+          return !model.viewModel.record.apex_host_id || null == model.viewModel.currentAnalysis;
+        },
+        help: "Upload images to an Apex workstation for re-analysis.",
+      });
+    }
+
+    if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.download)) {
+      module.addExtraOperation("view", {
+        title: "<i class='glyphicon glyphicon-download'></i> Download",
+        classes: "btn-info",
+        operation: async function ($state, model) {
+          await model.viewModel.downloadCurrentAnalysis();
+        },
+        isIncluded: function ($state, model) {
+          return model.isRole("administrator", "typist") && null == model.viewModel.record.end_datetime;
+        },
+        isDisabled: function ($state, model) {
+          return (
+            !model.viewModel.record.apex_host_id ||
+            null == model.viewModel.currentAnalysis ||
+            model.viewModel.isDownloading
+          );
+        },
+        help: "Download re-analysed images and data from the reviewer's Apex workstation.",
+      });
+    }
+
+    module.addExtraOperation("view", {
+      title: "Close",
+      classes: "btn-info",
+      operation: async function ($state, model) {
+        model.viewModel.setState("complete");
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("typist") && null == model.viewModel.record.end_datetime;
+      },
+      help: "Mark the review as completed."
+    });
+
+    module.addExtraOperation("view", {
+      title: "Re-Open",
+      classes: "btn-info",
+      operation: async function ($state, model) {
+        model.viewModel.setState("reopen");
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("typist") && null != model.viewModel.record.end_datetime;
+      },
+      help: "Re-open the review."
     });
 
     /* ############################################################################################## */
@@ -613,13 +619,15 @@ cenozoApp.defineModule({
       "CnSession",
       "CnHttpFactory",
       "CnModalMessageFactory",
+      "CnModalConfirmFactory",
       function (
         CnBaseViewFactory,
         CnApexAnalysisModelFactory,
         CnImageDisplayFactory,
         CnSession,
         CnHttpFactory,
-        CnModalMessageFactory
+        CnModalMessageFactory,
+        CnModalConfirmFactory
       ) {
         var object = function (parentModel, root) {
           CnBaseViewFactory.construct(this, parentModel, root);
@@ -639,6 +647,7 @@ cenozoApp.defineModule({
 
           angular.extend(this, {
             isLoading: false,
+            isDownloading: false,
             analysisModel: analysisModel,
             imageDisplayModel: CnImageDisplayFactory.instance(),
             analysisList: [],
@@ -664,6 +673,28 @@ cenozoApp.defineModule({
               if (null != analysis) {
                 this.currentAnalysis = analysis;
                 await this.analysisModel.viewModel.onView(true);
+              }
+            },
+
+            downloadCurrentAnalysis: async function () {
+              try {
+                this.isDownloading = true;
+
+                const response = await CnModalConfirmFactory.instance({
+                  title: "Download Scan from Apex",
+                  message:
+                    "Are you sure you wish to download the scan and data from the Apex workstation? " +
+                    "This will overwrite any existing scan and data which may have already been downloaded"
+                }).show();
+
+                if (response) {
+                  await CnHttpFactory.instance({
+                    path: "apex_host/" + this.record.apex_host_id,
+                    data: { download: this.currentAnalysis.analysisId },
+                  }).patch();
+                }
+              } finally {
+                this.isDownloading = false;
               }
             },
 

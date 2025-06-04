@@ -20,6 +20,8 @@ class module extends \cenozo\service\module
   {
     parent::prepare_read( $select, $modifier );
 
+    $modifier->left_join( 'user', 'apex_host.user_id', 'user.id' );
+
     if( $select->has_column( 'status' ) )
     {
       $db_apex_host = $this->get_resource();

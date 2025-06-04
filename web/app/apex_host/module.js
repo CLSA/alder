@@ -3,35 +3,27 @@ cenozoApp.defineModule({
   models: ["add", "list", "view"],
   create: (module) => {
     angular.extend(module, {
-      identifier: { column: "name" },
+      identifier: { column: "db_address" },
       name: {
         singular: "apex host",
         plural: "apex hosts",
         possessive: "apex host's",
       },
       columnList: {
-        name: { title: "name" },
-        ssh_address: { title: "address" },
+        user: { column: "user.name", title: "User" },
+        db_address: { title: "DB address" },
+        ssh_address: { title: "SSH address" },
       },
       defaultOrder: {
-        column: "apex_host.name",
+        column: "apex_host.db_address",
         reverse: false,
       },
     });
 
     module.addInputGroup("", {
-      name: {
-        title: "Name",
-        type: "string",
-      },
-      ssh_address: {
-        title: "SSH Address",
-        type: "string",
-      },
-      ssh_username: {
-        title: "SSH Username",
-        type: "string",
-        help: "No password is required since a keyfile is used instead.",
+      user_id: {
+        title: "User",
+        type: "enum",
       },
       db_address: {
         title: "MSSQL Address",
@@ -41,6 +33,15 @@ cenozoApp.defineModule({
         title: "MSSQL Username",
         type: "string",
         help: "The password is stored in the application's configuration file.",
+      },
+      ssh_address: {
+        title: "SSH Address",
+        type: "string",
+      },
+      ssh_username: {
+        title: "SSH Username",
+        type: "string",
+        help: "No password is required since a keyfile is used instead.",
       },
     });
 
@@ -97,18 +98,70 @@ cenozoApp.defineModule({
             // do not allow images to be edited from this view
             if (angular.isDefined(object.imageModel)) {
               object.imageModel.getChooseEnabled = function () { return false; }
-            }   
-          }   
+            }
+          }
 
           init(this);
-        };  
+        };
         return {
           instance: function (parentModel, root) {
             return new object(parentModel, root);
           },
         };
-      },  
-    ]); 
+      },
+    ]);
+
+    /* ############################################################################################## */
+    cenozo.providers.factory("CnApexHostModelFactory", [
+      "CnBaseModelFactory",
+      "CnApexHostAddFactory",
+      "CnApexHostListFactory",
+      "CnApexHostViewFactory",
+      "CnHttpFactory",
+      function (
+        CnBaseModelFactory,
+        CnApexHostAddFactory,
+        CnApexHostListFactory,
+        CnApexHostViewFactory,
+        CnHttpFactory
+      ) {
+        var object = function (root) {
+          CnBaseModelFactory.construct(this, module);
+
+          angular.extend(this, {
+            addModel: CnApexHostAddFactory.instance(this),
+            listModel: CnApexHostListFactory.instance(this),
+            viewModel: CnApexHostViewFactory.instance(this, root),
+
+            getMetadata: async function() {
+              await this.$$getMetadata();
+
+              const response = await CnHttpFactory.instance({
+                path: "user",
+                data: {
+                  select: { column: ["id", "name", "first_name", "last_name"] },
+                  modifier: { where: { column: "apex_user.id", operator: "!=", value: null } },
+                },
+              }).query();
+
+              this.metadata.columnList.user_id.enumList = response.data.reduce((list, item) => {
+                list.push({
+                  value: item.id,
+                  name: item.first_name + " " + item.last_name + " (" + item.name + ")",
+                });
+                return list;
+              }, []);
+            },
+          });
+        };
+
+        return {
+          root: new object(true),
+          instance: function () {
+            return new object(false);
+          },
+        };
+      },
+    ]);
   },
 });
-          

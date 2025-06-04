@@ -18,12 +18,21 @@ class get extends \cenozo\service\self\get
    */
   protected function create_resource( $index )
   {
+    $apex_host_class_name = lib::get_class_name( 'database\apex_host' );
+
     $setting_manager = lib::create( 'business\setting_manager' );
-    $session = lib::create( 'business\session' );
+    $db_user = lib::create( 'business\session' )->get_user();
     $resource = parent::create_resource( $index );
 
     // include whether the user is an apex user
-    $resource['user']['apex_user'] = $session->get_user()->get_apex_user();
+    $resource['user']['apex_user'] = $db_user->get_apex_user();
+
+    // include the user's apex host ID (if they have one)
+    if( $resource['user']['apex_user'] )
+    {
+      $db_apex_host = $apex_host_class_name::get_unique_record( 'user_id', $db_user->id );
+      $resource['user']['apex_host_id'] = is_null( $db_apex_host ) ? NULL : $db_apex_host->id;
+    }
 
     return $resource;
   }

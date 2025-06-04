@@ -20,6 +20,9 @@ class module extends \alder\service\base_review_module
   {
     parent::prepare_read( $select, $modifier );
 
+    $modifier->join( 'user', 'apex_review.user_id', 'user.id' );
+    $modifier->left_join( 'apex_host', 'user.id', 'apex_host.user_id' );
+
     if( $select->has_column( 'status' ) )
     {
       $modifier->join(

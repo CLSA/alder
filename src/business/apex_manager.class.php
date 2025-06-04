@@ -182,7 +182,7 @@ class apex_manager extends \cenozo\base_object
           if( !file_exists( $filename ) ) throw new \Exception( 'File not found in data vault' );
 
           if( !$dicom_in_online || !$qdr_online )
-            throw new \Exception( sprintf( 'Service(s) on %s are offline', $this->db_apex_host->name ) );
+            throw new \Exception( sprintf( 'Service(s) on %s are offline', $this->db_apex_host->db_address ) );
 
           // create a temporary copy of the dicom file and prepare it for apex
           $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
@@ -204,7 +204,7 @@ class apex_manager extends \cenozo\base_object
           if( self::$debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
           unlink( $temp_filename );
           if( 0 != $response['exitcode'] )
-            throw new \Exception( sprintf( 'Failed to copy file to %s', $this->db_apex_host->name ) );
+            throw new \Exception( sprintf( 'Failed to copy file to %s', $this->db_apex_host->db_address ) );
 
           // wait up to 15 seconds for the file to register in the DICOM server
           $file_registered = false;
@@ -608,7 +608,7 @@ class apex_manager extends \cenozo\base_object
         unlink( $input_filename );
         if( 0 != $response['exitcode'] )
         {
-          return sprintf( 'Failed to copy frax input.txt file to %s.', $this->db_apex_host->name );
+          return sprintf( 'Failed to copy frax input.txt file to %s.', $this->db_apex_host->db_address );
         }
 
         $response = $this->ssh( sprintf( '%s\blackbox.exe', $this->qdr_data_path ) );
