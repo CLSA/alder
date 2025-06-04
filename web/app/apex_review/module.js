@@ -658,13 +658,26 @@ cenozoApp.defineModule({
             },
 
             setState: async function(value) {
-              try {
-                this.changingState = true;
-                await this.onPatch({ state: value });
-                await this.onView(true);
-              } catch (error) {
-              } finally {
-                this.changingState = false;
+              // warn when closing a review that hasn't been downloaded
+              let proceed = true;
+              if ("complete" == value && !this.analysisModel.viewModel.record.download_datetime) {
+                proceed = await CnModalConfirmFactory.instance({
+                  title: "Review Not Downloaded",
+                  message:
+                    "The review has not been downloaded from Apex. " +
+                    "Are you sure you wish to close this review without downloading the analysis?",
+                }).show();
+              }
+
+              if (proceed) {
+                try {
+                  this.changingState = true;
+                  await this.onPatch({ state: value });
+                  await this.onView(true);
+                } catch (error) {
+                } finally {
+                  this.changingState = false;
+                }
               }
             },
 
