@@ -27,13 +27,6 @@ class get extends \cenozo\service\self\get
     // include whether the user is an apex user
     $resource['user']['apex_user'] = $db_user->get_apex_user();
 
-    // include the user's apex host ID (if they have one)
-    if( $resource['user']['apex_user'] )
-    {
-      $db_apex_host = $apex_host_class_name::get_unique_record( 'user_id', $db_user->id );
-      $resource['user']['apex_host_id'] = is_null( $db_apex_host ) ? NULL : $db_apex_host->id;
-    }
-
     return $resource;
   }
 }
