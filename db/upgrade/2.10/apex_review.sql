@@ -4,12 +4,12 @@ CREATE PROCEDURE patch_apex_review()
   BEGIN
 
     -- determine the cenozo database name
-    SET @cenozo = ( 
+    SET @cenozo = (
       SELECT unique_constraint_schema
       FROM information_schema.referential_constraints
       WHERE constraint_schema = DATABASE()
       AND constraint_name = "fk_access_site_id"
-    );  
+    );
 
     SELECT "Creating new apex_review table" AS "";
 
@@ -55,7 +55,25 @@ DROP TRIGGER IF EXISTS apex_review_AFTER_INSERT$$
 CREATE DEFINER = CURRENT_USER TRIGGER apex_review_AFTER_INSERT AFTER INSERT ON apex_review FOR EACH ROW
 BEGIN
   INSERT INTO apex_analysis (apex_review_id, image_id)
-  SELECT NEW.id, image.id FROM image WHERE exam_id = NEW.exam_id;
+  SELECT NEW.id, image.id
+  FROM image
+  WHERE exam_id = NEW.exam_id
+  AND image.filename != "dxa_wbody_bca.dcm";
+
+  CALL update_exam_effective_apex_review(NEW.exam_id);
 END$$
+
+DROP TRIGGER IF EXISTS apex_review_AFTER_UPDATE$$
+CREATE DEFINER = CURRENT_USER TRIGGER apex_review_AFTER_UPDATE AFTER UPDATE ON apex_review FOR EACH ROW
+BEGIN
+  CALL update_exam_effective_apex_review(NEW.exam_id);
+END$$
+
+DROP TRIGGER IF EXISTS apex_review_AFTER_DELETE$$
+CREATE DEFINER = CURRENT_USER TRIGGER apex_review_AFTER_DELETE AFTER DELETE ON apex_review FOR EACH ROW
+BEGIN
+  CALL update_exam_effective_apex_review(OLD.exam_id);
+END$$
+
 
 DELIMITER ;

@@ -22,5 +22,6 @@ class module extends \cenozo\service\module
 
     $modifier->join( 'scan_type', 'selection.scan_type_id', 'scan_type.id' );
     $modifier->join( 'modality', 'scan_type.modality_id', 'modality.id' );
+    $modifier->where( 'apex', '=', lib::create( 'business\session' )->get_user()->get_apex_user() );
   }
 }

@@ -18,9 +18,13 @@ class module extends \cenozo\service\module
    */
   public function prepare_read( $select, $modifier )
   {
+    $apex_user = lib::create( 'business\session' )->get_user()->get_apex_user();
+
     parent::prepare_read( $select, $modifier );
 
     $this->add_list_column( 'scan_type_list', 'scan_type', 'name', $select, $modifier );
     $this->add_list_column( 'user_list', 'user', 'name', $select, $modifier );
+
+    if( $apex_user ) $modifier->where( 'modality.name', '=', 'dxa' );
   }
 }

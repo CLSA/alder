@@ -43,6 +43,7 @@ class module extends \cenozo\service\site_restricted_module
    */
   public function prepare_read( $select, $modifier )
   {
+    $review_type = lib::create( 'business\session' )->get_user()->get_apex_user() ? 'apex_review' : 'review';
     parent::prepare_read( $select, $modifier );
 
     $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
@@ -57,13 +58,13 @@ class module extends \cenozo\service\site_restricted_module
     if( !is_null( $db_restrict_site ) ) $modifier->where( 'interview.site_id', '=', $db_restrict_site->id );
 
     // when listing exams exclude non DXA scans from apex users
-    if( is_null( $this->get_resource() ) && lib::create( 'business\session' )->get_user()->get_apex_user() )
+    if( is_null( $this->get_resource() ) && 'apex_review' == $review_type )
     {
       $modifier->where( 'modality.name', '=', 'dxa' );
     }
 
     // add the list of user reviews via the review table
-    $this->add_list_column( 'user_list', 'user', 'name', $select, $modifier, 'review' );
+    $this->add_list_column( 'user_list', 'user', 'name', $select, $modifier, $review_type );
 
     if( $select->has_column( 'scan_type' ) )
     {
@@ -73,6 +74,46 @@ class module extends \cenozo\service\site_restricted_module
           'IF( scan_type.side = "none", "", CONCAT( " (", scan_type.side, ")" ) ) '.
         ')',
         'scan_type',
+        false
+      );
+    }
+
+    if( $select->has_column( 'review_status' ) )
+    {
+      $modifier->join(
+        'exam_effective_apex_review',
+        'exam.id',
+        'exam_effective_apex_review.exam_id'
+      );
+      $modifier->left_join(
+        'apex_review',
+        'exam_effective_apex_review.apex_review_id',
+        'effective_apex_review.id',
+        'effective_apex_review'
+      );
+      $modifier->left_join(
+        'apex_review_effective_apex_analysis',
+        'effective_apex_review.id',
+        'apex_review_effective_apex_analysis.apex_review_id'
+      );
+      $modifier->left_join(
+        'apex_analysis',
+        'apex_review_effective_apex_analysis.apex_analysis_id',
+        'effective_apex_analysis.id',
+        'effective_apex_analysis'
+      );
+
+      $select->add_column(
+        'IF( '.
+          'effective_apex_review.end_datetime is NOT NULL, "Closed", '.
+          'IF( '.
+            'effective_apex_analysis.download_datetime IS NOT NULL, "Downloaded", '.
+            'IF( effective_apex_analysis.upload_datetime IS NOT NULL, "Uploaded", '.
+              'IF( effective_apex_review.id IS NOT NULL, "Assigned", "Unassigned" ) '.
+            ') '.
+          ') '.
+        ')',
+        'review_status',
         false
       );
     }

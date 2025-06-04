@@ -16,7 +16,11 @@ cenozoApp.defineModule({
         possessive: "scan type's",
       },
       columnList: {
-        modality: { column: "modality.name", title: "Modality" },
+        modality: {
+          column: "modality.name",
+          title: "Modality",
+          isIncluded: ($state, model) => !model.isApexUser(),
+        },
         name: { title: "Name" },
         side: { title: "Side" },
         exam_count: { title: "Exams" },
@@ -37,5 +41,36 @@ cenozoApp.defineModule({
         type: "string",
       },
     });
+
+    /* ############################################################################################## */
+    cenozo.providers.factory("CnScanTypeModelFactory", [
+      "CnBaseModelFactory",
+      "CnScanTypeListFactory",
+      "CnScanTypeViewFactory",
+      "CnSession",
+      function (
+        CnBaseModelFactory,
+        CnScanTypeListFactory,
+        CnScanTypeViewFactory,
+        CnSession
+      ) {
+        var object = function (root) {
+          CnBaseModelFactory.construct(this, module);
+
+          angular.extend(this, {
+            listModel: CnScanTypeListFactory.instance(this),
+            viewModel: CnScanTypeViewFactory.instance(this, root),
+            isApexUser: () => CnSession.user.apexUser,
+          });
+        };
+
+        return {
+          root: new object(true),
+          instance: function () {
+            return new object(false);
+          },
+        };
+      },
+    ]);
   },
 });

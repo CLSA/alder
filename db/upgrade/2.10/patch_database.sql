@@ -19,6 +19,10 @@ SOURCE apex_analysis.sql
 SOURCE apex_analysis_has_code.sql
 SOURCE import_salix_data.sql
 SOURCE apex_user.sql
+SOURCE exam_effective_apex_review.sql
+SOURCE apex_review_effective_apex_analysis.sql
+SOURCE update_exam_effective_apex_review.sql
+SOURCE update_apex_review_effective_apex_analysis.sql
 
 SOURCE selection.sql
 SOURCE selection_option.sql

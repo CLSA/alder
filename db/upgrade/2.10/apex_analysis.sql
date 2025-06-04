@@ -7,8 +7,9 @@ CREATE TABLE IF NOT EXISTS apex_analysis (
   apex_review_id INT(10) UNSIGNED NOT NULL,
   image_id INT(10) UNSIGNED NOT NULL,
   pass TINYINT(1) NULL DEFAULT NULL,
+  upload_datetime DATETIME NULL DEFAULT NULL,
   download_datetime DATETIME NULL DEFAULT NULL,
-  data LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT 'null' CHECK (json_valid(`value`)),
+  data LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT 'null' CHECK (json_valid(value)),
   note TEXT NULL DEFAULT NULL,
   PRIMARY KEY (id),
   INDEX fk_image_id (image_id ASC),
@@ -24,3 +25,26 @@ CREATE TABLE IF NOT EXISTS apex_analysis (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
+
+
+DELIMITER $$
+
+DROP TRIGGER IF EXISTS apex_analysis_AFTER_INSERT$$
+CREATE DEFINER = CURRENT_USER TRIGGER apex_analysis_AFTER_INSERT AFTER INSERT ON apex_analysis FOR EACH ROW
+BEGIN
+  CALL update_apex_review_effective_apex_analysis(NEW.apex_review_id);
+END$$
+
+DROP TRIGGER IF EXISTS apex_analysis_AFTER_DELETE$$
+CREATE DEFINER = CURRENT_USER TRIGGER apex_analysis_AFTER_DELETE AFTER DELETE ON apex_analysis FOR EACH ROW
+BEGIN
+  CALL update_apex_review_effective_apex_analysis(OLD.apex_review_id);
+END$$
+
+DROP TRIGGER IF EXISTS apex_analysis_AFTER_UPDATE$$
+CREATE DEFINER = CURRENT_USER TRIGGER apex_analysis_AFTER_UPDATE AFTER UPDATE ON apex_analysis FOR EACH ROW
+BEGIN
+  CALL update_apex_review_effective_apex_analysis(NEW.apex_review_id);
+END$$
+
+DELIMITER ;

@@ -62,9 +62,6 @@ class ui extends \cenozo\ui\ui
     $module = $this->get_module( 'selection' );
     if( !is_null( $module ) ) $module->add_child( 'selection_option' );
 
-    $module = $this->get_module( 'apex_host' );
-    if( !is_null( $module ) ) $module->add_choose( 'image' );
-
     $module = $this->get_module( 'apex_analysis' );
     if( !is_null( $module ) )
     {
@@ -84,8 +81,17 @@ class ui extends \cenozo\ui\ui
 
     // add application-specific lists to the base list
     $this->add_listitem( 'Interviews', 'interview' );
-    $this->add_listitem( 'Modalities', 'modality' );
     $this->add_listitem( 'Reviews', $review_type );
+
+    if( 'review' == $review_type )
+    {
+      $this->add_listitem( 'Modalities', 'modality' );
+    }
+    else
+    {
+      $this->add_listitem( 'Apex Hosts', 'apex_host' );
+      $this->add_listitem( 'Scan Types', 'scan_type' );
+    }
   }
 
   /**
@@ -105,7 +111,7 @@ class ui extends \cenozo\ui\ui
     unset( $list['Tracing'] );
     if( 2 < $db_role->tier )
     {
-      $list['Review Multiedit'] = array( 'subject' => $review_type, 'action' => 'multiedit' );
+      $list['Review Multiedit'] = ['subject' => $review_type, 'action' => 'multiedit'];
     }
     return $list;
   }

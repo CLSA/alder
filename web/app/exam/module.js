@@ -18,15 +18,26 @@ cenozoApp.defineModule({
         modality: {
           column: "modality.name",
           title: "Modality",
+          isIncluded: ($state, model) => !model.isApexUser() && "scan_type" != model.getSubjectFromState(),
         },
         scan_type: {
           title: "Scan Type",
+          isIncluded: ($state, model) => "scan_type" != model.getSubjectFromState(),
+        },
+        study_phase: {
+          column: "study_phase.name",
+          title: "Study Phase",
+          isIncluded: ($state, model) => "interview" != model.getSubjectFromState(),
         },
         interviewer: {
           title: "Interviewer",
         },
         user_list: {
           title: "Reviewers",
+        },
+        review_status: {
+          title: "Review Status",
+          isIncluded: ($state, model) => model.isApexUser(),
         },
         datetime: {
           title: "Date & Time",
@@ -174,11 +185,13 @@ cenozoApp.defineModule({
       "CnExamDisplayFactory",
       "CnExamListFactory",
       "CnExamViewFactory",
+      "CnSession",
       function (
         CnBaseModelFactory,
         CnExamDisplayFactory,
         CnExamListFactory,
-        CnExamViewFactory
+        CnExamViewFactory,
+        CnSession
       ) {
         var object = function (root) {
           CnBaseModelFactory.construct(this, module);
@@ -187,6 +200,7 @@ cenozoApp.defineModule({
             displayModel: CnExamDisplayFactory.instance(this),
             listModel: CnExamListFactory.instance(this),
             viewModel: CnExamViewFactory.instance(this, root),
+            isApexUser: () => CnSession.user.apexUser,
           });
         };
 

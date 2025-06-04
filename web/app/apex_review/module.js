@@ -40,6 +40,9 @@ cenozoApp.defineModule({
           title: "Reviewer",
           isIncluded: function ($state, model) { return !model.isRole("typist"); },
         },
+        status: {
+          title: "Status",
+        },
         start_datetime: {
           column: "apex_review.start_datetime",
           title: "Start Date & Time",
