@@ -35,7 +35,7 @@ $SETTINGS['apex']['db_password'] = '';
 $SETTINGS['apex']['timeout'] = 5;
 
 // the maximum number of batched analysis uploads to perform at a time
-$SETTINGS['apex']['batch_size'] = 5;
+$SETTINGS['apex']['batch_size'] = 20;
 
 // various paths on Apex servers
 $SETTINGS['apex']['dgate_in'] = 'C:\dicomserverIN';
