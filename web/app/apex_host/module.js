@@ -55,12 +55,26 @@ cenozoApp.defineModule({
       },
     });
 
+    module.addExtraOperation("view", {
+      title: "Delete All Patients",
+      operation: async function ($state, model) {
+        await model.viewModel.deletePatients();
+      },
+      isIncluded: function($state, model) {
+        return model.getEditEnabled();
+      },
+      isDisabled: function($state, model) {
+        return model.viewModel.deletingPatients;
+      },
+    });
+
     /* ############################################################################################## */
     cenozo.providers.factory("CnApexHostViewFactory", [
       "CnBaseViewFactory",
       "CnHttpFactory",
       "CnModalMessageFactory",
-      function (CnBaseViewFactory, CnHttpFactory, CnModalMessageFactory) {
+      "CnModalConfirmFactory",
+      function (CnBaseViewFactory, CnHttpFactory, CnModalMessageFactory, CnModalConfirmFactory) {
         var object = function (parentModel, root) {
           CnBaseViewFactory.construct(this, parentModel, root, "image");
 
@@ -88,6 +102,28 @@ cenozoApp.defineModule({
                 }).show();
               } finally {
                 this.checkingStatus = false;
+              }
+            },
+            deletingPatients: false,
+            deletePatients: async function() {
+              this.deletingPatients = true;
+
+              try {
+                const check = await CnModalConfirmFactory.instance({
+                  message: (
+                    "Are you sure you wish to delete all patients from this Apex workstation? " +
+                    "This will remove all scans and data making it impossible to download any existing scans."
+                  ),
+                }).show();
+
+                if (check) {
+                  const response = await CnHttpFactory.instance({
+                    path: "apex_host/" + this.record.id + "?delete_patients=1",
+                  }).patch();
+                  console.log(response);
+                }
+              } finally {
+                this.deletingPatients = false;
               }
             },
           });

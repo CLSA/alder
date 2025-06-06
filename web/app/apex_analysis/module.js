@@ -168,12 +168,7 @@ cenozoApp.defineModule({
 
               // get the image(s) associated with this analysis
               const response = await CnHttpFactory.instance({
-                path: (
-                  "apex_analysis/" +
-                  this.parentModel.viewModel.record.id +
-                  "/image?apex_host_id=" +
-                  this.parentModel.viewModel.record.apex_host_id
-                ),
+                path: ["apex_analysis", this.parentModel.viewModel.record.id, "image"].join("/"),
               }).query();
 
               response.data.forEach((image) => {
@@ -216,23 +211,27 @@ cenozoApp.defineModule({
                 if (0 == fileList.length) return;
 
                 const response = await CnHttpFactory.instance({
-                  path: "apex_host/" + this.parentModel.viewModel.record.apex_host_id,
-                  data: { upload: this.parentModel.viewModel.record.id },
+                  path: "apex_analysis/" + this.parentModel.viewModel.record.id + "?action=upload",
                 }).patch();
                 await this.checkImageStatus();
 
-                response.data.forEach(image => {
-                  const workingImage = (
-                    null != this.baseImage && this.baseImage.filename == image.file ?
-                    this.baseImage :
-                    this.currentImage
-                  );
-                  angular.extend(workingImage, {
-                    uploaded: null == image.error,
-                    error: image.error,
-                    status: null == image.error ? "Successfully uploded to Apex workstation" : image.error,
+                if (angular.isString(response)) {
+                  angular.extend(this.baseImage, { uploaded: false, error: response, status: response });
+                  angular.extend(this.currentImage, { uploaded: false, error: response, status: response });
+                } else if (angular.isArray(response)) {
+                  response.data.forEach(image => {
+                    const workingImage = (
+                      null != this.baseImage && this.baseImage.filename == image.file ?
+                      this.baseImage :
+                      this.currentImage
+                    );
+                    angular.extend(workingImage, {
+                      uploaded: null == image.error,
+                      error: image.error,
+                      status: null == image.error ? "Successfully uploaded to Apex workstation" : image.error,
+                    });
                   });
-                });
+                }
               } finally {
                 this.uploadingImages = false;
               }

@@ -17,267 +17,261 @@
   <div class="container-fluid">
     <cn-loading ng-if="isLoading"></cn-loading>
     <div class="spacer" ng-if="!isLoading">
-      <div class="panel panel-default">
-        <div class="panel-heading">
-          <span class="allow-select">
-            <strong>Exam selection</strong>
-          </span>
+      <form class="form-horizontal"><fieldset ng-disabled="model.confirmInProgress">
+        <div class="form-group first-form-group">
+          <label for="studyPhaseId" class="col-sm-3 control-label text-right">Study Phase:</label>
+          <div class="col-sm-9">
+            <select
+              id="studyPhaseId"
+              ng-model="model.studyPhaseId"
+              ng-change="model.updateForm()"
+              ng-options="item.value as item.name for item in model.studyPhaseList"
+              class="form-control"
+            ></select>
+          </div>
         </div>
-        <div class="panel-body">
-          <form class="form-horizontal"><fieldset ng-disabled="model.confirmInProgress">
+        <div class="form-group">
+          <label for="modalityId" class="col-sm-3 control-label text-right">Modality:</label>
+          <div class="col-sm-9">
+            <select
+              id="modalityId"
+              ng-model="model.modalityId"
+              ng-change="model.updateForm()"
+              ng-options="item.value as item.name for item in model.modalityList"
+              class="form-control"
+            ></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="selectionType" class="col-sm-3 control-label text-right">Selection Type:</label>
+          <div class="col-sm-9">
+            <select
+              id="selectionType"
+              ng-model="model.selectionType"
+              ng-options="item.value as item.name for item in model.selectionTypeList"
+              class="form-control"
+            ></select>
+          </div>
+        </div>
+        <div ng-if="'random' == model.selectionType">
+          <div class="form-group">
+            <label for="siteId" class="col-sm-3 control-label text-right">Site:</label>
+            <div class="col-sm-9">
+              <select
+                id="siteId"
+                ng-model="model.siteId"
+                ng-change="model.updateForm()"
+                ng-options="item.value as item.name for item in model.siteList"
+                class="form-control"
+              ></select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="startDate" class="col-sm-3 control-label text-right">Start Date:</label>
+            <div class="col-sm-9">
+              <input
+                id="startDate"
+                ng-model="model.randomData.startDate"
+                type="hidden"
+              ></input>
+              <input
+                ng-model="model.formattedStartDate"
+                class="form-control"
+                type="text"
+                ng-click="model.selectDate('start')"
+                onkeydown="return false"
+              ></input>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="endDate" class="col-sm-3 control-label text-right">End Date:</label>
+            <div class="col-sm-9">
+              <input
+                id="endDate"
+                ng-model="model.randomData.endDate"
+                type="hidden"
+              ></input>
+              <input
+                ng-model="model.formattedEndDate"
+                class="form-control"
+                type="text"
+                ng-click="model.selectDate('end')"
+                onkeydown="return false"
+              ></input>
+            </div>
+          </div>
+          <div class="form-group">
+            <label
+              for="examsPer"
+              class="col-sm-3 control-label text-right"
+            >Exams per Interviewer:</label>
+            <div class="col-sm-9">
+              <input
+                id="examsPer"
+                ng-model="model.randomData.examsPer"
+                ng-change="model.sanitizeExamsPer()"
+                class="form-control"
+                type="text"
+                autocomplete="off"
+              ></input>
+            </div>
+          </div>
+        </div>
+        <div ng-if="'uid' == model.selectionType" class="form-group">
+          <label for="uidListString" class="col-sm-3 control-label text-right">UID List:</label>
+          <div class="col-sm-9">
+            <textarea
+              id="uidListString"
+              name="uidListString"
+              cn-elastic
+              cn-change="model.updateForm('uid')"
+              ng-model="model.uidData.uidListString"
+              class="form-control no-rounding"
+            ></textarea>
+          </div>
+        </div>
+      </fieldset></form>
+
+      <hr />
+
+      <div
+        ng-if="
+          !('random' == model.selectionType && model.randomData.canProceed) &&
+          !('uid' == model.selectionType && model.uidData.canProceed)
+        "
+        style="margin-bottom: 1.5em;"
+      >
+        <h4 class="text-center" ng-bind-html="model.confirmInProgress ? 'Searching, please wait...' : 'No exams selected.'"></h4>
+      </div>
+      <div ng-if="
+        ('random' == model.selectionType && model.randomData.canProceed) ||
+        ('uid' == model.selectionType && model.uidData.canProceed)
+      ">
+        <div ng-if="'random' == model.selectionType">
+          <div class="form-horizontal">
+            <div ng-repeat="(phase,modalityList) in model.randomData.examDataList">
+              <h3 class="text-center">{{ phase }}</h3>
+              <div ng-repeat="(modality,siteList) in modalityList">
+                <h4 class="text-center">{{ modality }}</h4>
+                <div class="row" ng-repeat="(site,interviewerList) in siteList">
+                  <label class="col-sm-6 control-label">{{ site }}</label>
+                  <div class="col-sm-6 form-text">
+                    <div
+                      ng-repeat="(interviewer,total) in interviewerList"
+                      ng-class="{ 'text-danger': total < model.randomData.examsPer }"
+                    >{{ interviewer }}: {{ total }}</div>
+                  </div>
+                </div>
+              </div>
+              <hr ng-if="!$last" />
+            </div>
+          </div>
+
+          <hr />
+
+          <form class="form-horizontal">
             <div class="form-group first-form-group">
-              <label for="studyPhaseId" class="col-sm-3 control-label text-right">Study Phase:</label>
+              <label for="userId" class="col-sm-3 control-label text-right">Create user review for:</label>
               <div class="col-sm-9">
                 <select
-                  id="studyPhaseId"
-                  ng-model="model.studyPhaseId"
-                  ng-change="model.updateForm()"
-                  ng-options="item.value as item.name for item in model.studyPhaseList"
+                  id="userId"
+                  ng-model="model.userId"
+                  ng-options="item.value as item.name for item in model.userList"
                   class="form-control"
                 ></select>
+                <div class="text-info">
+                  Please note that typists will only be assigned modalities that they have been assigned to.
+                </div>
               </div>
             </div>
-            <div class="form-group">
-              <label for="modalityId" class="col-sm-3 control-label text-right">Modality:</label>
-              <div class="col-sm-9">
-                <select
-                  id="modalityId"
-                  ng-model="model.modalityId"
-                  ng-change="model.updateForm()"
-                  ng-options="item.value as item.name for item in model.modalityList"
-                  class="form-control"
-                ></select>
+          </form>
+        </div>
+        <div ng-if="'uid' == model.selectionType">
+          <div class="form-horizontal">
+            <div ng-repeat="(phase,modalityList) in model.uidData.examDataList">
+              <h3 class="text-center">{{ phase }}</h3>
+              <div class="row" ng-repeat="(modality,totals) in modalityList">
+                <label class="col-sm-6 control-label">{{ modality }}</label>
+                <div class="col-sm-6 form-text">
+                  {{ totals.with }} exams with reviews, {{ totals.without }} without
+                </div>
               </div>
+              <hr ng-if="!$last" />
             </div>
-            <div class="form-group">
-              <label for="selectionType" class="col-sm-3 control-label text-right">Selection Type:</label>
-              <div class="col-sm-9">
-                <select
-                  id="selectionType"
-                  ng-model="model.selectionType"
-                  ng-options="item.value as item.name for item in model.selectionTypeList"
-                  class="form-control"
-                ></select>
-              </div>
-            </div>
-            <div ng-if="'random' == model.selectionType">
-              <div class="form-group">
-                <label for="siteId" class="col-sm-3 control-label text-right">Site:</label>
+          </div>
+          <hr />
+          <form class="form-horizontal">
+            <div ng-if="0 < model.uidData.withoutTotal">
+              <h4 class="text-center">Create new reviews ({{ model.uidData.withoutTotal }} total)</h4>
+              <div class="form-group first-form-group">
+                <label for="userId" class="col-sm-3 control-label text-right">Create user review for:</label>
                 <div class="col-sm-9">
                   <select
-                    id="siteId"
-                    ng-model="model.siteId"
-                    ng-change="model.updateForm()"
-                    ng-options="item.value as item.name for item in model.siteList"
+                    id="userId"
+                    ng-model="model.userId"
+                    ng-options="item.value as item.name for item in model.userList"
+                    class="form-control"
+                  ></select>
+                  <div class="text-info">
+                    Please note that typists will only be assigned modalities that they have been assigned to.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <hr ng-if="0 < model.uidData.withoutTotal && 0 < model.uidData.withTotal"/>
+            <div ng-if="0 < model.uidData.withTotal">
+              <h4 class="text-center">Edit existing reviews ({{ model.uidData.withTotal }} total)</h4>
+              <div class="form-group">
+                <label for="completed" class="col-sm-3 control-label text-right">
+                  Set completed:
+                </label>
+                <div class="col-sm-9">
+                  <select
+                    id="completed"
+                    ng-model="model.completed"
+                    ng-options="item.value as item.name for item in model.completedList"
                     class="form-control"
                   ></select>
                 </div>
               </div>
               <div class="form-group">
-                <label for="startDate" class="col-sm-3 control-label text-right">Start Date:</label>
+                <label for="notification" class="col-sm-3 control-label text-right">
+                  Set notification:
+                </label>
                 <div class="col-sm-9">
-                  <input
-                    id="startDate"
-                    ng-model="model.randomData.startDate"
-                    type="hidden"
-                  ></input>
-                  <input
-                    ng-model="model.formattedStartDate"
+                  <select
+                    id="notification"
+                    ng-model="model.notification"
+                    ng-options="item.value as item.name for item in model.notificationList"
                     class="form-control"
-                    type="text"
-                    ng-click="model.selectDate('start')"
-                    onkeydown="return false"
-                  ></input>
-                </div>
-              </div>
-              <div class="form-group">
-                <label for="endDate" class="col-sm-3 control-label text-right">End Date:</label>
-                <div class="col-sm-9">
-                  <input
-                    id="endDate"
-                    ng-model="model.randomData.endDate"
-                    type="hidden"
-                  ></input>
-                  <input
-                    ng-model="model.formattedEndDate"
-                    class="form-control"
-                    type="text"
-                    ng-click="model.selectDate('end')"
-                    onkeydown="return false"
-                  ></input>
-                </div>
-              </div>
-              <div class="form-group">
-                <label
-                  for="examsPer"
-                  class="col-sm-3 control-label text-right"
-                >Exams per Interviewer:</label>
-                <div class="col-sm-9">
-                  <input
-                    id="examsPer"
-                    ng-model="model.randomData.examsPer"
-                    ng-change="model.sanitizeExamsPer()"
-                    class="form-control"
-                    type="text"
-                    autocomplete="off"
-                  ></input>
+                  ></select>
                 </div>
               </div>
             </div>
-            <div ng-if="'uid' == model.selectionType" class="form-group">
-              <label for="uidListString" class="col-sm-3 control-label text-right">UID List:</label>
-              <div class="col-sm-9">
-                <textarea
-                  id="uidListString"
-                  name="uidListString"
-                  cn-elastic
-                  cn-change="model.updateForm('uid')"
-                  ng-model="model.uidData.uidListString"
-                  class="form-control no-rounding"
-                ></textarea>
-              </div>
-            </div>
-          </fieldset></form>
-
-          <hr style="border-width: 1em" />
-          <div ng-if="
-            !('random' == model.selectionType && model.randomData.canProceed) &&
-            !('uid' == model.selectionType && model.uidData.canProceed)
-          ">
-            <h4 class="text-center" ng-bind-html="model.confirmInProgress ? 'Searching, please wait...' : 'No exams selected.'"></h4>
-          </div>
-          <div ng-if="
-            ('random' == model.selectionType && model.randomData.canProceed) ||
-            ('uid' == model.selectionType && model.uidData.canProceed)
-          ">
-            <div ng-if="'random' == model.selectionType">
-              <div class="form-horizontal">
-                <div ng-repeat="(phase,modalityList) in model.randomData.examDataList">
-                  <h3 class="text-center">{{ phase }}</h3>
-                  <div ng-repeat="(modality,siteList) in modalityList">
-                    <h4 class="text-center">{{ modality }}</h4>
-                    <div class="row" ng-repeat="(site,interviewerList) in siteList">
-                      <label class="col-sm-6 control-label">{{ site }}</label>
-                      <div class="col-sm-6 form-text">
-                        <div
-                          ng-repeat="(interviewer,total) in interviewerList"
-                          ng-class="{ 'text-danger': total < model.randomData.examsPer }"
-                        >{{ interviewer }}: {{ total }}</div>
-                      </div>
-                    </div>
-                  </div>
-                  <hr ng-if="!$last" />
-                </div>
-              </div>
-              <hr />
-              <form class="form-horizontal">
-                <div class="form-group first-form-group">
-                  <label for="userId" class="col-sm-3 control-label text-right">Create user review for:</label>
-                  <div class="col-sm-9">
-                    <select
-                      id="userId"
-                      ng-model="model.userId"
-                      ng-options="item.value as item.name for item in model.userList"
-                      class="form-control"
-                    ></select>
-                    <div class="text-info">
-                      Please note that typists will only be assigned modalities that they have been assigned to.
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
-            
-            <div ng-if="'uid' == model.selectionType">
-              <div class="form-horizontal">
-                <div ng-repeat="(phase,modalityList) in model.uidData.examDataList">
-                  <h3 class="text-center">{{ phase }}</h3>
-                  <div class="row" ng-repeat="(modality,totals) in modalityList">
-                    <label class="col-sm-6 control-label">{{ modality }}</label>
-                    <div class="col-sm-6 form-text">
-                      {{ totals.with }} exams with reviews, {{ totals.without }} without
-                    </div>
-                  </div>
-                  <hr ng-if="!$last" />
-                </div>
-              </div>
-              <hr />
-              <form class="form-horizontal">
-                <div ng-if="0 < model.uidData.withoutTotal">
-                  <h4 class="text-center">Create new reviews ({{ model.uidData.withoutTotal }} total)</h4>
-                  <div class="form-group first-form-group">
-                    <label for="userId" class="col-sm-3 control-label text-right">Create user review for:</label>
-                    <div class="col-sm-9">
-                      <select
-                        id="userId"
-                        ng-model="model.userId"
-                        ng-options="item.value as item.name for item in model.userList"
-                        class="form-control"
-                      ></select>
-                      <div class="text-info">
-                        Please note that typists will only be assigned modalities that they have been assigned to.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <hr ng-if="0 < model.uidData.withoutTotal && 0 < model.uidData.withTotal"/>
-                <div ng-if="0 < model.uidData.withTotal">
-                  <h4 class="text-center">Edit existing reviews ({{ model.uidData.withTotal }} total)</h4>
-                  <div class="form-group">
-                    <label for="completed" class="col-sm-3 control-label text-right">
-                      Set completed:
-                    </label>
-                    <div class="col-sm-9">
-                      <select
-                        id="completed"
-                        ng-model="model.completed"
-                        ng-options="item.value as item.name for item in model.completedList"
-                        class="form-control"
-                      ></select>
-                    </div>
-                  </div>
-                  <div class="form-group">
-                    <label for="notification" class="col-sm-3 control-label text-right">
-                      Set notification:
-                    </label>
-                    <div class="col-sm-9">
-                      <select
-                        id="notification"
-                        ng-model="model.notification"
-                        ng-options="item.value as item.name for item in model.notificationList"
-                        class="form-control"
-                      ></select>
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-        <div class="form-footer text-right rounded-bottom bg-info">
-          <button
-            ng-if="
-              ('random' == model.selectionType && model.randomData.canProceed) ||
-              ('uid' == model.selectionType && model.uidData.canProceed)
-            "
-            ng-disabled="(
-              'random' == model.selectionType && (
-                null == model.userId || !model.randomData.examsPer
-              )
-            ) || (
-              'uid' == model.selectionType && (
-                null == model.userId && null != model.completed && null == model.notification
-              )
-            )"
-            type="button"
-            class="btn btn-primary"
-            ng-click="model.proceed()"
-          >Proceed</button>
+          </form>
         </div>
       </div>
     </div>
   </div>
   <div class="form-footer text-right rounded-bottom bg-info">
+    <button
+      ng-if="
+        ('random' == model.selectionType && model.randomData.canProceed) ||
+        ('uid' == model.selectionType && model.uidData.canProceed)
+      "
+      ng-disabled="(
+        'random' == model.selectionType && (
+          null == model.userId || !model.randomData.examsPer
+        )
+      ) || (
+        'uid' == model.selectionType && (
+          null == model.userId && null != model.completed && null == model.notification
+        )
+      )"
+      type="button"
+      class="btn btn-primary pull-left"
+      ng-click="model.proceed()"
+    >Proceed</button>
     <a href="#" ui-sref="participant.list" class="btn btn-default">View Review List</a>
   </div>
 </div>

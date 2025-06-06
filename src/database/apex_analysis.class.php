@@ -148,20 +148,21 @@ class apex_analysis extends \cenozo\database\record
   /**
    * Returns the image associated with this analysis and the base paired image (for forearm, hip and spine only)
    *
-   * @param database\apex_host An optional check to see if the images have been uploaded to the host
    * @param boolean $current_image_only If true then the current analysis image is returned instead of an array
    * @return associative array
    */
-  public function get_images_for_apex( $db_apex_host = NULL, $current_image_only = false )
+  public function get_images_for_apex( $current_image_only = false )
   {
     $image_class_name = lib::get_class_name( 'database\image' );
 
     $db_image = $this->get_image();
-    $db_exam = $this->get_apex_review()->get_exam();
+    $db_apex_review = $this->get_apex_review();
+    $db_exam = $db_apex_review->get_exam();
     $db_scan_type = $db_exam->get_scan_type();
     $db_interview = $db_exam->get_interview();
     $uid = $db_interview->get_participant()->uid;
     $db_study_phase = $db_interview->get_study_phase();
+    $db_apex_host = $db_apex_review->get_apex_host();
     $apex_manager = is_null( $db_apex_host ) ? NULL : lib::create( 'business\apex_manager', $db_apex_host );
 
     // determine whether the image has a number

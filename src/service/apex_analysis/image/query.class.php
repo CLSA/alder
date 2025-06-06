@@ -29,11 +29,8 @@ class query extends \cenozo\service\query
    */
   protected function setup()
   {
-    $apex_host_id = $this->get_argument( 'apex_host_id', NULL );
-    $db_apex_host = is_null( $apex_host_id ) ? NULL : lib::create( 'database\apex_host', $apex_host_id );
-
-    // cache the list of images that can be uploded to apex for this apex_analysis
-    $this->images_for_apex = $this->get_parent_record()->get_images_for_apex( $db_apex_host );
+    // cache the list of images that can be uploaded to apex for this apex_analysis
+    $this->images_for_apex = $this->get_parent_record()->get_images_for_apex();
   }
 
   /**

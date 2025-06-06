@@ -701,10 +701,27 @@ cenozoApp.defineModule({
                 }).show();
 
                 if (response) {
-                  await CnHttpFactory.instance({
-                    path: "apex_host/" + this.record.apex_host_id,
-                    data: { download: this.currentAnalysis.analysisId },
+                  const modal = CnModalMessageFactory.instance({
+                    title: "Apex Download",
+                    message: "Please wait...",
+                    block: true,
+                  });
+
+                  modal.show();
+
+                  const response = await CnHttpFactory.instance({
+                    path: "apex_analysis/" + this.currentAnalysis.analysisId + "?action=download"
                   }).patch();
+
+                  modal.close();
+                  modal.block = false;
+                  if (angular.isString(response.data)) {
+                    modal.message = response.data;
+                    modal.error = true;
+                  } else {
+                    modal.message = "The download was successful.";
+                  }
+                  modal.show();
                 }
               } finally {
                 this.isDownloading = false;

@@ -137,7 +137,7 @@ class apex_manager extends \cenozo\base_object
     $result_list = [];
     $modify_patient_record = true;
 
-    $image_list = $db_apex_analysis->get_images_for_apex( $this->db_apex_host );
+    $image_list = $db_apex_analysis->get_images_for_apex();
     foreach( $image_list as $image )
     {
       $result = ['file' => $image['filename'], 'error' => NULL];
@@ -200,7 +200,7 @@ class apex_manager extends \cenozo\base_object
           $response = $this->set_patient_id( $temp_filename, $new_patient_id );
           if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to modify DICOM tags' );
 
-          $response = $this->scp_file_to_apex( $temp_filename, sprintf( '%s\incoming', $this->incoming_path ) );
+          $response = $this->scp_to_apex( $temp_filename, sprintf( '%s\incoming', $this->incoming_path ) );
           if( self::$debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
           unlink( $temp_filename );
           if( 0 != $response['exitcode'] )
@@ -355,8 +355,7 @@ class apex_manager extends \cenozo\base_object
     $db_participant = $db_interview->get_participant();
 
     // get the current analysis image only
-    // (don't pass the apex host as we don't need to know if the un-analysed scan is present)
-    $image = $db_apex_analysis->get_images_for_apex( NULL, true );
+    $image = $db_apex_analysis->get_images_for_apex( true );
     $data = util::parse_dxa_filename( $image['filename'] );
 
     $short_type_string = strtoupper(
@@ -364,18 +363,34 @@ class apex_manager extends \cenozo\base_object
     );
     $short_identifier = sprintf( '%s_%s', $data['uid'], $short_type_string );
     $long_identifier = sprintf( '%s\%s\%s', $data['type'], $data['side'], $short_identifier );
+    $phase_string = sprintf( '%d%s', $data['phase']['rank'], $data['reanalysed'] ? 'R' : '' );
 
-    $response = $this->scp_dir_from_apex( sprintf( '%s\%s', $this->outgoing_path, $long_identifier ), TEMP_PATH );
-    if( 0 != $response['exitcode'] ) return 'Unable to download re-analysed scan from Apex.';
+    // the patient ID is based on uid, side and type
+    $patient_id = sprintf( '%s_%s', $db_participant->uid, $short_type_string );
 
-    if( self::$debug ) log::debug( sprintf( '%s/%s/*', TEMP_PATH, $short_identifier ) );
-    $file_list = glob( sprintf( '%s/%s/*', TEMP_PATH, $short_identifier ) );
-    if( 1 != count( $file_list ) ) return 'Unable to download re-analysed scan from Apex.';
+    // the scan ID is based on uid, phase, side, type, and whether it was reanalysed
+    $scan_id = sprintf( '%s%s%s', $data['uid'], $phase_string, $short_type_string );
+
+    // determine the name of the P and R files from the database
+    $select = lib::create( 'database\select' );
+    $select->from( 'dbo.ScanAnalysis' );
+    $select->add_column( 'PFILE_NAME', NULL, false );
+    $modifier = lib::create( 'database\modifier' );
+    $modifier->where( 'PATIENT_KEY', '=', $patient_id );
+    $modifier->where( 'SCANID', '=', $scan_id );
+    $pfile_name = $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
+    $pfile_glob = preg_replace( '/\..*$/', '.*', $pfile_name );
+
+    $response = $this->scp_from_apex( sprintf( '%s\%s', $this->qdr_data_path, $pfile_glob ), TEMP_PATH );
+    if( !self::$debug && 0 != $response['exitcode'] ) return 'Unable to download P and R files from Apex.';
+
+    $file_list = glob( sprintf( '%s/%s', TEMP_PATH, $pfile_glob ) );
+    if( !self::$debug && 2 > count( $file_list ) ) return 'Unable to download re-analysed scan from Apex.';
 
     $scan_type = $db_scan_type->name;
     if( 'none' != $scan_type ) $scan_type .= sprintf( '_%s', $db_scan_type->side );
-    $supplementary_filename = sprintf(
-      '%s/%d/dxa/%s/dxa_%s.reanalysed.dcm',
+    $base_supplementary_filename = sprintf(
+      '%s/%d/dxa/%s/dxa_%s',
       SUPPLEMENTARY_PATH,
       $db_study_phase->rank,
       $db_participant->uid,
@@ -383,19 +398,21 @@ class apex_manager extends \cenozo\base_object
     );
 
     // transfer file to supplementary directory
-    $transferred_to_supplementary = false;
-    if( self::$debug )
+    foreach( $file_list as $file )
     {
-      if( self::$debug ) log::debug( sprintf( 'cp %s %s', $file_list[0], $supplementary_filename ) );
-    }
-    else
-    {
-      $transferred_to_supplementary = (
-        is_writable( dirname( $supplementary_filename ) ) &&
-        copy( $file_list[0], $supplementary_filename )
-      );
-
-      //if( !$transferred_to_supplementary ) return 'Unable to transfer re-analysed file to Data Vault.';
+      $file_parts = pathinfo( $file );
+      $supplementary_filename = sprintf( '%s.%s', $base_supplementary_filename, $file_parts['extension'] );
+      if( self::$debug )
+      {
+        log::debug( sprintf( 'cp %s %s', $file, $supplementary_filename ) );
+      }
+      else
+      {
+        if( !( is_writable( dirname( $supplementary_filename ) ) && copy( $file, $supplementary_filename ) ) )
+        {
+          return 'Unable to transfer re-analysed file to Data Vault.';
+        }
+      }
     }
 
     $db_apex_analysis->download_datetime = util::get_datetime_object();
@@ -603,7 +620,7 @@ class apex_manager extends \cenozo\base_object
         file_put_contents( $input_filename, $input, LOCK_EX );
 
         // upload the input file to the apex server and run blackbox.exe
-        $response = $this->scp_file_to_apex( $input_filename, sprintf( '%s\input.txt', $this->qdr_data_path ) );
+        $response = $this->scp_to_apex( $input_filename, sprintf( '%s\input.txt', $this->qdr_data_path ) );
         if( self::$debug ) log::debug( sprintf( 'rm %s', $input_filename ) );
         unlink( $input_filename );
         if( 0 != $response['exitcode'] )
@@ -643,9 +660,6 @@ class apex_manager extends \cenozo\base_object
         ) );
       }
     }
-
-    // clean up the exported "report" file on the Apex server (if the transfer was successful)
-    if( $transferred_to_supplementary ) $this->delete_patient( 'out', $long_identifier );
 
     return true;
   }
@@ -698,13 +712,10 @@ class apex_manager extends \cenozo\base_object
       $modifier->join( 'dbo.ScanAnalysis', 'dbo.Patient.PATIENT_KEY', 'dbo.ScanAnalysis.PATIENT_KEY' );
       if( !is_null( $identifier ) ) $modifier->where( 'IDENTIFIER1', '=', $identifier );
 
-      $pfile_list = [];
-      $pfile_list = $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
-
-      foreach( $pfile_list as $pfile )
+      foreach( $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) ) as $pfile )
       {
-        $glob = preg_replace( '/\.P[0-9]*/', '.*', $pfile );
-        $this->ssh( sprintf( 'del /s /q %s\%s', $glob, $this->qdr_data_path ) );
+        $glob = preg_replace( '/\.[^.]+$/', '.*', $pfile );
+        $this->ssh( sprintf( 'del /s /q %s\%s', $this->qdr_data_path, $glob ) );
       }
 
       $modifier = lib::create( 'database\modifier' );
@@ -745,7 +756,7 @@ class apex_manager extends \cenozo\base_object
    * 
    * @access private
    */
-  private function scp_file_to_apex( $file, $destination )
+  private function scp_to_apex( $glob, $destination )
   {
     $address_parts = explode( ':', $this->db_apex_host->ssh_address );
     $ssh_address = $address_parts[0];
@@ -755,7 +766,7 @@ class apex_manager extends \cenozo\base_object
       'scp -i %s %s %s %s@%s:%s',
       $this->keyfile,
       is_null( $ssh_port ) ? '' : sprintf( '-P%d', $ssh_port ),
-      $file,
+      $glob,
       $this->db_apex_host->ssh_username,
       $ssh_address,
       // replace backslashes with two backslashes
@@ -770,7 +781,7 @@ class apex_manager extends \cenozo\base_object
    * 
    * @access private
    */
-  private function scp_dir_from_apex( $dir, $destination )
+  private function scp_from_apex( $glob, $destination )
   {
     $address_parts = explode( ':', $this->db_apex_host->ssh_address );
     $ssh_address = $address_parts[0];
@@ -783,7 +794,7 @@ class apex_manager extends \cenozo\base_object
       $this->db_apex_host->ssh_username,
       $ssh_address,
       // replace backslashes with two backslashes
-      preg_replace( '#\\\#', '\\\\\\', $dir ),
+      preg_replace( '#\\\#', '\\\\\\', $glob ),
       $destination
     );
     if( self::$debug ) log::debug( $scp_command );

@@ -70,3 +70,39 @@ else
   }
 }
 curl_close( $curl );
+
+/**
+ * Search for pending analysis to upload to Apex
+ */
+$curl = curl_init();
+curl_setopt( $curl, CURLOPT_URL, URL.'apex_analysis?upload=1' );
+curl_setopt( $curl, CURLOPT_SSL_VERIFYHOST, false );
+curl_setopt( $curl, CURLOPT_RETURNTRANSFER, true );
+curl_setopt( $curl, CURLOPT_HTTPHEADER, array( AUTH, 'No-Activity:true' ) );
+curl_setopt( $curl, CURLOPT_POST, true );
+$result = curl_exec( $curl );
+if( curl_errno( $curl ) )
+{
+  write_log( sprintf(
+    "Returned error code %s when trying to upload pending apex_analysis records\nMessage: %s",
+    curl_errno( $curl ),
+    curl_error( $curl )
+  ) );
+}
+else
+{
+  $code = curl_getinfo( $curl, CURLINFO_HTTP_CODE );
+  if( 201 == $code )
+  {
+    write_log( $result );
+  }
+  else if( 204 == $code )
+  {
+    // no pending analysis records, so stay silent
+  }
+  else
+  {
+    write_log( sprintf( 'Failed to upload pending apex_analysis records (response code: %s)', $code ) );
+  }
+}
+curl_close( $curl );

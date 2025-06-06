@@ -185,6 +185,18 @@ abstract class base_review_post extends \cenozo\service\post
               $db_review->exam_id = $exam['id'];
               $db_review->user_id = $user_id;
               $db_review->save();
+
+              if( 'apex_review' == $review_type )
+              {
+                // mark the effective apex_analysis records for automatic upload
+                $db_apex_analysis = $db_review->get_effective_apex_analysis();
+                if( !is_null( $db_apex_analysis ) )
+                {
+                  $db_apex_analysis->upload_status = 'Pending';
+                  $db_apex_analysis->save();
+                }
+              }
+
               $data++;
             }
           }

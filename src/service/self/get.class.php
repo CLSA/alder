@@ -18,8 +18,6 @@ class get extends \cenozo\service\self\get
    */
   protected function create_resource( $index )
   {
-    $apex_host_class_name = lib::get_class_name( 'database\apex_host' );
-
     $setting_manager = lib::create( 'business\setting_manager' );
     $db_user = lib::create( 'business\session' )->get_user();
     $resource = parent::create_resource( $index );

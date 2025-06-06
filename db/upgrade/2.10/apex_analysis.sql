@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS apex_analysis (
   apex_review_id INT(10) UNSIGNED NOT NULL,
   image_id INT(10) UNSIGNED NOT NULL,
   pass TINYINT(1) NULL DEFAULT NULL,
+  upload_status VARCHAR(255) NULL DEFAULT NULL,
   upload_datetime DATETIME NULL DEFAULT NULL,
   download_datetime DATETIME NULL DEFAULT NULL,
   data LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT 'null' CHECK (json_valid(value)),
