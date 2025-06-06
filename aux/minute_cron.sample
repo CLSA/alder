@@ -75,11 +75,10 @@ curl_close( $curl );
  * Search for pending analysis to upload to Apex
  */
 $curl = curl_init();
-curl_setopt( $curl, CURLOPT_URL, URL.'apex_analysis?upload=1' );
+curl_setopt( $curl, CURLOPT_URL, URL.'apex_analysis?action=upload' );
 curl_setopt( $curl, CURLOPT_SSL_VERIFYHOST, false );
 curl_setopt( $curl, CURLOPT_RETURNTRANSFER, true );
 curl_setopt( $curl, CURLOPT_HTTPHEADER, array( AUTH, 'No-Activity:true' ) );
-curl_setopt( $curl, CURLOPT_POST, true );
 $result = curl_exec( $curl );
 if( curl_errno( $curl ) )
 {
@@ -92,13 +91,28 @@ if( curl_errno( $curl ) )
 else
 {
   $code = curl_getinfo( $curl, CURLINFO_HTTP_CODE );
-  if( 201 == $code )
+  if( 409 == $code )
   {
-    write_log( $result );
+    write_log( 'Aborting apex_analysis upload since there is an upload already in progress.' );
   }
-  else if( 204 == $code )
+  else if( 200 == $code )
   {
-    // no pending analysis records, so stay silent
+    $object_list = json_decode( $result );
+    if( 0 < count( $object_list ) )
+    {
+      // count how many files were upload
+      $uploaded = 0;
+      foreach( $object_list as $obj )
+      {
+        if( !is_null( $obj->upload_datetime ) && is_null( $obj->upload_status ) ) $uploaded++;
+      }
+
+      write_log( sprintf(
+        'Finished uploading %d of %d pending apex_analysis records',
+        $uploaded,
+        count( $object_list )
+      ) );
+    }
   }
   else
   {

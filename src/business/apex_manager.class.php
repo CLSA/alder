@@ -705,17 +705,25 @@ class apex_manager extends \cenozo\base_object
     else if ( 'apex' == $type )
     {
       // delete P and R files
-      $select = lib::create( 'database\select' );
-      $select->from( 'dbo.Patient' );
-      $select->add_column( 'PFILE_NAME', NULL, false );
-      $modifier = lib::create( 'database\modifier' );
-      $modifier->join( 'dbo.ScanAnalysis', 'dbo.Patient.PATIENT_KEY', 'dbo.ScanAnalysis.PATIENT_KEY' );
-      if( !is_null( $identifier ) ) $modifier->where( 'IDENTIFIER1', '=', $identifier );
-
-      foreach( $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) ) as $pfile )
+      if( is_null( $identifier ) )
       {
-        $glob = preg_replace( '/\.[^.]+$/', '.*', $pfile );
-        $this->ssh( sprintf( 'del /s /q %s\%s', $this->qdr_data_path, $glob ) );
+        $this->ssh( sprintf( 'del /s /q %s\*.P*', $this->qdr_data_path ) );
+        $this->ssh( sprintf( 'del /s /q %s\*.r*', $this->qdr_data_path ) );
+      }
+      else
+      {
+        $select = lib::create( 'database\select' );
+        $select->from( 'dbo.Patient' );
+        $select->add_column( 'PFILE_NAME', NULL, false );
+        $modifier = lib::create( 'database\modifier' );
+        $modifier->join( 'dbo.ScanAnalysis', 'dbo.Patient.PATIENT_KEY', 'dbo.ScanAnalysis.PATIENT_KEY' );
+        $modifier->where( 'IDENTIFIER1', '=', $identifier );
+
+        foreach( $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) ) as $pfile )
+        {
+          $glob = preg_replace( '/\.[^.]+$/', '.*', $pfile );
+          $this->ssh( sprintf( 'del /s /q %s\%s', $this->qdr_data_path, $glob ) );
+        }
       }
 
       $modifier = lib::create( 'database\modifier' );

@@ -117,10 +117,9 @@ cenozoApp.defineModule({
                 }).show();
 
                 if (check) {
-                  const response = await CnHttpFactory.instance({
+                  CnHttpFactory.instance({
                     path: "apex_host/" + this.record.id + "?delete_patients=1",
                   }).patch();
-                  console.log(response);
                 }
               } finally {
                 this.deletingPatients = false;

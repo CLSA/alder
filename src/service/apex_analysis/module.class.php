@@ -76,7 +76,7 @@ class module extends \cenozo\service\site_restricted_module
           $utility = $setting_manager->get_setting( 'utility', 'username' );
           if( $utility != lib::create( 'business\session' )->get_user()->name )
           {
-            $this->status->set_code( 403 );
+            $this->get_status()->set_code( 403 );
           }
           else
           {
@@ -85,7 +85,7 @@ class module extends \cenozo\service\site_restricted_module
             $modifier->where( 'upload_status', '=', 'In progress' );
             if( 0 < $apex_analysis_class_name::count( $modifier ) )
             {
-              $this->status->set_code( 409 );
+              $this->get_status()->set_code( 409 );
             }
           }
         }
@@ -142,40 +142,53 @@ class module extends \cenozo\service\site_restricted_module
     $action = $this->get_argument( 'action', false );
     if( 'upload' == $action )
     {
-      $apex_analysis_class_name = lib::get_class_name( 'database\apex_analysis' );
-      $apex_analysis_class_name::db()->autocommit( true );
+      $session = lib::create( 'business\session' );
 
       // upload each analysis record one at a time
       $db_apex_analysis = lib::create( 'database\apex_analysis', $row['id'] );
       $db_apex_host = $db_apex_analysis->get_apex_review()->get_apex_host();
+
+      $db_apex_analysis->upload_status = 'In progress';
+      $db_apex_analysis->save();
+      $session->get_database()->complete_transaction();
 
       if( is_null( $db_apex_host ) )
       {
         $db_apex_analysis->upload_status = 'Reviewer is not assigned to an Apex host.';
         $db_apex_analysis->upload_datetime = NULL;
         $db_apex_analysis->save();
-        return;
       }
-
-      // upload the provided files to the host
-      $apex_manager = lib::create( 'business\apex_manager', $db_apex_host );
-      $result_list = $apex_manager->upload_files( $db_apex_analysis );
-
-      // now either set the upload status to an error or successful
-      foreach( $result_list as $result )
+      else
       {
-        if( !is_null( $result['error'] ) )
+        // upload the provided files to the host
+        $apex_manager = lib::create( 'business\apex_manager', $db_apex_host );
+        $result_list = $apex_manager->upload_files( $db_apex_analysis );
+
+        // now either set the upload status to an error or successful
+        $error = false;
+        foreach( $result_list as $result )
         {
-          $db_apex_analysis->upload_status = $result['error'];
-          $db_apex_analysis->upload_datetime = NULL;
+          if( !is_null( $result['error'] ) )
+          {
+            $error = true;
+            $db_apex_analysis->upload_status = $result['error'];
+            $db_apex_analysis->upload_datetime = NULL;
+            $db_apex_analysis->save();
+            break;
+          }
+        }
+
+        if( !$error )
+        {
+          $db_apex_analysis->upload_status = NULL;
+          $db_apex_analysis->upload_datetime = util::get_datetime_object();
           $db_apex_analysis->save();
-          return;
         }
       }
 
-      $db_apex_analysis->upload_status = NULL;
-      $db_apex_analysis->upload_datetime = util::get_datetime_object();
-      $db_apex_analysis->save();
+      // update the row
+      $row['upload_status'] = $db_apex_analysis->upload_status;
+      $row['upload_datetime'] = $db_apex_analysis->upload_datetime;
     }
   }
 
