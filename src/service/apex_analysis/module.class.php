@@ -106,8 +106,10 @@ class module extends \cenozo\service\site_restricted_module
 
     $modifier->join( 'apex_review', 'apex_analysis.apex_review_id', 'apex_review.id' );
     $modifier->join( 'exam', 'apex_review.exam_id', 'exam.id' );
+    $modifier->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
     $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
     $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
+    $modifier->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
     $modifier->left_join( 'site', 'interview.site_id', 'site.id' );
     $modifier->join( 'user', 'apex_review.user_id', 'user.id' );
     $modifier->left_join( 'apex_host', 'user.id', 'apex_host.user_id' );
@@ -122,12 +124,25 @@ class module extends \cenozo\service\site_restricted_module
       $modifier->where( 'interview.site_id', '=', $db_restrict_site->id );
     }
 
+    if( $select->has_column( 'scan_type' ) )
+    {
+      $select->add_column(
+        'CONCAT( '.
+          'scan_type.name, '.
+          'IF( scan_type.side = "none", "", CONCAT( " (", scan_type.side, ")" ) ) '.
+        ')',
+        'scan_type',
+        false
+      );
+    }
+
     // when uploading restrict to pending records only, and limit by max batch size
     if( is_null( $this->get_resource() ) && 'upload' == $this->get_argument( 'action', false ) )
     {
       $setting_manager = lib::create( 'business\setting_manager' );
       $batch_size = $setting_manager->get_setting( 'apex', 'batch_size' );
       $modifier->where( 'upload_status', '=', 'Pending' );
+      $modifier->order( 'participant.uid' );
       $modifier->limit( $batch_size );
     }
   }

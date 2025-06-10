@@ -68,6 +68,9 @@ class ui extends \cenozo\ui\ui
       $module->add_action( 'download', '/{identifier}' );
       $module->add_action( 'upload', '/{identifier}' );
     }
+
+    $module = $this->get_module( 'apex_host' );
+    if( !is_null( $module ) ) $module->add_child( 'apex_analysis' );
   }
 
   /**

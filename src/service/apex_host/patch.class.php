@@ -15,7 +15,8 @@ class patch extends \cenozo\service\patch
    */
   protected function setup()
   {
-    if( !$this->get_argument( 'delete_patients', false ) ) parent::setup();
+    $action = $this->get_argument( 'action', NULL );
+    if( !in_array( $action, ['delete_patients', 'reupload_images'] ) ) parent::setup();
   }
 
   /**
@@ -23,10 +24,15 @@ class patch extends \cenozo\service\patch
    */
   protected function execute()
   {
-    if( $this->get_argument( 'delete_patients', false ) )
+    $action = $this->get_argument( 'action', NULL );
+    if( 'delete_patients' == $action )
     {
       $apex_manager = lib::create( 'business\apex_manager', $this->get_leaf_record() );
       $this->set_data( $apex_manager->delete_all_patients() );
+    }
+    else if( 'reupload_images' == $action )
+    {
+      $this->get_leaf_record()->reupload_images();
     }
     else
     {

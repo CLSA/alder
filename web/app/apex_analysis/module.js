@@ -1,6 +1,6 @@
 cenozoApp.defineModule({
   name: "apex_analysis",
-  models: ["view"],
+  models: ["list", "view"],
   create: (module) => {
     angular.extend(module, {
       identifier: {
@@ -13,6 +13,29 @@ cenozoApp.defineModule({
         singular: "analysis",
         plural: "analyses",
         possessive: "analysis'",
+      },
+      columnList: {
+        uid: {
+          column: "participant.uid",
+          title: "Participant",
+        },
+        phase: {
+          column: "study_phase.name",
+          title: "Phase",
+        },
+        scan_type: {
+          title: "Type",
+        },
+        upload_status: {
+          title: "Upload Status",
+        },
+        apex_review_id: {
+          isIncluded: ($state, model) => false,
+        },
+      },
+      defaultOrder: {
+        column: "participant.uid",
+        reverse: false,
       },
     });
 
@@ -42,6 +65,16 @@ cenozoApp.defineModule({
       apex_host_id: { column: "apex_host.id", type: "hidden" },
       apex_review_id: { type: "hidden" },
       uid: { column: "participant.uid", type: "hidden" },
+    });
+
+    module.addExtraOperation("list", {
+      title: "Re-Schedule Failed Uploads",
+      operation: async function ($state, model) {
+        await model.listModel.reUploadImages($state.params.identifier);
+      },
+      isIncluded: function ($state, model) {
+        return "apex_host" == model.getSubjectFromState();
+      },
     });
 
     /* ############################################################################################## */
@@ -82,14 +115,41 @@ cenozoApp.defineModule({
     ]);
 
     /* ############################################################################################## */
+    cenozo.providers.factory("CnApexAnalysisListFactory", [
+      "CnBaseListFactory",
+      "CnHttpFactory",
+      "$state",
+      function (CnBaseListFactory, CnHttpFactory, $state) {
+        var object = function (parentModel) {
+          CnBaseListFactory.construct(this, parentModel);
+
+          angular.extend(this, {
+            onSelect: async function (record) {
+              await $state.go("apex_review.view", { identifier: record.apex_review_id });
+            },
+            reUploadImages: async function (apexHostId) {
+              await CnHttpFactory.instance({
+                path: "apex_host/" + apexHostId + "?action=reupload_images",
+              }).patch();
+              await this.onList(true);
+            },
+          });
+        };
+        return {
+          instance: function (parentModel) {
+            return new object(parentModel);
+          },
+        };
+      },
+    ]);
+
+    /* ############################################################################################## */
     cenozo.providers.factory("CnApexAnalysisUploadFactory", [
       "CnApexAnalysisModelFactory",
-      "CnSession",
       "CnHttpFactory",
-      "CnModalMessageFactory",
-      function (CnApexAnalysisModelFactory, CnSession, CnHttpFactory, CnModalMessageFactory) {
+      "CnModalApexHostStatusFactory",
+      function (CnApexAnalysisModelFactory, CnHttpFactory, CnModalApexHostStatusFactory) {
         var object = function () {
-
           angular.extend(this, {
             parentModel: CnApexAnalysisModelFactory.instance(),
             isLoading: true,
@@ -99,68 +159,7 @@ cenozoApp.defineModule({
             uploadingImages: false,
 
             checkApexHostStatus: async function() {
-              if (!this.parentModel.viewModel.record.apex_host_id) return;
-
-              try {
-                const modal = CnModalMessageFactory.instance({
-                  title: "Checking Apex Status",
-                  message: "Please wait...",
-                  html: true,
-                  block: true,
-                });
-
-                modal.show();
-
-                // get the host's status
-                const response = await CnHttpFactory.instance({
-                  path: "apex_host/" + this.parentModel.viewModel.record.apex_host_id,
-                  data: { select: { column: 'status' } },
-                  onError: (error) => {
-                    modal.close();
-                    modal.message = "Unable to connect to Apex workstation.";
-                    modal.block = false;
-                    modal.show();
-                  },
-                }).get();
-
-                const status = JSON.parse(response.data.status);
-                modal.close();
-                modal.message = "<h4>Results:</h4><ul>";
-                for (let key in status) {
-                  let value = status[key];
-                  modal.message += `
-                    <li>
-                      ${key}: 
-                      <span ng-class="text-${value ? 'success' : 'danger'}">
-                        ${null == value ? "failed" : value ? "online" : "offline"}
-                        <i class="glyphicon" ng-class="glyphicon-${value ? 'ok' : 'remove'}"></i>
-                      </span>
-                    </li>
-                  `;
-                }
-                modal.message += "</ul>";
-
-                if (!status['DICOM In'] || !status['DICOM Apex'] || !status['QDR']) {
-                  modal.message += `
-                    <div
-                      class="input-group text-danger"
-                      ng-if="!${status['DICOM In']} || !${status['DICOM Apex']} || !${status['QDR']}"
-                    >
-                      <h4>Please Note:</h4>
-                      <div class="container-fluid">
-                        Before images can be sent to the selected Apex workstation,
-                        DICOM In, DICOM Apex and QDR must all be online.<br />
-                        Please check the Apex workstation and try again once all software is running.
-                      </div>
-                    </div>
-                  `;
-                }
-
-                modal.block = false;
-                modal.show();
-
-              } finally {
-              }
+              await CnModalApexHostStatusFactory.instance(this.parentModel.viewModel.record.apex_host_id).show();
             },
 
             checkImageStatus: async function() {

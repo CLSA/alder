@@ -25,6 +25,76 @@ cenozo.directive("cnImageDisplay", [
 
 
 /* ############################################################################################## */
+cenozo.factory("CnModalApexHostStatusFactory", [
+  "CnHttpFactory",
+  "CnModalMessageFactory",
+  function (CnHttpFactory, CnModalMessageFactory) {
+    var object = function (apexHostId) {
+      this.show = async function() {
+        const modal = CnModalMessageFactory.instance({
+          title: "Checking Apex Status",
+          message: "Please wait...",
+          html: true,
+          block: true,
+        });
+
+        modal.show();
+
+        // get the host's status
+        const response = await CnHttpFactory.instance({
+          path: "apex_host/" + apexHostId,
+          data: { select: { column: 'status' } },
+          onError: (error) => {
+            modal.close();
+            modal.message = "Unable to connect to Apex workstation.";
+            modal.block = false;
+            modal.show();
+          },
+        }).get();
+
+        const status = JSON.parse(response.data.status);
+        modal.close();
+        modal.message = "<h4>Results:</h4><ul>";
+        for (let key in status) {
+          let value = status[key];
+          modal.message += `
+            <li>
+              ${key}:
+              <span class="text-${value ? 'success' : 'danger'}">
+                ${null == value ? "failed" : value ? "online" : "offline"}
+                <i class="glyphicon glyphicon-${value ? 'ok' : 'remove'}"></i>
+              </span>
+            </li>
+          `;
+        }   
+        modal.message += "</ul>";
+
+        if (!status['DICOM In'] || !status['DICOM Apex'] || !status['QDR']) {
+          modal.message += `
+            <div class="input-group text-danger">
+              <h4>Please Note:</h4>
+              <div class="container-fluid">
+                Before images can be sent to the selected Apex workstation,
+                DICOM In, DICOM Apex and QDR must all be online.<br />
+                Please check the Apex workstation and try again once all software is running.
+              </div>
+            </div>
+          `;
+        }   
+
+        modal.block = false;
+        modal.show();
+      };
+    };
+    return {
+      instance: function (apexHostId) {
+        return new object(apexHostId);
+      },
+    };
+  },
+]);
+
+/* ############################################################################################## */
 cenozo.factory("CnImageDisplayFactory", [
   "CnSession",
   "CnHttpFactory",

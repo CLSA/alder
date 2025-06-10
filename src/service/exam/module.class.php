@@ -104,12 +104,12 @@ class module extends \cenozo\service\site_restricted_module
       );
 
       $select->add_column(
-        'IF( '.
-          'effective_apex_review.end_datetime is NOT NULL, "Closed", '.
-          'IF( '.
-            'effective_apex_analysis.download_datetime IS NOT NULL, "Downloaded", '.
+        'IF( effective_apex_review.end_datetime is NOT NULL, "Closed", '.
+          'IF( effective_apex_analysis.download_datetime IS NOT NULL, "Downloaded", '.
             'IF( effective_apex_analysis.upload_datetime IS NOT NULL, "Uploaded", '.
-              'IF( effective_apex_review.id IS NOT NULL, "Assigned", "Unassigned" ) '.
+              'IF( effective_apex_analysis.upload_status IS NOT NULL, "Not Uploaded", '.
+                'IF( effective_apex_review.id IS NOT NULL, "Assigned", "Unassigned" ) '.
+              ') '.
             ') '.
           ') '.
         ')',

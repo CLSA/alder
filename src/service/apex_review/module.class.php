@@ -39,11 +39,11 @@ class module extends \alder\service\base_review_module
       );
 
       $select->add_column(
-        'IF( '.
-          'apex_review.end_datetime is NOT NULL, "Closed", '.
-          'IF( '.
-            'effective_apex_analysis.download_datetime IS NOT NULL, "Downloaded", '.
-            'IF( effective_apex_analysis.upload_datetime IS NOT NULL, "Uploaded", "Assigned" ) '.
+        'IF( apex_review.end_datetime is NOT NULL, "Closed", '.
+          'IF( effective_apex_analysis.download_datetime IS NOT NULL, "Downloaded", '.
+            'IF( effective_apex_analysis.upload_datetime IS NOT NULL, "Uploaded", '.
+              'IF( effective_apex_analysis.upload_status IS NOT NULL, "Not Uploaded", "Assigned" ) '.
+            ') '.
           ') '.
         ')',
         'status',

@@ -13,6 +13,7 @@ cenozoApp.defineModule({
         user: { column: "user.name", title: "User" },
         db_address: { title: "DB address" },
         ssh_address: { title: "SSH address" },
+        pending_apex_analysis_count: { title: "Pending Uploads", type: "number" },
       },
       defaultOrder: {
         column: "apex_host.db_address",
@@ -50,9 +51,6 @@ cenozoApp.defineModule({
       operation: async function ($state, model) {
         await model.viewModel.checkStatus();
       },
-      isDisabled: function($state, model) {
-        return model.viewModel.checkingStatus;
-      },
     });
 
     module.addExtraOperation("view", {
@@ -72,37 +70,15 @@ cenozoApp.defineModule({
     cenozo.providers.factory("CnApexHostViewFactory", [
       "CnBaseViewFactory",
       "CnHttpFactory",
-      "CnModalMessageFactory",
+      "CnModalApexHostStatusFactory",
       "CnModalConfirmFactory",
-      function (CnBaseViewFactory, CnHttpFactory, CnModalMessageFactory, CnModalConfirmFactory) {
+      function (CnBaseViewFactory, CnHttpFactory, CnModalApexHostStatusFactory, CnModalConfirmFactory) {
         var object = function (parentModel, root) {
-          CnBaseViewFactory.construct(this, parentModel, root, "image");
+          CnBaseViewFactory.construct(this, parentModel, root);
 
           angular.extend(this, {
-            checkingStatus: false,
             checkStatus: async function() {
-              this.checkingStatus = true;
-
-              try {
-                const response = await CnHttpFactory.instance({
-                  path: "apex_host/" + this.record.id,
-                  data: { select: { column: "status" } },
-                }).get();
-
-                const status = JSON.parse(response.data.status);
-                let message = "<ul>";
-                for(let key in status) {
-                  message += "<li>" + key + ": " + (status[key] ? "online" : "offline") + "</li>";
-                }
-                message += "</ul>";
-                await CnModalMessageFactory.instance({
-                  title: "Apex Host Status",
-                  message: message,
-                  html: true,
-                }).show();
-              } finally {
-                this.checkingStatus = false;
-              }
+              await CnModalApexHostStatusFactory.instance(this.record.id).show();
             },
             deletingPatients: false,
             deletePatients: async function() {
@@ -118,7 +94,7 @@ cenozoApp.defineModule({
 
                 if (check) {
                   CnHttpFactory.instance({
-                    path: "apex_host/" + this.record.id + "?delete_patients=1",
+                    path: "apex_host/" + this.record.id + "?action=delete_patients",
                   }).patch();
                 }
               } finally {
@@ -128,15 +104,10 @@ cenozoApp.defineModule({
           });
 
           async function init(object) {
-            await object.deferred.promise;
-
-            // do not allow images to be edited from this view
-            if (angular.isDefined(object.imageModel)) {
-              object.imageModel.getChooseEnabled = function () { return false; }
-            }
+            
           }
 
-          init(this);
+          init(object);
         };
         return {
           instance: function (parentModel, root) {
