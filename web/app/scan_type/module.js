@@ -1,7 +1,7 @@
 cenozoApp.defineModule({
   name: "scan_type",
   models: ["list", "view"],
-  defaultTab: "code_group",
+  defaultTab: "exam",
   create: (module) => {
     angular.extend(module, {
       identifier: {
