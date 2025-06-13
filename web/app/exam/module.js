@@ -15,6 +15,11 @@ cenozoApp.defineModule({
         possessive: "exam's",
       },
       columnList: {
+        uid: {
+          column: "participant.uid",
+          title: "Participant",
+          isIncluded: ($state, model) => "interview" != model.getSubjectFromState(),
+        },
         modality: {
           column: "modality.name",
           title: "Modality",

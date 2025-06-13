@@ -80,42 +80,49 @@ class module extends \cenozo\service\site_restricted_module
 
     if( $select->has_column( 'review_status' ) )
     {
-      $modifier->join(
-        'exam_effective_apex_review',
-        'exam.id',
-        'exam_effective_apex_review.exam_id'
-      );
-      $modifier->left_join(
-        'apex_review',
-        'exam_effective_apex_review.apex_review_id',
-        'effective_apex_review.id',
-        'effective_apex_review'
-      );
-      $modifier->left_join(
-        'apex_review_effective_apex_analysis',
-        'effective_apex_review.id',
-        'apex_review_effective_apex_analysis.apex_review_id'
-      );
-      $modifier->left_join(
-        'apex_analysis',
-        'apex_review_effective_apex_analysis.apex_analysis_id',
-        'effective_apex_analysis.id',
-        'effective_apex_analysis'
-      );
+      if( 'review' == $review_type )
+      {
+        $select->add_constant( '', 'review_status' );
+      }
+      else
+      {
+        $modifier->join(
+          'exam_effective_apex_review',
+          'exam.id',
+          'exam_effective_apex_review.exam_id'
+        );
+        $modifier->left_join(
+          'apex_review',
+          'exam_effective_apex_review.apex_review_id',
+          'effective_apex_review.id',
+          'effective_apex_review'
+        );
+        $modifier->left_join(
+          'apex_review_effective_apex_analysis',
+          'effective_apex_review.id',
+          'apex_review_effective_apex_analysis.apex_review_id'
+        );
+        $modifier->left_join(
+          'apex_analysis',
+          'apex_review_effective_apex_analysis.apex_analysis_id',
+          'effective_apex_analysis.id',
+          'effective_apex_analysis'
+        );
 
-      $select->add_column(
-        'IF( effective_apex_review.end_datetime is NOT NULL, "Closed", '.
-          'IF( effective_apex_analysis.download_datetime IS NOT NULL, "Downloaded", '.
-            'IF( effective_apex_analysis.upload_datetime IS NOT NULL, "Uploaded", '.
-              'IF( effective_apex_analysis.upload_status IS NOT NULL, "Not Uploaded", '.
-                'IF( effective_apex_review.id IS NOT NULL, "Assigned", "Unassigned" ) '.
+        $select->add_column(
+          'IF( effective_apex_review.end_datetime is NOT NULL, "Closed", '.
+            'IF( effective_apex_analysis.download_datetime IS NOT NULL, "Downloaded", '.
+              'IF( effective_apex_analysis.upload_datetime IS NOT NULL, "Uploaded", '.
+                'IF( effective_apex_analysis.upload_status IS NOT NULL, "Not Uploaded", '.
+                  'IF( effective_apex_review.id IS NOT NULL, "Assigned", "Unassigned" ) '.
+                ') '.
               ') '.
             ') '.
-          ') '.
-        ')',
-        'review_status',
-        false
-      );
+          ')',
+          'review_status',
+          false
+        );
+      }
     }
   }
 }
