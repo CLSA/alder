@@ -104,10 +104,14 @@ cenozoApp.defineModule({
           });
 
           async function init(object) {
-            
+            await object.deferred.promise;
+
+            if (angular.isDefined(object.apexAnalysisModel)) {
+              object.apexAnalysisModel.listModel.heading = "Pending Upload List";
+            }
           }
 
-          init(object);
+          init(this);
         };
         return {
           instance: function (parentModel, root) {

@@ -255,12 +255,6 @@ cenozoApp.defineModule({
               { title: "Apex Reviews", go: async function () { await $state.go("apex_review.list"); } },
               { title: "Multi-Edit", }
             ]);
-
-            // trigger the elastic directive when confirming the review selection
-            $scope.confirm = async function () {
-              await $scope.model.confirm();
-              angular.element("#uidListString").trigger("elastic");
-            };
           },
         };
       },
@@ -281,8 +275,8 @@ cenozoApp.defineModule({
             confirmInProgress: false,
             bulkData: {
               canProceed: false,
-              startDate: undefined,
-              endDate: undefined,
+              startDate: null,
+              endDate: null,
               examsPer: null,
               examDataList: null,
             },
@@ -302,8 +296,8 @@ cenozoApp.defineModule({
               { name: "UID", value: "uid" },
             ],
             selectionType: "bulk",
-            formattedStartDate: null,
-            formattedEndDate: null,
+            formattedStartDate: "(empty)",
+            formattedEndDate: "(empty)",
             userList: null,
             userId: null,
             completedList: [

@@ -15,8 +15,34 @@
     </h4>
   </div>
   <div class="container-fluid">
-    <cn-loading ng-if="isLoading"></cn-loading>
-    <div class="spacer" ng-if="!isLoading">
+    <div class="spacer">
+      <div class="text-info spacer">
+        This utility can be used to assign multiple reviews to a typist.
+      </div>
+        <ol class="text-info spacer">
+          <li>
+            To begin, select which study phase you would like to assign exams from.
+            Once selected you will see a list of all unassigned exams broken down by scan type.
+          </li>
+          <li>
+            You may now further restrict the list by scan type or start/end exam date.  Alternatively, you can
+            assign specific participants by UID by changing "Selection Type" from "Bulk" to "UID".
+          </li>
+          <li>
+            Finally, select which reviewer (typist) you wish to assign the exams to and click the "Proceed" button.
+            <strong>Make sure the selected user has an Apex Host assigned to them before proceeding.</strong>
+          </li>
+        </ol>
+      <div class="text-info spacer">
+        The number of exams selected in the "Exams per Phase/Scan-type" for every phase and scan-type showing
+        will be assigned to that user and all scans (along with their base pair) will automatically start
+        uploading to that user's Apex Host.  Uploads are queued and proceed in small batches every 10 minutes.
+      </div>
+      <div class="text-info spacer">
+        To see the upload progress and review any failed uploads navigate to the user's Apex Host from the
+        main menu.  All pending scans will be listed in the "Pending Upload List", including any scans which
+        failed to upload to the Apex Host.
+      </div>
       <form class="form-horizontal"><fieldset ng-disabled="model.confirmInProgress">
         <div class="form-group first-form-group">
           <label for="studyPhaseId" class="col-sm-3 control-label text-right">Study Phase:</label>
@@ -55,7 +81,7 @@
         </div>
         <div ng-if="'bulk' == model.selectionType">
           <div class="form-group">
-            <label for="startDate" class="col-sm-3 control-label text-right">Start Date:</label>
+            <label for="startDate" class="col-sm-3 control-label text-right">Exam Start Date:</label>
             <div class="col-sm-9">
               <input
                 id="startDate"
@@ -72,7 +98,7 @@
             </div>
           </div>
           <div class="form-group">
-            <label for="endDate" class="col-sm-3 control-label text-right">End Date:</label>
+            <label for="endDate" class="col-sm-3 control-label text-right">Exam End Date:</label>
             <div class="col-sm-9">
               <input
                 id="endDate"
