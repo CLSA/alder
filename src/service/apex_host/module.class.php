@@ -18,9 +18,16 @@ class module extends \cenozo\service\module
    */
   public function prepare_read( $select, $modifier )
   {
+    $session = lib::create( 'business\session' );
+    $db_role = $session->get_role();
+    $db_user = $session->get_user();
+
     parent::prepare_read( $select, $modifier );
 
     $modifier->left_join( 'user', 'apex_host.user_id', 'user.id' );
+
+    // restrict typists to apex hosts assigned to them only
+    if( 'typist' == $db_role->name ) $modifier->where( 'apex_host.user_id', '=', $db_user->id );
 
     if( $select->has_column( 'status' ) )
     {

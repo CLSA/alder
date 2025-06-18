@@ -73,7 +73,7 @@ cenozoApp.defineModule({
         await model.listModel.reUploadImages($state.params.identifier);
       },
       isIncluded: function ($state, model) {
-        return "apex_host" == model.getSubjectFromState();
+        return model.isRole("administrator") && "apex_host" == model.getSubjectFromState();
       },
     });
 
