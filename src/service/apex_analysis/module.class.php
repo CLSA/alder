@@ -59,7 +59,14 @@ class module extends \cenozo\service\site_restricted_module
         if( 'PATCH' == $method )
         {
           $db_apex_review = $db_apex_analysis->get_apex_review();
-          if( is_null( $db_apex_review->get_apex_host() ) )
+
+          // make sure the review's pass property is set
+          if( is_null( $db_apex_analysis->pass ) )
+          {
+            $this->set_data( 'The pass property must be set before the analysis can be downloaded.' );
+            $this->get_status()->set_code( 306 );
+          }
+          else if( is_null( $db_apex_review->get_apex_host() ) )
           {
             $this->set_data( sprintf(
               'Unable to %s Apex analysis as user %s is not assigned to an apex_host',
@@ -228,7 +235,23 @@ class module extends \cenozo\service\site_restricted_module
       if( 'download' == $action )
       {
         // download the provided files to the host
-        $this->set_data( $apex_manager->download_files( $db_apex_analysis ) );
+        $result = $apex_manager->download_files( $db_apex_analysis );
+
+        $db_apex_analysis->download_datetime = NULL;
+        $db_apex_review = $db_apex_analysis->get_apex_review();
+        $db_apex_review->end_datetime = NULL;
+
+        if( true === $result )
+        {
+          $now = util::get_datetime_object();
+          $db_apex_analysis->download_datetime = $now;
+          $db_apex_review->end_datetime = $now;
+        }
+
+        $db_apex_analysis->save();
+        $db_apex_review->save();
+
+        $this->set_data( $result );
       }
       else if( 'upload' == $action )
       {

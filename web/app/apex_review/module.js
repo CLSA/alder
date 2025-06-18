@@ -239,30 +239,6 @@ cenozoApp.defineModule({
       });
     }
 
-    module.addExtraOperation("view", {
-      title: "Close",
-      classes: "btn-info",
-      operation: async function ($state, model) {
-        model.viewModel.setState("complete");
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist") && null == model.viewModel.record.end_datetime;
-      },
-      help: "Mark the review as completed."
-    });
-
-    module.addExtraOperation("view", {
-      title: "Re-Open",
-      classes: "btn-info",
-      operation: async function ($state, model) {
-        model.viewModel.setState("reopen");
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist") && null != model.viewModel.record.end_datetime;
-      },
-      help: "Re-open the review."
-    });
-
     /* ############################################################################################## */
     cenozo.providers.directive("cnApexReviewMultiedit", [
       "CnApexReviewMultieditFactory",
@@ -657,30 +633,6 @@ cenozoApp.defineModule({
               return this.parentModel.isRole("typist") && this.record.user_id == CnSession.user.id;
             },
 
-            setState: async function(value) {
-              // warn when closing a review that hasn't been downloaded
-              let proceed = true;
-              if ("complete" == value && !this.analysisModel.viewModel.record.download_datetime) {
-                proceed = await CnModalConfirmFactory.instance({
-                  title: "Review Not Downloaded",
-                  message:
-                    "The review has not been downloaded from Apex. " +
-                    "Are you sure you wish to close this review without downloading the analysis?",
-                }).show();
-              }
-
-              if (proceed) {
-                try {
-                  this.changingState = true;
-                  await this.onPatch({ state: value });
-                  await this.onView(true);
-                } catch (error) {
-                } finally {
-                  this.changingState = false;
-                }
-              }
-            },
-
             selectAnalysis: async function(index) {
               const analysis = this.analysisList.findByProperty("index", index);
               if (null != analysis) {
@@ -697,7 +649,8 @@ cenozoApp.defineModule({
                   title: "Download Scan from Apex",
                   message:
                     "Are you sure you wish to download the scan and data from the Apex workstation? " +
-                    "This will overwrite any existing scan and data which may have already been downloaded"
+                    "This will overwrite any existing scan and data which may have already been downloaded " +
+                    "and mark the review as closed."
                 }).show();
 
                 if (response) {
@@ -710,7 +663,11 @@ cenozoApp.defineModule({
                   modal.show();
 
                   const response = await CnHttpFactory.instance({
-                    path: "apex_analysis/" + this.currentAnalysis.analysisId + "?action=download"
+                    path: "apex_analysis/" + this.currentAnalysis.analysisId + "?action=download",
+                    onError: function(error) {
+                      modal.close();
+                      CnModalMessageFactory.httpError(error);
+                    },
                   }).patch();
 
                   modal.close();
@@ -719,6 +676,7 @@ cenozoApp.defineModule({
                     modal.message = response.data;
                     modal.error = true;
                   } else {
+                    await this.onView(true);
                     modal.message = "The download was successful.";
                   }
                   modal.show();

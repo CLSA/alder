@@ -415,9 +415,6 @@ class apex_manager extends \cenozo\base_object
       }
     }
 
-    $db_apex_analysis->download_datetime = util::get_datetime_object();
-    $db_apex_analysis->save();
-
     $table_name_list = [];
     $column_name_list = [];
 
