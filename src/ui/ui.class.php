@@ -95,6 +95,10 @@ class ui extends \cenozo\ui\ui
       $this->add_listitem( 'Apex Hosts', 'apex_host' );
       $this->add_listitem( 'Scan Types', 'scan_type' );
     }
+
+    // remove unneeded lists
+    $this->remove_listitem( 'Languages' );
+    $this->remove_listitem( 'Sites' );
   }
 
   /**

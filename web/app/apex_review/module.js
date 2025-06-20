@@ -42,6 +42,7 @@ cenozoApp.defineModule({
         },
         status: {
           title: "Status",
+          help: "Shows the progress of a review including Assigned, Uploaded, Downloaded and Closed",
         },
         start_datetime: {
           column: "apex_review.start_datetime",
