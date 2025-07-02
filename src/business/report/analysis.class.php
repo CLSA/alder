@@ -69,6 +69,11 @@ class analysis extends \cenozo\business\report\base_report
     );
     if( !$apex_user ) $select->add_column( 'analysis.quality', 'Quality', false );
     $select->add_column(
+      'GROUP_CONCAT( code.name ORDER BY code.name SEPARATOR ";" ) ',
+      'Codes',
+      false
+    );
+    $select->add_column(
       $this->get_datetime_column( 'exam.datetime', 'datetime' ),
       'Exam Date & Time',
       false
@@ -91,11 +96,18 @@ class analysis extends \cenozo\business\report\base_report
     $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
     $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
     $modifier->left_join( 'site', 'interview.site_id', 'site.id' );
+    $modifier->left_join(
+      sprintf( '%s_has_code', $analysis_type ),
+      sprintf( '%s.id', $analysis_type ),
+      sprintf( '%s_has_code.%s_id', $analysis_type, $analysis_type )
+    );
+    $modifier->left_join( 'code', sprintf( '%s_has_code.code_id', $analysis_type ), 'code.id' );
 
     $modifier->where( 'scan_type.name', '=', $scan_type_name );
     $modifier->where( 'interview.study_phase_id', '=', $db_study_phase->id );
     $modifier->where( sprintf( '%s.end_datetime', $review_type ), '!=', NULL );
 
+    $modifier->group( 'analysis.id' );
     $modifier->order( 'uid' );
     $modifier->order( 'exam.datetime' );
     $modifier->order( 'user.name' );
