@@ -1,5 +1,6 @@
 cenozoApp.defineModule({
   name: "exam",
+  dependencies: "interview",
   models: ["list", "view"],
   create: (module) => {
     angular.extend(module, {
