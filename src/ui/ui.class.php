@@ -104,7 +104,6 @@ class ui extends \cenozo\ui\ui
   /**
    * Extends the parent method
    */
-
   protected function get_utility_items()
   {
     $session = lib::create( 'business\session' );
