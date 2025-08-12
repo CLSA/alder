@@ -69,8 +69,20 @@ class analysis extends \cenozo\business\report\base_report
     );
     if( !$apex_user ) $select->add_column( 'analysis.quality', 'Quality', false );
     $select->add_column(
-      'GROUP_CONCAT( code.name ORDER BY code.name SEPARATOR ";" ) ',
+      'GROUP_CONCAT( '.
+        'code.name '.
+        'ORDER BY code.name '.
+        'SEPARATOR ";" ) ',
       'Codes',
+      false
+    );
+    $select->add_column(
+      'GROUP_CONCAT( '.
+        'CONCAT( selection.name, ":", selection_option.name ) '.
+        'ORDER BY selection.name '.
+        'SEPARATOR ";" '.
+      ') ',
+      'Selections',
       false
     );
     $select->add_column(
@@ -96,12 +108,27 @@ class analysis extends \cenozo\business\report\base_report
     $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
     $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
     $modifier->left_join( 'site', 'interview.site_id', 'site.id' );
+
+    // add all codes
     $modifier->left_join(
       sprintf( '%s_has_code', $analysis_type ),
       sprintf( '%s.id', $analysis_type ),
       sprintf( '%s_has_code.%s_id', $analysis_type, $analysis_type )
     );
     $modifier->left_join( 'code', sprintf( '%s_has_code.code_id', $analysis_type ), 'code.id' );
+
+    // add all selections
+    $modifier->left_join(
+      sprintf( '%s_selection', $analysis_type ),
+      sprintf( '%s.id', $analysis_type ),
+      sprintf( '%s_selection.%s_id', $analysis_type, $analysis_type )
+    );
+    $modifier->left_join( 'selection', sprintf( '%s_selection.selection_id', $analysis_type ), 'selection.id' );
+    $modifier->left_join(
+      'selection_option',
+      sprintf( '%s_selection.selection_option_id', $analysis_type ),
+      'selection_option.id'
+    );
 
     $modifier->where( 'scan_type.name', '=', $scan_type_name );
     $modifier->where( 'interview.study_phase_id', '=', $db_study_phase->id );
