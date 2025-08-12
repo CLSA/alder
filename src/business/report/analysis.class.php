@@ -25,12 +25,16 @@ class analysis extends \cenozo\business\report\base_report
 
     $study_class_name = lib::get_class_name( 'database\study' );
     $study_phase_class_name = lib::get_class_name( 'database\study_phase' );
+    $code_group_class_name = lib::get_class_name( 'database\code_group' );
+    $selection_class_name = lib::get_class_name( 'database\selection' );
     $analysis_class_name = lib::get_class_name( sprintf( 'database\%s', $analysis_type ) );
 
     $db_study = $study_class_name::get_unique_record( 'name', 'CLSA' );
 
     // determine scan type and study phase restrictions from the restriction list
     $scan_type_name = NULL;
+    $has_codes = false;
+    $has_selections = false;
     $db_study_phase = NULL;
     foreach( $this->get_restriction_list( true ) as $restriction )
     {
@@ -41,6 +45,18 @@ class analysis extends \cenozo\business\report\base_report
           ['', '_'],
           strtolower( $restriction['value'] )
         );
+
+        // determine if the scan type has codes
+        $code_mod = lib::create( 'database\modifier' );
+        $code_mod->join( 'scan_type', 'code_group.scan_type_id', 'scan_type.id' );
+        $code_mod->where( 'scan_type.name', '=', $scan_type_name );
+        if( 0 < $code_group_class_name::count( $code_mod ) ) $has_codes = true;
+
+        // determine if the scan type has selections
+        $selection_mod = lib::create( 'database\modifier' );
+        $selection_mod->join( 'scan_type', 'selection.scan_type_id', 'scan_type.id' );
+        $selection_mod->where( 'scan_type.name', '=', $scan_type_name );
+        if( 0 < $selection_class_name::count( $selection_mod ) ) $has_selections = true;
       }
       else if( 'study_phase' == $restriction['name'] )
       {
@@ -68,23 +84,32 @@ class analysis extends \cenozo\business\report\base_report
       false
     );
     if( !$apex_user ) $select->add_column( 'analysis.quality', 'Quality', false );
-    $select->add_column(
-      'GROUP_CONCAT( '.
-        'code.name '.
-        'ORDER BY code.name '.
-        'SEPARATOR ";" ) ',
-      'Codes',
-      false
-    );
-    $select->add_column(
-      'GROUP_CONCAT( '.
-        'CONCAT( selection.name, ":", selection_option.name ) '.
-        'ORDER BY selection.name '.
-        'SEPARATOR ";" '.
-      ') ',
-      'Selections',
-      false
-    );
+
+    if( $has_codes )
+    {
+      $select->add_column(
+        'GROUP_CONCAT( '.
+          'code.name '.
+          'ORDER BY code.name '.
+          'SEPARATOR ";" ) ',
+        'Codes',
+        false
+      );
+    }
+
+    if( $has_selections )
+    {
+      $select->add_column(
+        'GROUP_CONCAT( '.
+          'CONCAT( selection.name, ":", selection_option.name ) '.
+          'ORDER BY selection.name '.
+          'SEPARATOR ";" '.
+        ') ',
+        'Selections',
+        false
+      );
+    }
+
     $select->add_column(
       $this->get_datetime_column( 'exam.datetime', 'datetime' ),
       'Exam Date & Time',
@@ -109,26 +134,32 @@ class analysis extends \cenozo\business\report\base_report
     $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
     $modifier->left_join( 'site', 'interview.site_id', 'site.id' );
 
-    // add all codes
-    $modifier->left_join(
-      sprintf( '%s_has_code', $analysis_type ),
-      sprintf( '%s.id', $analysis_type ),
-      sprintf( '%s_has_code.%s_id', $analysis_type, $analysis_type )
-    );
-    $modifier->left_join( 'code', sprintf( '%s_has_code.code_id', $analysis_type ), 'code.id' );
+    if( $has_codes )
+    {
+      // add all codes
+      $modifier->left_join(
+        sprintf( '%s_has_code', $analysis_type ),
+        sprintf( '%s.id', $analysis_type ),
+        sprintf( '%s_has_code.%s_id', $analysis_type, $analysis_type )
+      );
+      $modifier->left_join( 'code', sprintf( '%s_has_code.code_id', $analysis_type ), 'code.id' );
+    }
 
-    // add all selections
-    $modifier->left_join(
-      sprintf( '%s_selection', $analysis_type ),
-      sprintf( '%s.id', $analysis_type ),
-      sprintf( '%s_selection.%s_id', $analysis_type, $analysis_type )
-    );
-    $modifier->left_join( 'selection', sprintf( '%s_selection.selection_id', $analysis_type ), 'selection.id' );
-    $modifier->left_join(
-      'selection_option',
-      sprintf( '%s_selection.selection_option_id', $analysis_type ),
-      'selection_option.id'
-    );
+    if( $has_selections )
+    {
+      // add all selections
+      $modifier->left_join(
+        sprintf( '%s_selection', $analysis_type ),
+        sprintf( '%s.id', $analysis_type ),
+        sprintf( '%s_selection.%s_id', $analysis_type, $analysis_type )
+      );
+      $modifier->left_join( 'selection', sprintf( '%s_selection.selection_id', $analysis_type ), 'selection.id' );
+      $modifier->left_join(
+        'selection_option',
+        sprintf( '%s_selection.selection_option_id', $analysis_type ),
+        'selection_option.id'
+      );
+    }
 
     $modifier->where( 'scan_type.name', '=', $scan_type_name );
     $modifier->where( 'interview.study_phase_id', '=', $db_study_phase->id );
