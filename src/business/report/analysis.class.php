@@ -89,7 +89,7 @@ class analysis extends \cenozo\business\report\base_report
     {
       $select->add_column(
         'GROUP_CONCAT( '.
-          'code.name '.
+          'DISTINCT code.name '.
           'ORDER BY code.name '.
           'SEPARATOR ";" ) ',
         'Codes',
@@ -101,7 +101,7 @@ class analysis extends \cenozo\business\report\base_report
     {
       $select->add_column(
         'GROUP_CONCAT( '.
-          'CONCAT( selection.name, ":", selection_option.name ) '.
+          'DISTINCT CONCAT( selection.name, ":", selection_option.name ) '.
           'ORDER BY selection.name '.
           'SEPARATOR ";" '.
         ') ',
