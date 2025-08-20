@@ -49,6 +49,7 @@ class module extends \cenozo\service\module
       $join_mod = lib::create( 'database\modifier' );
       $join_mod->join( 'apex_review', 'apex_analysis.apex_review_id', 'apex_review.id' );
       $join_mod->join( 'apex_host', 'apex_review.user_id', 'apex_host.user_id' );
+      $join_mod->where( 'apex_analysis.upload_status', '!=', NULL );
       $join_mod->group( 'apex_host.id' );
 
       $modifier->left_join(
