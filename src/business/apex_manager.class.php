@@ -195,6 +195,9 @@ class apex_manager extends \cenozo\base_object
             ) );
           }
 
+          // delete the patient if it already exists, otherwise the transfer may fail
+          $this->delete_patient( 'apex', $new_patient_id );
+
           // create a temporary copy of the dicom file and prepare it for apex
           $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
           if( self::$debug ) log::debug( sprintf( 'cp %s %s', $filename, $temp_filename ) );
