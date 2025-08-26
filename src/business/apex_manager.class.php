@@ -179,10 +179,21 @@ class apex_manager extends \cenozo\base_object
         else // only proceed if the file isn't already on the server
         {
           // check that the file exists
-          if( !file_exists( $filename ) ) throw new \Exception( 'File not found in data vault' );
+          if( !file_exists( $filename ) )
+          {
+            throw new \Exception( sprintf(
+              '%s not found in data vault',
+              $image['reanalysed'] ? 'Reanalysed file' : 'File'
+            ) );
+          }
 
           if( !$dicom_in_online || !$qdr_online )
-            throw new \Exception( sprintf( 'Service(s) on %s are offline', $this->db_apex_host->db_address ) );
+          {
+            throw new \Exception( sprintf(
+              'Service(s) on %s are offline',
+              $this->db_apex_host->db_address
+            ) );
+          }
 
           // create a temporary copy of the dicom file and prepare it for apex
           $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
@@ -190,21 +201,44 @@ class apex_manager extends \cenozo\base_object
           copy( $filename, $temp_filename );
 
           $response = $this->get_patient_id( $temp_filename );
-          if( 0 != $response['exitcode'] ) throw new \Exception( 'Unable to determine DICOM PatientID tag' );
+          if( 0 != $response['exitcode'] )
+          {
+            throw new \Exception( sprintf(
+              'Unable to determine DICOM PatientID tag in %s',
+              $image['reanalysed'] ? 'reanalysed file' : 'file'
+            ) );
+          }
 
           $matches = [];
           if( !preg_match( '/\[([^[]+)\]/', $response['output'], $matches ) )
-            throw new \Exception( 'File is missing PatientID tag' );
+          {
+            throw new \Exception( sprintf(
+              '%s is missing PatientID tag',
+              $image['reanalysed'] ? 'Reanalysed file' : 'File'
+            ) );
+          }
           $old_patient_id = $matches[1];
 
           $response = $this->set_patient_id( $temp_filename, $new_patient_id );
-          if( 0 != $response['exitcode'] ) throw new \Exception( 'Failed to modify DICOM tags' );
+          if( 0 != $response['exitcode'] )
+          {
+            throw new \Exception( sprintf(
+              'Failed to modify DICOM tags in %s',
+              $image['reanalysed'] ? 'reanalysed file' : 'file'
+            ) );
+          }
 
           $response = $this->scp_to_apex( $temp_filename, sprintf( '%s\incoming', $this->incoming_path ) );
           if( self::$debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
           unlink( $temp_filename );
           if( 0 != $response['exitcode'] )
-            throw new \Exception( sprintf( 'Failed to copy file to %s', $this->db_apex_host->db_address ) );
+          {
+            throw new \Exception( sprintf(
+              'Failed to copy %s to %s',
+              $image['reanalysed'] ? 'reanalysed file' : 'file',
+              $this->db_apex_host->db_address
+            ) );
+          }
 
           // wait up to 15 seconds for the file to register in the DICOM server
           $file_registered = false;
@@ -222,7 +256,10 @@ class apex_manager extends \cenozo\base_object
           {
             // try deleting the file
             $this->delete_patient( 'in', $new_patient_id );
-            throw new \Exception( 'Failed to register file in DICOM server' );
+            throw new \Exception( sprintf(
+              'Failed to register %s in DICOM server',
+              $image['reanalysed'] ? 'reanalysed file' : 'file'
+            ) );
           }
 
           // move file to Apex DICOM server
@@ -244,7 +281,12 @@ class apex_manager extends \cenozo\base_object
           $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
           $patient_key = $this->query_one( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
           if( is_null( $patient_key ) || 0 == $patient_key )
-            throw new \Exception( 'Failed to move file into Apex' );
+          {
+            throw new \Exception( sprintf(
+              'Failed to move %s into Apex',
+              $image['reanalysed'] ? 'reanalysed file' : 'file'
+            ) );
+          }
 
           // modify name and identifier in the Apex database (for the first image only)
           $working_patient_id = $old_patient_id;
