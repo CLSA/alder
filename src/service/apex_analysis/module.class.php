@@ -61,7 +61,7 @@ class module extends \cenozo\service\site_restricted_module
           $db_apex_review = $db_apex_analysis->get_apex_review();
 
           // make sure the review's pass property is set
-          if( is_null( $db_apex_analysis->pass ) )
+          if( 'download' == $action && is_null( $db_apex_analysis->pass ) )
           {
             $this->set_data( 'The pass property must be set before the analysis can be downloaded.' );
             $this->get_status()->set_code( 306 );
