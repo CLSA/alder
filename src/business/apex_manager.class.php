@@ -135,7 +135,6 @@ class apex_manager extends \cenozo\base_object
     $qdr_online = 1 === preg_match( '/qdr.exe/', $response['output'] );
 
     $result_list = [];
-    $modify_patient_record = true;
 
     $image_list = $db_apex_analysis->get_images_for_apex();
     foreach( $image_list as $image )
@@ -171,12 +170,8 @@ class apex_manager extends \cenozo\base_object
 
       try
       {
-        if( $this->check_for_scan( $result['file'] ) )
-        {
-          // a modified patient record already exists
-          $modify_patient_record = false;
-        }
-        else // only proceed if the file isn't already on the server
+        // only proceed if the file isn't already on the server
+        if( !$this->check_for_scan( $result['file'] ) )
         {
           // check that the file exists
           if( !file_exists( $filename ) )
@@ -195,16 +190,21 @@ class apex_manager extends \cenozo\base_object
             ) );
           }
 
-          // delete the patient if it already exists, otherwise the transfer may fail
-          $this->delete_patient( 'apex', $new_patient_id );
-
           // create a temporary copy of the dicom file and prepare it for apex
           $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
           if( self::$debug ) log::debug( sprintf( 'cp %s %s', $filename, $temp_filename ) );
           copy( $filename, $temp_filename );
 
-          $response = $this->get_patient_id( $temp_filename );
-          if( 0 != $response['exitcode'] )
+          // fetching the ID sometimes takes a few tries
+          $matches = NULL;
+          for( $i = 0; $i < 5; $i++ )
+          {
+            $response = $this->get_patient_id( $temp_filename );
+            if( preg_match( '/\[([^[]+)\]/', $response['output'], $matches ) ) break;
+            sleep( 1 );
+          }
+
+          if( is_null( $matches ) || 2 > count( $matches ) )
           {
             throw new \Exception( sprintf(
               'Unable to determine DICOM PatientID tag in %s',
@@ -212,18 +212,10 @@ class apex_manager extends \cenozo\base_object
             ) );
           }
 
-          $matches = [];
-          if( !preg_match( '/\[([^[]+)\]/', $response['output'], $matches ) )
-          {
-            throw new \Exception( sprintf(
-              '%s is missing PatientID tag',
-              $image['reanalysed'] ? 'Reanalysed file' : 'File'
-            ) );
-          }
           $old_patient_id = $matches[1];
 
           $response = $this->set_patient_id( $temp_filename, $new_patient_id );
-          if( 0 != $response['exitcode'] )
+          if( 0 != $response['exitcode'] && 0 < strlen( $response['output'] ) )
           {
             throw new \Exception( sprintf(
               'Failed to modify DICOM tags in %s',
@@ -291,9 +283,14 @@ class apex_manager extends \cenozo\base_object
             ) );
           }
 
-          // modify name and identifier in the Apex database (for the first image only)
+          // only update the patient record if there isn't already one with the new patient ID
           $working_patient_id = $old_patient_id;
-          if( $modify_patient_record )
+          $select = lib::create( 'database\select' );
+          $select->from( 'dbo.PATIENT' );
+          $select->add_column( 'COUNT(*)', NULL, false );
+          $modifier = lib::create( 'database\modifier' );
+          $modifier->where( 'PATIENT_KEY', '=', $new_patient_id );
+          if( 0 == $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) ) )
           {
             $modifier = lib::create( 'database\modifier' );
             $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
