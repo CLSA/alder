@@ -13,7 +13,7 @@ global $SETTINGS;
 $SETTINGS['general']['application_name'] = 'alder';
 $SETTINGS['general']['instance_name'] = $SETTINGS['general']['application_name'];
 $SETTINGS['general']['version'] = '2.10';
-$SETTINGS['general']['build'] = '30a8a7b';
+$SETTINGS['general']['build'] = 'dbbbaf7';
 
 // the location of alder internal path
 $SETTINGS['path']['APPLICATION'] = str_replace( '/settings.ini.php', '', __FILE__ );

@@ -199,6 +199,16 @@ cenozoApp.defineModule({
       },
     });
 
+    module.addExtraOperation("view", {
+      title: "View Review List",
+      operation: async function ($state, model) {
+        await $state.go("apex_review.list");
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("typist");
+      },
+    });
+
     if (angular.isDefined(cenozoApp.moduleList.apex_analysis.actions.upload)) {
       module.addExtraOperation("view", {
         title: "<i class='glyphicon glyphicon-upload'></i> Upload",
