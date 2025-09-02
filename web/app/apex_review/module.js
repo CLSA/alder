@@ -200,9 +200,9 @@ cenozoApp.defineModule({
     });
 
     module.addExtraOperation("view", {
-      title: "View Review List",
+      title: "Return Home",
       operation: async function ($state, model) {
-        await $state.go("apex_review.list");
+        await $state.go("root.home");
       },
       isIncluded: function ($state, model) {
         return model.isRole("typist");
