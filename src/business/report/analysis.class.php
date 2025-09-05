@@ -33,8 +33,8 @@ class analysis extends \cenozo\business\report\base_report
 
     // determine scan type and study phase restrictions from the restriction list
     $scan_type_name = NULL;
-    $has_codes = false;
-    $has_selections = false;
+    $code_list = [];
+    $selection_list = [];
     $db_study_phase = NULL;
     foreach( $this->get_restriction_list( true ) as $restriction )
     {
@@ -46,17 +46,29 @@ class analysis extends \cenozo\business\report\base_report
           strtolower( $restriction['value'] )
         );
 
-        // determine if the scan type has codes
+        // get a list of the scan type's codes
+        $code_sel = lib::create( 'database\select' );
+        $code_sel->add_table_column( 'code', 'id' );
+        $code_sel->add_table_column( 'code', 'name' );
         $code_mod = lib::create( 'database\modifier' );
         $code_mod->join( 'scan_type', 'code_group.scan_type_id', 'scan_type.id' );
+        $code_mod->join( 'code', 'code_group.id', 'code.code_group_id' );
         $code_mod->where( 'scan_type.name', '=', $scan_type_name );
-        if( 0 < $code_group_class_name::count( $code_mod ) ) $has_codes = true;
+        $code_mod->order( 'code_group.rank' );
+        $code_mod->order( 'code.rank' );
+        foreach( $code_group_class_name::select( $code_sel, $code_mod ) as $code )
+          $code_list[$code['id']] = $code['name'];
 
-        // determine if the scan type has selections
+        // get a list of the scan type's selections
+        $selection_sel = lib::create( 'database\select' );
+        $selection_sel->add_column( 'id' );
+        $selection_sel->add_column( 'name' );
         $selection_mod = lib::create( 'database\modifier' );
         $selection_mod->join( 'scan_type', 'selection.scan_type_id', 'scan_type.id' );
         $selection_mod->where( 'scan_type.name', '=', $scan_type_name );
-        if( 0 < $selection_class_name::count( $selection_mod ) ) $has_selections = true;
+        $selection_mod->order( 'selection.rank' );
+        foreach( $selection_class_name::select( $selection_sel, $selection_mod ) as $selection )
+          $selection_list[$selection['id']] = $selection['name'];
       }
       else if( 'study_phase' == $restriction['name'] )
       {
@@ -85,31 +97,6 @@ class analysis extends \cenozo\business\report\base_report
     );
     if( !$apex_user ) $select->add_column( 'analysis.quality', 'Quality', false );
 
-    if( $has_codes )
-    {
-      $select->add_column(
-        'GROUP_CONCAT( '.
-          'DISTINCT code.name '.
-          'ORDER BY code.name '.
-          'SEPARATOR ";" ) ',
-        'Codes',
-        false
-      );
-    }
-
-    if( $has_selections )
-    {
-      $select->add_column(
-        'GROUP_CONCAT( '.
-          'DISTINCT CONCAT( selection.name, ":", selection_option.name ) '.
-          'ORDER BY selection.name '.
-          'SEPARATOR ";" '.
-        ') ',
-        'Selections',
-        false
-      );
-    }
-
     $select->add_column(
       $this->get_datetime_column( 'exam.datetime', 'datetime' ),
       'Exam Date & Time',
@@ -134,17 +121,7 @@ class analysis extends \cenozo\business\report\base_report
     $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
     $modifier->left_join( 'site', 'interview.site_id', 'site.id' );
 
-    if( $has_codes )
-    {
-      // add all codes
-      $modifier->left_join(
-        sprintf( '%s_has_code', $analysis_type ),
-        sprintf( '%s.id', $analysis_type ),
-        sprintf( '%s_has_code.%s_id', $analysis_type, $analysis_type )
-      );
-      $modifier->left_join( 'code', sprintf( '%s_has_code.code_id', $analysis_type ), 'code.id' );
-    }
-
+    /*
     if( $has_selections )
     {
       // add all selections
@@ -158,6 +135,53 @@ class analysis extends \cenozo\business\report\base_report
         'selection_option',
         sprintf( '%s_selection.selection_option_id', $analysis_type ),
         'selection_option.id'
+      );
+    }
+    */
+
+    // add each code as a new column
+    foreach( $code_list as $id => $name )
+    {
+      $select->add_column( sprintf( 'IF( has_code_%d.code_id IS NULL, "n", "y" )', $id ), $name, false );
+      $join_mod = lib::create( 'database\modifier' );
+      $join_mod->where(
+        sprintf( '%s.id', $analysis_type ),
+        '=',
+        sprintf( 'has_code_%d.%s_id', $id, $analysis_type ),
+        false
+      );
+      $join_mod->where( sprintf( 'has_code_%d.code_id', $id ), '=', $id );
+      $modifier->join_modifier(
+        sprintf( '%s_has_code', $analysis_type ),
+        $join_mod,
+        'left',
+        sprintf( 'has_code_%d', $id ),
+      );
+    }
+
+    // add each selection as a new column
+    foreach( $selection_list as $id => $name )
+    {
+      $select->add_column( sprintf( 'IFNULL( selection_option_%d.name, "" )', $id ), $name, false );
+      $join_mod = lib::create( 'database\modifier' );
+      $join_mod->where(
+        sprintf( '%s.id', $analysis_type ),
+        '=',
+        sprintf( 'has_selection_%d.%s_id', $id, $analysis_type ),
+        false
+      );
+      $join_mod->where( sprintf( 'has_selection_%d.selection_id', $id ), '=', $id );
+      $modifier->join_modifier(
+        sprintf( '%s_selection', $analysis_type ),
+        $join_mod,
+        'left',
+        sprintf( 'has_selection_%d', $id ),
+      );
+      $modifier->left_join(
+        'selection_option',
+        sprintf( 'has_selection_%d.selection_option_id', $id ),
+        sprintf( 'selection_option_%d.id', $id ),
+        sprintf( 'selection_option_%d', $id ),
       );
     }
 
