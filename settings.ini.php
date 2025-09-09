@@ -37,6 +37,9 @@ $SETTINGS['apex']['timeout'] = 5;
 // the maximum number of batched analysis uploads to perform at a time
 $SETTINGS['apex']['batch_size'] = 20;
 
+// how many times to try uploading a file before giving up
+$SETTINGS['apex']['tries'] = 3;
+
 // various paths on Apex servers
 $SETTINGS['apex']['dgate_in'] = 'C:\dicomserverIN';
 $SETTINGS['apex']['dgate_out'] = 'C:\dicomserverOUT';

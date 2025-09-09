@@ -184,7 +184,7 @@ class module extends \cenozo\service\site_restricted_module
       {
         // upload the provided files to the host
         $apex_manager = lib::create( 'business\apex_manager', $db_apex_host );
-        $result_list = $apex_manager->upload_files( $db_apex_analysis );
+        $result_list = $apex_manager->upload_files( $db_apex_analysis, false ); // do not replace
 
         // now either set the upload status to an error or successful
         $error = false;
@@ -267,7 +267,7 @@ class module extends \cenozo\service\site_restricted_module
           $db_apex_analysis->save();
 
           // upload the provided files to the host
-          $result_list = $apex_manager->upload_files( $db_apex_analysis );
+          $result_list = $apex_manager->upload_files( $db_apex_analysis, true ); // replace existing
 
           // now either set the upload status to an error or successful
           $error = false;

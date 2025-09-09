@@ -31,6 +31,7 @@ class apex_manager extends \cenozo\base_object
     $this->incoming_path = $setting_manager->get_setting( 'apex', 'incoming' );
     $this->outgoing_path = $setting_manager->get_setting( 'apex', 'outgoing' );
     $this->qdr_data_path = $setting_manager->get_setting( 'apex', 'qdr_data' );
+    $this->tries = $setting_manager->get_setting( 'apex', 'tries' );
   }
 
   /**
@@ -122,10 +123,11 @@ class apex_manager extends \cenozo\base_object
    * Uploads DICOM images to the Apex host
    * 
    * @param $db_apex_analysis The analysis to upload files for (current and base paired file if needed)
+   * @param boolean $replace Whether to overwrite any existing scans on the Apex server
    * @return [object]
    * @access public
    */
-  public function upload_files( $db_apex_analysis )
+  public function upload_files( $db_apex_analysis, $replace = false )
   {
     // start by checking if the necessary servers are online
     $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:CONQUESTSRV1', $this->dgate_in_path ) );
@@ -136,9 +138,13 @@ class apex_manager extends \cenozo\base_object
 
     $result_list = [];
 
+    $delete_patient = $replace;
     $image_list = $db_apex_analysis->get_images_for_apex();
     foreach( $image_list as $image )
     {
+      // only proceed if replacing existing scans or the file isn't already on the server
+      if( !$replace && $this->check_for_scan( $image['filename'] ) ) continue;
+
       $result = ['file' => $image['filename'], 'error' => NULL];
       $data = util::parse_dxa_filename( $result['file'] );
 
@@ -162,36 +168,45 @@ class apex_manager extends \cenozo\base_object
         is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
       );
 
-      // set the patient ID based on uid, side and type
+      // set the patient ID based on uid, side and type and determine the temp filename from it
       $new_patient_id = sprintf( '%s_%s', $data['uid'], $short_type_string );
+      $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
 
       // set the scan ID based on uid, phase, side, type, and whether it was reanalysed
       $new_scan_id = sprintf( '%s%s%s', $data['uid'], $phase_string, $short_type_string );
 
-      try
+      if( $delete_patient )
       {
-        // only proceed if the file isn't already on the server
-        if( !$this->check_for_scan( $result['file'] ) )
-        {
-          // check that the file exists
-          if( !file_exists( $filename ) )
-          {
-            throw new \Exception( sprintf(
-              '%s not found in data vault',
-              $image['reanalysed'] ? 'Reanalysed file' : 'File'
-            ) );
-          }
+        // when replacing files delete the patient before proceeding
+        $this->delete_patient( 'apex', $new_patient_id );
+        $delete_patient = false; // only ever do this once
+      }
 
-          if( !$dicom_in_online || !$qdr_online )
-          {
-            throw new \Exception( sprintf(
-              'Service(s) on %s are offline',
-              $this->db_apex_host->db_address
-            ) );
-          }
+      // first do basic checks
+      if( !file_exists( $filename ) )
+      {
+        $result['error'] = sprintf(
+          '%s not found in data vault',
+          $image['reanalysed'] ? 'Reanalysed file' : 'File'
+        );
+      }
+      else if( !$dicom_in_online || !$qdr_online )
+      {
+        $result['error'] = sprintf(
+          'Service(s) on %s are offline',
+          $this->db_apex_host->db_address
+        );
+      }
+
+      // only start trying if we didn't encounter an error above
+      if( is_null( $result['error'] ) ) for( $try = 0; $try <= $this->tries; $try++ )
+      {
+        try
+        {
+          // make sure to clear out any errors from a previous try
+          $result['error'] = NULL;
 
           // create a temporary copy of the dicom file and prepare it for apex
-          $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
           if( self::$debug ) log::debug( sprintf( 'cp %s %s', $filename, $temp_filename ) );
           copy( $filename, $temp_filename );
 
@@ -225,7 +240,6 @@ class apex_manager extends \cenozo\base_object
 
           $response = $this->scp_to_apex( $temp_filename, sprintf( '%s\incoming', $this->incoming_path ) );
           if( self::$debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
-          unlink( $temp_filename );
           if( 0 != $response['exitcode'] )
           {
             throw new \Exception( sprintf(
@@ -367,11 +381,36 @@ class apex_manager extends \cenozo\base_object
             // delete the patient record since we have transferred its scans to the base patient
             $this->delete_patient( 'apex', $working_patient_id );
           }
+
+          // finally, make sure the PFILE exists
+          $select = lib::create( 'database\select' );
+          $select->from( 'dbo.ScanAnalysis' );
+          $select->add_column( 'PFILE_NAME', NULL, false );
+          $modifier = lib::create( 'database\modifier' );
+          $modifier->where( 'PATIENT_KEY', '=', $new_patient_id );
+          $modifier->where( 'SCANID', '=', $new_scan_id );
+          $pfile_name = $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
+          $response = $this->ssh( sprintf( 'dir %s\%s', $this->qdr_data_path, $pfile_name ) );
+          if( 0 != $response['exitcode'] )
+          {
+            throw new \Exception(
+              sprintf(
+                'P-file is missing in %s',
+                $image['reanalysed'] ? 'reanalysed file' : 'file'
+              )
+            );
+          }
         }
-      }
-      catch( \Exception $e )
-      {
-        $result['error'] = $e->getMessage();
+        catch( \Exception $e )
+        {
+          $result['error'] = $e->getMessage();
+        }
+
+        // delete the temporary file if it exists
+        if( file_exists( $temp_filename ) ) unlink( $temp_filename );
+
+        // only stop trying if the transfer was successful
+        if( is_null( $result['error'] ) ) break;
       }
 
       $result_list[] = $result;
@@ -667,8 +706,17 @@ class apex_manager extends \cenozo\base_object
           return sprintf( 'Failed to copy frax input.txt file to %s.', $this->db_apex_host->db_address );
         }
 
-        $response = $this->ssh( sprintf( '%s\blackbox.exe', $this->qdr_data_path ) );
-        if( 0 != $response['exitcode'] || $response['output'] )
+        // blackbox is unpredictable, so try several times
+        $response = NULL;
+        $error = false;
+        for( $try = 0; $try <= $this->tries; $try++ )
+        {
+          $response = $this->ssh( sprintf( '%s\blackbox.exe', $this->qdr_data_path ) );
+          $error = 0 != $response['exitcode'] || $response['output'];
+          if( !$error ) break;
+        }
+
+        if( $error )
         {
           return sprintf(
             'Failed to run frax calculator%s.',
@@ -1010,18 +1058,81 @@ class apex_manager extends \cenozo\base_object
   }
 
   /**
-   * The number of seconds to wait before giving up on connecting to the apex_host
+   * A connection to the Apex MSSQL database (created on demand)
+   * @var resource
+   * @access private
+   */
+  private $db = NULL;
+
+  /**
+   * The database record of the apex host being connected to
+   * @var database\apex_host
+   * @access private
+   */
+  private $db_apex_host = NULL;
+
+  /**
+   * The path to the SSH keyfile used to connect to the Apex host
+   * @var string
+   * @access private
+   */
+  private $keyfile = NULL;
+
+  /**
+   * The Apex MSSQL password
+   * @var string
+   * @access private
+   */
+  private $password = NULL;
+
+  /**
+   * How many seconds to wait for a response from SSH, SCP and DICOM commands
    * @var integer
    * @access private
    */
   private $timeout = 5;
 
   /**
-   * A connection to the Apex MSSQL database (created on demand)
-   * @var resource
+   * The path of the Conquest IN server's dgate64.exe file
+   * @var string
    * @access private
    */
-  private $db = NULL;
+  private $dgate_in_path = NULL;
+
+  /**
+   * The path of the Conquest OUT server's dgate64.exe file
+   * @var string
+   * @access private
+   */
+  private $dgate_out_path = NULL;
+
+  /**
+   * The location of Apex's incoming directory
+   * @var string
+   * @access private
+   */
+  private $incoming_path = NULL;
+
+  /**
+   * The location of Apex's outgoing directory
+   * @var string
+   * @access private
+   */
+  private $outgoing_path = NULL;
+
+  /**
+   * The location of Apex's QDR/data directory
+   * @var string
+   * @access private
+   */
+  private $qdr_data_path = NULL;
+
+  /**
+   * The number of times Alder will try to upload a scan before failing
+   * @var integer
+   * @access private
+   */
+  private $tries = NULL;
 
   /**
    * When set to true the manager will print all commands to the log
