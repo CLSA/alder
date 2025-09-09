@@ -46,6 +46,20 @@ cenozoApp.extendModule({
                 CnReviewModelFactory.instance()
               );
               $scope.reviewModel.listModel.heading = "Outstanding Review List";
+
+              if ($scope.reviewModel.isRole("typist") && CnSession.user.apexUser) {
+                // only show assigned and uploaded reviews to apex typists
+                $scope.reviewModel.getServiceData = function(type, columnRestrictList) {
+                  const data = this.$$getServiceData(type, columnRestrictList);
+                  if (!data.modifier.where) data.modifier.where = [];
+                  data.modifier.where.push({
+                    column: "status",
+                    operator: "IN",
+                    value: ["Assigned", "Uploaded"],
+                  });
+                  return data;
+                };
+              }
             },
           });
         }

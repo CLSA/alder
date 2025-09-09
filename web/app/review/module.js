@@ -56,7 +56,7 @@ cenozoApp.defineModule({
         },
       },
       defaultOrder: {
-        column: "user.name",
+        column: "uid",
         reverse: false,
       },
     });
