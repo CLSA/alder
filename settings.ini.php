@@ -13,7 +13,7 @@ global $SETTINGS;
 $SETTINGS['general']['application_name'] = 'alder';
 $SETTINGS['general']['instance_name'] = $SETTINGS['general']['application_name'];
 $SETTINGS['general']['version'] = '2.10';
-$SETTINGS['general']['build'] = '4eb7845';
+$SETTINGS['general']['build'] = '44e0762';
 
 // the location of alder internal path
 $SETTINGS['path']['APPLICATION'] = str_replace( '/settings.ini.php', '', __FILE__ );
@@ -36,6 +36,9 @@ $SETTINGS['apex']['timeout'] = 5;
 
 // the maximum number of batched analysis uploads to perform at a time
 $SETTINGS['apex']['batch_size'] = 20;
+
+// how many times to try uploading a file before giving up
+$SETTINGS['apex']['tries'] = 3;
 
 // various paths on Apex servers
 $SETTINGS['apex']['dgate_in'] = 'C:\dicomserverIN';
