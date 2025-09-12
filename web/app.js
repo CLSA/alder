@@ -20,7 +20,7 @@ cenozo.directive("cnImageDisplay", [
       restrict: "E",
       scope: { model: '=', },
     };
-  },  
+  },
 ]); 
 
 
@@ -66,7 +66,7 @@ cenozo.factory("CnModalApexHostStatusFactory", [
               </span>
             </li>
           `;
-        }   
+        }
         modal.message += "</ul>";
 
         if (!status['DICOM In'] || !status['DICOM Apex'] || !status['QDR']) {
@@ -80,7 +80,7 @@ cenozo.factory("CnModalApexHostStatusFactory", [
               </div>
             </div>
           `;
-        }   
+        }
 
         modal.block = false;
         modal.show();

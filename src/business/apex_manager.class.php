@@ -138,15 +138,39 @@ class apex_manager extends \cenozo\base_object
 
     $result_list = [];
 
+    $new_patient_id = NULL;
+    $first_image_success = NULL;
     $delete_patient = $replace;
     $image_list = $db_apex_analysis->get_images_for_apex();
     foreach( $image_list as $image )
     {
-      // only proceed if replacing existing scans or the file isn't already on the server
-      if( !$replace && $this->check_for_scan( $image['filename'] ) ) continue;
+      if( static::$debug )
+      {
+        log::info( sprintf(
+          'Uploading %s %s %s',
+          $image['uid'],
+          'none' == $image['side'] ? $image['type'] : sprintf( '%s-%s', $image['side'], $image['type'] ),
+          $image['reanalysed'] ? '(reanalysed)' : ''
+        ) );
+      }
 
+      // only proceed if replacing existing scans or the file isn't already on the server
+      if( !$replace && $this->check_for_scan( $image['filename'] ) )
+      {
+        if( static::$debug ) log::info( 'Scan already uploaded, skipping' );
+        continue;
+      }
+
+      $file_type = $image['reanalysed'] ? 'reanalysed file' : 'file';
       $result = ['file' => $image['filename'], 'error' => NULL];
-      $data = util::parse_dxa_filename( $result['file'] );
+
+      // if the first image failed then don't bother
+      if( false === $first_image_success )
+      {
+        $result['error'] = 'Not attempted';
+        $result_list[] = $result;
+        break;
+      }
 
       // add base paths to relative filenames
       $filename = $result['file'];
@@ -161,19 +185,24 @@ class apex_manager extends \cenozo\base_object
           $filename = sprintf( '%s%s', IMAGES_PATH, $filename );
       }
 
-      $phase_string = sprintf( '%d%s', $data['phase']['rank'], $data['reanalysed'] ? 'R' : '' );
-      $type_string = is_null( $data['side'] ) ?
-        $data['type'] : sprintf( '%s (%s)', $data['type'], $data['side'] );
+      $phase_string = sprintf( '%d%s', $image['phase']['rank'], $image['reanalysed'] ? 'R' : '' );
+      $type_string = (
+        is_null( $image['side'] ) ?
+        $image['type'] :
+        ( 'none' == $image['side'] ? $image['type'] : sprintf( '%s (%s)', $image['type'], $image['side'] ) )
+      );
       $short_type_string = strtoupper(
-        is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
+        is_null( $image['side'] ) ?
+        $image['type'][0] :
+        $image['type'][0].$image['side'][0]
       );
 
       // set the patient ID based on uid, side and type and determine the temp filename from it
-      $new_patient_id = sprintf( '%s_%s', $data['uid'], $short_type_string );
+      $new_patient_id = sprintf( '%s_%s', $image['uid'], $short_type_string );
       $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
 
       // set the scan ID based on uid, phase, side, type, and whether it was reanalysed
-      $new_scan_id = sprintf( '%s%s%s', $data['uid'], $phase_string, $short_type_string );
+      $new_scan_id = sprintf( '%s%s%s', $image['uid'], $phase_string, $short_type_string );
 
       if( $delete_patient )
       {
@@ -185,235 +214,227 @@ class apex_manager extends \cenozo\base_object
       // first do basic checks
       if( !file_exists( $filename ) )
       {
+        if( is_null( $first_image_success ) ) $first_image_success = false;
         $result['error'] = sprintf(
           '%s not found in data vault',
           $image['reanalysed'] ? 'Reanalysed file' : 'File'
         );
+        $result_list[] = $result;
+        if( static::$debug ) log::info( sprintf( 'ERROR: %s', $result['error'] ) );
+        break;
       }
-      else if( !$dicom_in_online || !$qdr_online )
+
+      if( !$dicom_in_online || !$qdr_online )
       {
+        if( is_null( $first_image_success ) ) $first_image_success = false;
         $result['error'] = sprintf(
           'Service(s) on %s are offline',
           $this->db_apex_host->db_address
         );
+        $result_list[] = $result;
+        if( static::$debug ) log::info( sprintf( 'ERROR: %s', $result['error'] ) );
+        break;
       }
 
-      // only start trying if we didn't encounter an error above
-      if( is_null( $result['error'] ) ) for( $try = 0; $try <= $this->tries; $try++ )
+      // try the following multiple times
+      $error = NULL;
+      for( $try = 0; $try < $this->tries; $try++ )
       {
-        try
+        if( static::$debug ) log::info( sprintf( 'Attempt #%d', $try+1 ) );
+        // make sure to clear out any errors from a previous try
+        $error = NULL;
+
+        // create a temporary copy of the dicom file and prepare it for apex
+        copy( $filename, $temp_filename );
+
+        // fetching the ID sometimes takes a few tries
+        $matches = NULL;
+        for( $i = 0; $i < 5; $i++ )
         {
-          // make sure to clear out any errors from a previous try
-          $result['error'] = NULL;
+          $response = $this->get_patient_id( $temp_filename );
+          if( preg_match( '/\[([^[]+)\]/', $response['output'], $matches ) ) break;
+          sleep( 1 );
+        }
 
-          // create a temporary copy of the dicom file and prepare it for apex
-          if( self::$debug ) log::debug( sprintf( 'cp %s %s', $filename, $temp_filename ) );
-          copy( $filename, $temp_filename );
+        if( is_null( $matches ) || 2 > count( $matches ) )
+        {
+          unlink( $temp_filename );
+          $error = sprintf( 'Unable to determine DICOM PatientID tag in %s', $file_type );
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          continue; // try again
+        }
 
-          // fetching the ID sometimes takes a few tries
-          $matches = NULL;
-          for( $i = 0; $i < 5; $i++ )
+        $old_patient_id = $matches[1];
+
+        $response = $this->set_patient_id( $temp_filename, $new_patient_id );
+        if( 0 != $response['exitcode'] && 0 < strlen( $response['output'] ) )
+        {
+          unlink( $temp_filename );
+          $error = sprintf( 'Failed to modify DICOM tags in %s', $file_type );
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          continue; // try again
+        }
+
+        $response = $this->scp_to_apex( $temp_filename, sprintf( '%s\incoming', $this->incoming_path ) );
+        unlink( $temp_filename ); // error or not, we're now done with the temporary file
+        if( 0 != $response['exitcode'] )
+        {
+          $error = sprintf( 'Failed to copy %s to %s', $file_type, $this->db_apex_host->db_address );
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          continue; // try again
+        }
+
+        // wait up to 15 seconds for the file to register in the DICOM server
+        $file_registered = false;
+        for( $i = 1; $i <= 15; $i++ )
+        {
+          sleep(1);
+          $response = $this->ssh( sprintf( 'dir %s\%s', $this->incoming_path, $new_patient_id ) );
+          if( 0 == $response['exitcode'] )
           {
-            $response = $this->get_patient_id( $temp_filename );
-            if( preg_match( '/\[([^[]+)\]/', $response['output'], $matches ) ) break;
-            sleep( 1 );
+            $file_registered = true;
+            break;
           }
-
-          if( is_null( $matches ) || 2 > count( $matches ) )
-          {
-            throw new \Exception( sprintf(
-              'Unable to determine DICOM PatientID tag in %s',
-              $image['reanalysed'] ? 'reanalysed file' : 'file'
-            ) );
-          }
-
-          $old_patient_id = $matches[1];
-
-          $response = $this->set_patient_id( $temp_filename, $new_patient_id );
-          if( 0 != $response['exitcode'] && 0 < strlen( $response['output'] ) )
-          {
-            throw new \Exception( sprintf(
-              'Failed to modify DICOM tags in %s',
-              $image['reanalysed'] ? 'reanalysed file' : 'file'
-            ) );
-          }
-
-          $response = $this->scp_to_apex( $temp_filename, sprintf( '%s\incoming', $this->incoming_path ) );
-          if( self::$debug ) log::debug( sprintf( 'rm %s', $temp_filename ) );
-          if( 0 != $response['exitcode'] )
-          {
-            throw new \Exception( sprintf(
-              'Failed to copy %s to %s',
-              $image['reanalysed'] ? 'reanalysed file' : 'file',
-              $this->db_apex_host->db_address
-            ) );
-          }
-
-          // wait up to 15 seconds for the file to register in the DICOM server
-          $file_registered = false;
-          for( $i = 1; $i <= 15; $i++ )
-          {
-            sleep(1);
-            $response = $this->ssh( sprintf( 'dir %s\%s', $this->incoming_path, $new_patient_id ) );
-            if( 0 == $response['exitcode'] )
-            {
-              $file_registered = true;
-              break;
-            }
-          }
-          if( !$file_registered )
-          {
-            // try deleting the file
-            $this->delete_patient( 'in', $new_patient_id );
-            throw new \Exception( sprintf(
-              'Failed to register %s in DICOM server',
-              $image['reanalysed'] ? 'reanalysed file' : 'file'
-            ) );
-          }
-
-          // move file to Apex DICOM server
-          $response = $this->ssh(
-            sprintf(
-              '%s\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
-              $this->dgate_in_path,
-              $new_patient_id
-            )
-          );
-
-          // remove files from the DICOM IN server (whether the move patient command works or not)
+        }
+        if( !$file_registered )
+        {
+          // try deleting the file
           $this->delete_patient( 'in', $new_patient_id );
+          $error = sprintf( 'Failed to register %s in DICOM server', $file_type );
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          continue; // try again
+        }
 
-          $select = lib::create( 'database\select' );
-          $select->from( 'dbo.PATIENT' );
-          $select->add_column( 'PATIENT_KEY', NULL, false );
+        // move file to Apex DICOM server
+        $this->ssh( sprintf(
+          '%s\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
+          $this->dgate_in_path,
+          $new_patient_id
+        ) );
+
+        // remove files from the DICOM IN server (whether the move patient command works or not)
+        $this->delete_patient( 'in', $new_patient_id );
+
+        $select = lib::create( 'database\select' );
+        $select->from( 'dbo.PATIENT' );
+        $select->add_column( 'PATIENT_KEY', NULL, false );
+        $modifier = lib::create( 'database\modifier' );
+        $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
+        $patient_key = $this->query_one( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
+        if( is_null( $patient_key ) || 0 == $patient_key )
+        {
+          $error = sprintf( 'Failed to move %s into Apex', $file_type );
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          continue; // try again
+        }
+
+        // only update the patient record if there isn't already one with the new patient ID
+        $working_patient_id = $old_patient_id;
+        $select = lib::create( 'database\select' );
+        $select->from( 'dbo.PATIENT' );
+        $select->add_column( 'COUNT(*)', NULL, false );
+        $modifier = lib::create( 'database\modifier' );
+        $modifier->where( 'PATIENT_KEY', '=', $new_patient_id );
+        if( 0 == $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) ) )
+        {
           $modifier = lib::create( 'database\modifier' );
           $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
-          $patient_key = $this->query_one( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
-          if( is_null( $patient_key ) || 0 == $patient_key )
+          $query_response = $this->query_execute( sprintf(
+            "UPDATE dbo.PATIENT ".
+            "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s' %s",
+            $new_patient_id,
+            $new_patient_id,
+            $type_string,
+            $image['uid'],
+            $modifier->get_sql()
+          ) );
+
+          if( false === $query_response || is_string( $query_response ) )
           {
-            throw new \Exception( sprintf(
-              'Failed to move %s into Apex',
-              $image['reanalysed'] ? 'reanalysed file' : 'file'
-            ) );
+            // remove the scan from Apex, if we can
+            if( false !== $query_response ) $this->delete_patient( 'apex', $old_patient_id );
+            $error = is_string( $query_response ) ? $query_response : 'Unable to update Apex patient record';
+            if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+            continue; // try again
           }
 
-          // only update the patient record if there isn't already one with the new patient ID
-          $working_patient_id = $old_patient_id;
-          $select = lib::create( 'database\select' );
-          $select->from( 'dbo.PATIENT' );
-          $select->add_column( 'COUNT(*)', NULL, false );
-          $modifier = lib::create( 'database\modifier' );
-          $modifier->where( 'PATIENT_KEY', '=', $new_patient_id );
-          if( 0 == $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) ) )
-          {
-            $modifier = lib::create( 'database\modifier' );
-            $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
-            $query_response = $this->query_execute( sprintf(
-              "UPDATE dbo.PATIENT ".
-              "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s' %s",
-              $new_patient_id,
-              $new_patient_id,
-              $type_string,
-              $data['uid'],
-              $modifier->get_sql()
-            ) );
-
-            if( false === $query_response || is_string( $query_response ) )
-            {
-              // remove the scan from Apex, if we can
-              if( false !== $query_response ) $this->delete_patient( 'apex', $old_patient_id );
-              throw new \Exception(
-                is_string( $query_response ) ? $query_response : 'Unable to update Apex patient record'
-              );
-            }
-
-            $working_patient_id = $new_patient_id;
-            $patient_key = $new_patient_id;
-            $modify_patient_record = false;
-          }
-
-          // modify name and identifier in all associated analysis tables
-          $table_name_list = ['ScanAnalysis', ucwords( $data['type'] )];
-          if( 'hip' == $data['type'] ) $table_name_list[] = 'HipHSA';
-          else if( 'wbody' == $data['type'] )
-          {
-            $table_name_list = array_merge( $table_name_list, [
-              'WbodyComposition',
-              'SubRegionBone',
-              'SubRegionComposition',
-              'ObesityIndices',
-              'AndroidGynoidComposition'
-            ] );
-          }
-
-          $table_error_list = [];
-          foreach( $table_name_list as $table )
-          {
-            $modifier = lib::create( 'database\modifier' );
-            $modifier->where( 'PATIENT_KEY', '=', $patient_key );
-            $query_response = $this->query_execute( sprintf(
-              "UPDATE dbo.%s ".
-              "SET %s SCANID = '%s' %s",
-              $table,
-              $patient_key != $new_patient_id ? sprintf( "PATIENT_KEY = '%s',", $new_patient_id ) : '',
-              $new_scan_id,
-              $modifier->get_sql()
-            ) );
-
-            if( false === $query_response || is_string( $query_response ) ) $table_error_list[] = $table;
-          }
-
-          if( 0 < count( $table_error_list ) )
-          {
-            // something went wrong, so clean up before reporting the error
-            $this->delete_patient( 'apex', $working_patient_id );
-
-            throw new \Exception(
-              sprintf(
-                'Unable to update Apex %s table%s',
-                implode( ', ', $table_error_list ),
-                1 == count( $table_error_list ) ? '' : 's'
-              )
-            );
-          }
-          else if( $working_patient_id == $old_patient_id )
-          {
-            // delete the patient record since we have transferred its scans to the base patient
-            $this->delete_patient( 'apex', $working_patient_id );
-          }
-
-          // finally, make sure the PFILE exists
-          $select = lib::create( 'database\select' );
-          $select->from( 'dbo.ScanAnalysis' );
-          $select->add_column( 'PFILE_NAME', NULL, false );
-          $modifier = lib::create( 'database\modifier' );
-          $modifier->where( 'PATIENT_KEY', '=', $new_patient_id );
-          $modifier->where( 'SCANID', '=', $new_scan_id );
-          $pfile_name = $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
-          $response = $this->ssh( sprintf( 'dir %s\%s', $this->qdr_data_path, $pfile_name ) );
-          if( 0 != $response['exitcode'] )
-          {
-            throw new \Exception(
-              sprintf(
-                'P-file is missing in %s',
-                $image['reanalysed'] ? 'reanalysed file' : 'file'
-              )
-            );
-          }
+          $working_patient_id = $new_patient_id;
+          $patient_key = $new_patient_id;
+          $modify_patient_record = false;
         }
-        catch( \Exception $e )
+
+        // get the current scan id in case something goes wrong and we need to delete the scan
+        $select = lib::create( 'database\select' );
+        $select->from( 'dbo.ScanAnalysis' );
+        $modifier = lib::create( 'database\modifier' );
+        $modifier->where( 'PATIENT_KEY', '=', $patient_key );
+        $select->add_column( 'SCANID', NULL, false );
+        $old_scan_id = $this->query_one( $select->get_sql() );
+
+        // to link the scan to the new patient record modify patient key and scanid columns in ScanAnalysis
+        $modifier = lib::create( 'database\modifier' );
+        $modifier->where( 'PATIENT_KEY', '=', $patient_key );
+        $query_response = $this->query_execute( sprintf(
+          "UPDATE dbo.ScanAnalysis ".
+          "SET %s SCANID = '%s' %s",
+          $patient_key != $new_patient_id ? sprintf( "PATIENT_KEY = '%s',", $new_patient_id ) : '',
+          $new_scan_id,
+          $modifier->get_sql()
+        ) );
+
+        if( false === $query_response || is_string( $query_response ) )
         {
-          $result['error'] = $e->getMessage();
+          // something went wrong, so clean up before reporting the error
+          $this->delete_scan( $old_scan_id );
+          $error = 'Unable to update Apex ScanAnalysis table';
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          continue; // try again
         }
 
-        // delete the temporary file if it exists
-        if( file_exists( $temp_filename ) ) unlink( $temp_filename );
+        if( $working_patient_id == $old_patient_id )
+        {
+          // delete the patient record since we have transferred its scans to the base patient
+          $this->delete_patient( 'apex', $working_patient_id );
+        }
 
-        // only stop trying if the transfer was successful
-        if( is_null( $result['error'] ) ) break;
+        // finally, make sure the PFILE exists
+        $select = lib::create( 'database\select' );
+        $select->from( 'dbo.ScanAnalysis' );
+        $select->add_column( 'PFILE_NAME', NULL, false );
+        $modifier = lib::create( 'database\modifier' );
+        $modifier->where( 'PATIENT_KEY', '=', $new_patient_id );
+        $modifier->where( 'SCANID', '=', $new_scan_id );
+        $pfile_name = $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
+        $response = $this->ssh( sprintf( 'dir %s\%s', $this->qdr_data_path, $pfile_name ) );
+        if( 0 != $response['exitcode'] )
+        {
+          $this->delete_scan( $new_scan_id );
+          $error = sprintf( 'P-file is missing in %s', $file_type );
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          continue; // try again
+        }
+
+        // if we get here the transfer was successful so we can stop
+        if( static::$debug ) log::info( 'Scan successfully uploaded' );
+        break;
       }
 
+      if( is_null( $first_image_success ) ) $first_image_success = is_null( $error );
+      $result['error'] = $error;
       $result_list[] = $result;
+    }
+
+    // clean up if any errors occurred
+    if( !is_null( $new_patient_id ) )
+    {
+      foreach( $result_list as $result )
+      {
+        if( !is_null( $result['error'] ) )
+        {
+          $this->delete_patient( 'apex', $new_patient_id );
+          break;
+        }
+      }
     }
 
     return $result_list;
@@ -463,10 +484,10 @@ class apex_manager extends \cenozo\base_object
     $pfile_glob = preg_replace( '/\..*$/', '.*', $pfile_name );
 
     $response = $this->scp_from_apex( sprintf( '%s\%s', $this->qdr_data_path, $pfile_glob ), TEMP_PATH );
-    if( !self::$debug && 0 != $response['exitcode'] ) return 'Unable to download P and R files from Apex.';
+    if( 0 != $response['exitcode'] ) return 'Unable to download P and R files from Apex.';
 
     $file_list = glob( sprintf( '%s/%s', TEMP_PATH, $pfile_glob ) );
-    if( !self::$debug && 2 > count( $file_list ) ) return 'Unable to download re-analysed scan from Apex.';
+    if( 2 > count( $file_list ) ) return 'Unable to download re-analysed scan from Apex.';
 
     $scan_type = $db_scan_type->name;
     if( 'none' != $scan_type ) $scan_type .= sprintf( '_%s', $db_scan_type->side );
@@ -483,16 +504,9 @@ class apex_manager extends \cenozo\base_object
     {
       $file_parts = pathinfo( $file );
       $supplementary_filename = sprintf( '%s.%s', $base_supplementary_filename, $file_parts['extension'] );
-      if( self::$debug )
+      if( !( is_writable( dirname( $supplementary_filename ) ) && copy( $file, $supplementary_filename ) ) )
       {
-        log::debug( sprintf( 'cp %s %s', $file, $supplementary_filename ) );
-      }
-      else
-      {
-        if( !( is_writable( dirname( $supplementary_filename ) ) && copy( $file, $supplementary_filename ) ) )
-        {
-          return 'Unable to transfer re-analysed file to Data Vault.';
-        }
+        return 'Unable to transfer re-analysed file to Data Vault.';
       }
     }
 
@@ -657,7 +671,6 @@ class apex_manager extends \cenozo\base_object
 
       // calculate T and Z scores
       $tz_reference = lib::create( 'business\tz_reference' );
-      $tz_reference::$debug = self::$debug;
       $score_data = $tz_reference->compute_tz_scores( $db_scan_type->name, $db_scan_type->side, $apex_data );
       $apex_data = array_merge( $apex_data, $score_data );
 
@@ -694,12 +707,10 @@ class apex_manager extends \cenozo\base_object
           $apex_data['neck_t'], // hip scan neck_t score
         ];
         $input = implode( ',', $input_values );
-        if( self::$debug ) log::debug( sprintf( 'writing FRAX input "%s" to file %s', $input, $input_filename ) );
         file_put_contents( $input_filename, $input, LOCK_EX );
 
         // upload the input file to the apex server and run blackbox.exe
         $response = $this->scp_to_apex( $input_filename, sprintf( '%s\input.txt', $this->qdr_data_path ) );
-        if( self::$debug ) log::debug( sprintf( 'rm %s', $input_filename ) );
         unlink( $input_filename );
         if( 0 != $response['exitcode'] )
         {
@@ -726,7 +737,6 @@ class apex_manager extends \cenozo\base_object
 
         // get the 4 frax values from the output.txt file and clean up
         $response = $this->ssh( sprintf( 'more %s\output.txt', $this->qdr_data_path ) );
-        if( self::$debug ) log::debug( sprintf( 'raw frax response: %s', $response['output'] ) );
         $parts = explode( ',', trim( $response['output'] ) );
         if( 17 != count( $parts ) ) return 'FRAX calculator returned unexepcted result.';
         if( '_' == $parts[13] || '_' == $parts[14] || '_' == $parts[15] || '_' == $parts[16] )
@@ -749,6 +759,30 @@ class apex_manager extends \cenozo\base_object
     }
 
     return true;
+  }
+
+  /**
+   * Deletes a scan from Apex
+   * 
+   * @param string $scan_id The scanid in the ScanAnalysis and other supporting tables
+   * @return string The response from the server
+   * @access private
+   */
+  private function delete_scan( $scan_id = NULL )
+  {
+    $select = lib::create( 'database\select' );
+    $select->from( 'dbo.ScanAnalysis' );
+    $select->add_column( 'PFILE_NAME', NULL, false );
+    $modifier = lib::create( 'database\modifier' );
+    $modifier->where( 'SCANID', '=', $scan_id );
+
+    foreach( $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) ) as $pfile )
+    {
+      $glob = preg_replace( '/\.[^.]+$/', '.*', $pfile );
+      $this->ssh( sprintf( 'del /s /q %s\%s', $this->qdr_data_path, $glob ) );
+    }
+
+    return $this->query_execute( sprintf( 'DELETE FROM dbo.ScanAnalysis %s', $modifier->get_sql() ) );
   }
 
   /**
@@ -842,7 +876,6 @@ class apex_manager extends \cenozo\base_object
       $ssh_address,
       preg_replace( '/"/', '\\"', $command )
     );
-    if( self::$debug ) log::debug( $ssh_command );
     return util::exec_timeout( $ssh_command, $this->timeout );
   }
 
@@ -867,7 +900,6 @@ class apex_manager extends \cenozo\base_object
       // replace backslashes with two backslashes
       preg_replace( '#\\\#', '\\\\\\', $destination )
     );
-    if( self::$debug ) log::debug( $scp_command );
     return util::exec_timeout( $scp_command, $this->timeout );
   }
 
@@ -892,7 +924,6 @@ class apex_manager extends \cenozo\base_object
       preg_replace( '#\\\#', '\\\\\\', $glob ),
       $destination
     );
-    if( self::$debug ) log::debug( $scp_command );
     return util::exec_timeout( $scp_command, $this->timeout );
   }
 
@@ -902,7 +933,6 @@ class apex_manager extends \cenozo\base_object
       'dcmdump --load-short --print-short --search "0010,0020" %s',
       $filename
     );
-    if( self::$debug ) log::debug( $command );
     return util::exec_timeout( $command, $this->timeout );
   }
 
@@ -913,7 +943,6 @@ class apex_manager extends \cenozo\base_object
       $patient_id,
       $filename
     );
-    if( self::$debug ) log::debug( $command );
     return util::exec_timeout( $command, $this->timeout );
   }
 
@@ -932,9 +961,6 @@ class apex_manager extends \cenozo\base_object
         $this->password
       );
     }
-
-    // note that SQL debugging does not include replacing double quotes with single quotes
-    if( self::$debug ) log::debug( $sql );
 
     // convert all double quotes to single quotes for MSSQL
     $sql = str_replace( '"', "'", $sql );
@@ -1135,9 +1161,10 @@ class apex_manager extends \cenozo\base_object
   private $tries = NULL;
 
   /**
-   * When set to true the manager will print all commands to the log
+   * Whether to print debug statements to the log
    * @var boolean
-   * @access private
+   * @access public
+   * @static
    */
   public static $debug = false;
 }

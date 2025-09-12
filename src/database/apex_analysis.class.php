@@ -149,7 +149,7 @@ class apex_analysis extends \cenozo\database\record
    * Returns the image associated with this analysis and the base paired image (for forearm, hip and spine only)
    *
    * @param boolean $current_image_only If true then the current analysis image is returned instead of an array
-   * @return associative array
+   * @return array or [array]
    */
   public function get_images_for_apex( $current_image_only = false )
   {

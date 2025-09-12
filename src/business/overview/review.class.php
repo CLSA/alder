@@ -69,7 +69,7 @@ class review extends \cenozo\business\overview\base_overview
         $this->add_item( $scan_type_node, 'Review assigned', 0 );
         $this->add_item( $scan_type_node, 'Review completed', 0 );
       }
-      
+
       $node = $scan_type_node->find_node( $row['status'] );
       $node->set_value( $row['total'] );
     }
