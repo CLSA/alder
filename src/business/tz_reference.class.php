@@ -291,11 +291,9 @@ class tz_reference extends \cenozo\base_object
         $std = $points[$age_young][2];
 
         $t_score = $y_value * ( pow( $x_value / $y_value, $l_value ) - 1.0 ) / ( $l_value * $std );
-        if( self::$debug ) log::debug( sprintf( 'Setting: %s => %s', $t_score_name, $t_score ) );
         $score_data[$t_score_name] = $t_score;
 
         $pr_value = 100 * $x_value / $y_value;
-        if( self::$debug ) log::debug( sprintf( 'Setting: %s => %s', $pr_value_name, $pr_value ) );
         $score_data[$pr_value_name] = $pr_value;
       }
       else
@@ -414,23 +412,12 @@ class tz_reference extends \cenozo\base_object
         }
       }
 
-      if( self::$debug ) log::debug( sprintf( 'Setting: %s => %s', $z_score_name, $z_score ) );
       $score_data[$z_score_name] = $z_score;
-
-      if( self::$debug ) log::debug( sprintf( 'Setting: %s => %s', $am_value_name, $am_value ) );
       $score_data[$am_value_name] = $am_value;
     }
 
     return $score_data;
   }
-
-  /**
-   * Whether or not to show debug information
-   * @var boolean
-   * @access public
-   * @static
-   */
-  public static $debug = false;
 
   /**
    * Lookup data required by the compute_tz_scores method
