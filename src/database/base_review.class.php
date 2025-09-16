@@ -45,15 +45,16 @@ abstract class base_review extends \cenozo\database\record
 
     // Get the previous and next interviews for this user.
     // This is done by getting a list of all interviews that the user has a review for, sorting them by
-    // site and uid, then finding the interview before and after the current interview.
+    // uid (for apex reviews) or site and uid (for non-apex reviews), then finding the interview before
+    // and after the current interview.
     $interview_mod = lib::create( 'database\modifier' );
     $interview_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
     $interview_mod->join( 'exam', 'interview.id', 'exam.interview_id' );
     $interview_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
-    $interview_mod->left_join( 'site', 'interview.site_id', 'site.id' );
+    if( 'review' == $review_table ) $interview_mod->left_join( 'site', 'interview.site_id', 'site.id' );
     $interview_mod->where( 'interview.study_phase_id', '=', $db_current_interview->study_phase_id );
     $interview_mod->where( sprintf( '%s.user_id', $review_table ), '=', $this->user_id );
-    $interview_mod->order( 'site.name' );
+    if( 'review' == $review_table ) $interview_mod->order( 'site.name' );
     $interview_mod->order( 'participant.uid' );
 
     $interview_sel = lib::create( 'database\select' );
