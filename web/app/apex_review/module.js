@@ -242,6 +242,7 @@ cenozoApp.defineModule({
         isDisabled: function ($state, model) {
           return (
             !model.viewModel.record.apex_host_id ||
+            !model.viewModel.record.upload_datetime ||
             null == model.viewModel.currentAnalysis ||
             model.viewModel.isDownloading
           );
