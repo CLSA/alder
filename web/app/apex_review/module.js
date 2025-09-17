@@ -109,6 +109,11 @@ cenozoApp.defineModule({
           return model.isRole("typist");
         },
       },
+      status: {
+        title: "Status",
+        type: "string",
+        isConstant: true,
+      },
       start_datetime: {
         title: "Start Date & Time",
         type: "datetime",
@@ -242,7 +247,7 @@ cenozoApp.defineModule({
         isDisabled: function ($state, model) {
           return (
             !model.viewModel.record.apex_host_id ||
-            !model.viewModel.record.upload_datetime ||
+            ["Not Uploaded", "Assigned"].includes(model.viewModel.record.status) ||
             null == model.viewModel.currentAnalysis ||
             model.viewModel.isDownloading
           );
