@@ -481,8 +481,9 @@ class apex_manager extends \cenozo\base_object
     $modifier->where( 'PATIENT_KEY', '=', $patient_id );
     $modifier->where( 'SCANID', '=', $scan_id );
     $pfile_name = $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
-    $pfile_glob = preg_replace( '/\..*$/', '.*', $pfile_name );
+    if( is_null( $pfile_name ) ) return 'Cannot download analysis as there are no P-files.';
 
+    $pfile_glob = preg_replace( '/\..*$/', '.*', $pfile_name );
     $response = $this->scp_from_apex( sprintf( '%s\%s', $this->qdr_data_path, $pfile_glob ), TEMP_PATH );
     if( 0 != $response['exitcode'] ) return 'Unable to download P and R files from Apex.';
 
@@ -679,6 +680,8 @@ class apex_manager extends \cenozo\base_object
 
       if(
         'hip' == $db_scan_type->name &&
+        0 < $height &&
+        0 < $weight &&
         !is_null( $db_interview->previous_fracture ) &&
         !is_null( $db_interview->parent_hip_fracture ) &&
         !is_null( $db_interview->current_smoker ) &&
@@ -747,15 +750,15 @@ class apex_manager extends \cenozo\base_object
         $apex_data['osteoporotic_fracture_risk_bmd'] = $parts[15];
         $apex_data['hip_fracture_risk_bmd'] = $parts[16];
 
-        $db_apex_analysis->data = util::json_encode( $apex_data );
-        $db_apex_analysis->save();
-
         $this->ssh( sprintf(
           'del /s /q %s\input.txt %s\output.txt',
           $this->qdr_data_path,
           $this->qdr_data_path
         ) );
       }
+
+      $db_apex_analysis->data = util::json_encode( $apex_data );
+      $db_apex_analysis->save();
     }
 
     return true;
