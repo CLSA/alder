@@ -528,7 +528,7 @@ class apex_manager extends \cenozo\base_object
         'android_fat','android_gynoid_ratio','android_lean','android_percent_fat',
         'appendage_lean_mass_height_2',
         'body_mass_index',
-        'brain_fat','fat_mass','fat_mass_height_squared','fat_std',
+        'brain_fat','vfat_mass','fat_mass_height_squared','fat_std',
         'global_area','global_bmc','global_bmd','global_fat','global_lean','global_mass','global_pfat',
         'gynoid_fat','gynoid_lean','gynoid_percent_fat',
         'head_area','head_bmc','head_bmd','head_fat','head_lean','head_mass','head_pfat',
