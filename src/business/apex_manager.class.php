@@ -98,24 +98,14 @@ class apex_manager extends \cenozo\base_object
   public function check_for_scan( $filename )
   {
     $data = util::parse_dxa_filename( $filename );
-    $phase_string = sprintf( '%d%s', $data['phase']['rank'], $data['reanalysed'] ? 'R' : '' );
-    $short_type_string = strtoupper(
-      is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
-    );
-
-    // the patient ID is based on uid, side and type
-    $patient_id = sprintf( '%s_%s', $data['uid'], $short_type_string );
-
-    // the scan ID is based on uid, phase, side, type, and whether it was reanalysed
-    $scan_id = sprintf( '%s%s%s', $data['uid'], $phase_string, $short_type_string );
 
     // check if the file is already on the server
     $select = lib::create( 'database\select' );
     $select->from( 'dbo.ScanAnalysis' );
     $select->add_column( 'COUNT(*)', NULL, false );
     $modifier = lib::create( 'database\modifier' );
-    $modifier->where( 'PATIENT_KEY', '=', $patient_id );
-    $modifier->where( 'SCANID', '=', $scan_id );
+    $modifier->where( 'PATIENT_KEY', '=', $data['patient_id'] );
+    $modifier->where( 'SCANID', '=', $data['scan_id'] );
     return 0 < $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
   }
 
@@ -147,21 +137,22 @@ class apex_manager extends \cenozo\base_object
       if( static::$debug )
       {
         log::info( sprintf(
-          'Uploading %s %s %s',
+          'Uploading %s %s-%s%s',
           $image['uid'],
-          'none' == $image['side'] ? $image['type'] : sprintf( '%s-%s', $image['side'], $image['type'] ),
-          $image['reanalysed'] ? '(reanalysed)' : ''
+          $image['side'],
+          $image['type'],
+          $image['reanalysed'] ? ' (reanalysed)' : ''
         ) );
       }
 
       // only proceed if replacing existing scans or the file isn't already on the server
-      if( !$replace && $this->check_for_scan( $image['filename'] ) )
+      if( !$replace && $image['uploaded'] )
       {
         if( static::$debug ) log::info( 'Scan already uploaded, skipping' );
         continue;
       }
 
-      $file_type = $image['reanalysed'] ? 'reanalysed file' : 'file';
+      $file_string = $image['reanalysed'] ? 'reanalysed file' : 'file';
       $result = ['file' => $image['filename'], 'error' => NULL];
 
       // if the first image failed then don't bother
@@ -172,37 +163,12 @@ class apex_manager extends \cenozo\base_object
         break;
       }
 
-      // add base paths to relative filenames
-      $filename = $result['file'];
-      if( $image['reanalysed'] )
-      {
-        if( 0 === preg_match( sprintf( '#%s#', SUPPLEMENTARY_PATH ), $filename ) )
-          $filename = sprintf( '%s%s', SUPPLEMENTARY_PATH, $filename );
-      }
-      else
-      {
-        if( 0 === preg_match( sprintf( '#%s#', IMAGES_PATH ), $filename ) )
-          $filename = sprintf( '%s%s', IMAGES_PATH, $filename );
-      }
-
-      $phase_string = sprintf( '%d%s', $image['phase']['rank'], $image['reanalysed'] ? 'R' : '' );
-      $type_string = (
-        is_null( $image['side'] ) ?
-        $image['type'] :
-        ( 'none' == $image['side'] ? $image['type'] : sprintf( '%s (%s)', $image['type'], $image['side'] ) )
-      );
-      $short_type_string = strtoupper(
-        is_null( $image['side'] ) ?
-        $image['type'][0] :
-        $image['type'][0].$image['side'][0]
-      );
-
       // set the patient ID based on uid, side and type and determine the temp filename from it
-      $new_patient_id = sprintf( '%s_%s', $image['uid'], $short_type_string );
+      $new_patient_id = sprintf( '%s_%s', $image['uid'], $image['short_type_string'] );
       $temp_filename = sprintf( '%s/%s.dcm', TEMP_PATH, $new_patient_id );
 
       // set the scan ID based on uid, phase, side, type, and whether it was reanalysed
-      $new_scan_id = sprintf( '%s%s%s', $image['uid'], $phase_string, $short_type_string );
+      $new_scan_id = sprintf( '%s%s%s', $image['uid'], $image['phase_string'], $image['short_type_string'] );
 
       if( $delete_patient )
       {
@@ -212,13 +178,10 @@ class apex_manager extends \cenozo\base_object
       }
 
       // first do basic checks
-      if( !file_exists( $filename ) )
+      if( !file_exists( $image['filename'] ) )
       {
         if( is_null( $first_image_success ) ) $first_image_success = false;
-        $result['error'] = sprintf(
-          '%s not found in data vault',
-          $image['reanalysed'] ? 'Reanalysed file' : 'File'
-        );
+        $result['error'] = sprintf( '%s not found in data vault', ucwords( $file_string, '' ) );
         $result_list[] = $result;
         if( static::$debug ) log::info( sprintf( 'ERROR: %s', $result['error'] ) );
         break;
@@ -259,7 +222,7 @@ class apex_manager extends \cenozo\base_object
         if( is_null( $matches ) || 2 > count( $matches ) )
         {
           unlink( $temp_filename );
-          $error = sprintf( 'Unable to determine DICOM PatientID tag in %s', $file_type );
+          $error = sprintf( 'Unable to determine DICOM PatientID tag in %s', $file_string );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -270,7 +233,7 @@ class apex_manager extends \cenozo\base_object
         if( 0 != $response['exitcode'] && 0 < strlen( $response['output'] ) )
         {
           unlink( $temp_filename );
-          $error = sprintf( 'Failed to modify DICOM tags in %s', $file_type );
+          $error = sprintf( 'Failed to modify DICOM tags in %s', $file_string );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -279,7 +242,7 @@ class apex_manager extends \cenozo\base_object
         unlink( $temp_filename ); // error or not, we're now done with the temporary file
         if( 0 != $response['exitcode'] )
         {
-          $error = sprintf( 'Failed to copy %s to %s', $file_type, $this->db_apex_host->db_address );
+          $error = sprintf( 'Failed to copy %s to %s', $file_string, $this->db_apex_host->db_address );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -300,7 +263,7 @@ class apex_manager extends \cenozo\base_object
         {
           // try deleting the file
           $this->delete_patient( 'in', $new_patient_id );
-          $error = sprintf( 'Failed to register %s in DICOM server', $file_type );
+          $error = sprintf( 'Failed to register %s in DICOM server', $file_string );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -323,7 +286,7 @@ class apex_manager extends \cenozo\base_object
         $patient_key = $this->query_one( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
         if( is_null( $patient_key ) || 0 == $patient_key )
         {
-          $error = sprintf( 'Failed to move %s into Apex', $file_type );
+          $error = sprintf( 'Failed to move %s into Apex', $file_string );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -344,7 +307,7 @@ class apex_manager extends \cenozo\base_object
             "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s' %s",
             $new_patient_id,
             $new_patient_id,
-            $type_string,
+            $image['type_string'],
             $image['uid'],
             $modifier->get_sql()
           ) );
@@ -409,7 +372,7 @@ class apex_manager extends \cenozo\base_object
         if( 0 != $response['exitcode'] )
         {
           $this->delete_scan( $new_scan_id );
-          $error = sprintf( 'P-file is missing in %s', $file_type );
+          $error = sprintf( 'P-file is missing in %s', $file_string );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -451,35 +414,18 @@ class apex_manager extends \cenozo\base_object
   {
     // get analysis metadata from Apex database and store it in the analysis data column
     $db_exam = $db_apex_analysis->get_apex_review()->get_exam();
-    $db_scan_type = $db_exam->get_scan_type();
     $db_interview = $db_exam->get_interview();
-    $db_study_phase = $db_interview->get_study_phase();
-    $db_participant = $db_interview->get_participant();
 
     // get the current analysis image only
     $image = $db_apex_analysis->get_images_for_apex( true );
-    $data = util::parse_dxa_filename( $image['filename'] );
-
-    $short_type_string = strtoupper(
-      is_null( $data['side'] ) ? $data['type'][0] : $data['type'][0].$data['side'][0]
-    );
-    $short_identifier = sprintf( '%s_%s', $data['uid'], $short_type_string );
-    $long_identifier = sprintf( '%s\%s\%s', $data['type'], $data['side'], $short_identifier );
-    $phase_string = sprintf( '%d%s', $data['phase']['rank'], $data['reanalysed'] ? 'R' : '' );
-
-    // the patient ID is based on uid, side and type
-    $patient_id = sprintf( '%s_%s', $db_participant->uid, $short_type_string );
-
-    // the scan ID is based on uid, phase, side, type, and whether it was reanalysed
-    $scan_id = sprintf( '%s%s%s', $data['uid'], $phase_string, $short_type_string );
 
     // determine the name of the P and R files from the database
     $select = lib::create( 'database\select' );
     $select->from( 'dbo.ScanAnalysis' );
     $select->add_column( 'PFILE_NAME', NULL, false );
     $modifier = lib::create( 'database\modifier' );
-    $modifier->where( 'PATIENT_KEY', '=', $patient_id );
-    $modifier->where( 'SCANID', '=', $scan_id );
+    $modifier->where( 'PATIENT_KEY', '=', $image['patient_id'] );
+    $modifier->where( 'SCANID', '=', $image['scan_id'] );
     $pfile_name = $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
     if( is_null( $pfile_name ) ) return 'Cannot download analysis as there are no P-files.';
 
@@ -490,14 +436,12 @@ class apex_manager extends \cenozo\base_object
     $file_list = glob( sprintf( '%s/%s', TEMP_PATH, $pfile_glob ) );
     if( 2 > count( $file_list ) ) return 'Unable to download re-analysed scan from Apex.';
 
-    $scan_type = $db_scan_type->name;
-    if( 'none' != $scan_type ) $scan_type .= sprintf( '_%s', $db_scan_type->side );
     $base_supplementary_filename = sprintf(
       '%s/%d/dxa/%s/dxa_%s',
       SUPPLEMENTARY_PATH,
-      $db_study_phase->rank,
-      $db_participant->uid,
-      $scan_type
+      $image['phase']['rank'],
+      $image['uid'],
+      $image['type_side']
     );
 
     // transfer file to supplementary directory
@@ -514,7 +458,7 @@ class apex_manager extends \cenozo\base_object
     $table_name_list = [];
     $column_name_list = [];
 
-    if( 'forearm' == $db_scan_type->name )
+    if( 'forearm' == $image['type'] )
     {
       $table_name_list = ['Forearm'];
       $column_name_list = [
@@ -535,7 +479,7 @@ class apex_manager extends \cenozo\base_object
         'utot_area','utot_bmc','utot_bmd'
       ];
     }
-    else if( 'hip' == $db_scan_type->name )
+    else if( 'hip' == $image['type'] )
     {
       $table_name_list = ['Hip','HipHSA'];
       $column_name_list = [
@@ -553,7 +497,7 @@ class apex_manager extends \cenozo\base_object
         'wards_area','wards_bmc','wards_bmd'
       ];
     }
-    else if( 'spine' == $db_scan_type->name )
+    else if( 'spine' == $image['type'] )
     {
       $table_name_list = ['Spine'];
       $column_name_list = [
@@ -569,7 +513,7 @@ class apex_manager extends \cenozo\base_object
         'tot_area','tot_bmc','tot_bmd'
       ];
     }
-    else if( 'wbody' == $db_scan_type->name )
+    else if( 'wbody' == $image['type'] )
     {
       $table_name_list = [
         'Wbody',
@@ -639,7 +583,7 @@ class apex_manager extends \cenozo\base_object
       $select->add_column( '*', NULL, false );
       $modifier = lib::create( 'database\modifier' );
       $modifier->join( 'dbo.ScanAnalysis', 'dbo.Patient.PATIENT_KEY', 'dbo.ScanAnalysis.PATIENT_KEY' );
-      $modifier->where( 'IDENTIFIER1', '=', $short_identifier );
+      $modifier->where( 'IDENTIFIER1', '=', $image['identifier'] );
 
       // join to all data tables
       foreach( $table_name_list as $table_name )
@@ -672,14 +616,14 @@ class apex_manager extends \cenozo\base_object
 
       // calculate T and Z scores
       $tz_reference = lib::create( 'business\tz_reference' );
-      $score_data = $tz_reference->compute_tz_scores( $db_scan_type->name, $db_scan_type->side, $apex_data );
+      $score_data = $tz_reference->compute_tz_scores( $image['type'], $image['side'], $apex_data );
       $apex_data = array_merge( $apex_data, $score_data );
 
       $db_apex_analysis->data = util::json_encode( $apex_data );
       $db_apex_analysis->save();
 
       if(
-        'hip' == $db_scan_type->name &&
+        'hip' == $image['type'] &&
         0 < $height &&
         0 < $weight &&
         !is_null( $db_interview->previous_fracture ) &&
