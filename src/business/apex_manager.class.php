@@ -208,7 +208,7 @@ class apex_manager extends \cenozo\base_object
         $error = NULL;
 
         // create a temporary copy of the dicom file and prepare it for apex
-        copy( $filename, $temp_filename );
+        copy( $image['filename'], $temp_filename );
 
         // fetching the ID sometimes takes a few tries
         $matches = NULL;
