@@ -675,7 +675,7 @@ cenozo.factory("CnImageDisplayFactory", [
 
           // capture all key inputs when the mouse is on the canvas
           window.addEventListener("keydown", async (event) => {
-            if (this.canvas.parentNode.matches(":hover")) {
+            if (this.canvas && this.canvas.parentNode.matches(":hover")) {
               event.preventDefault();
               event.stopPropagation();
 

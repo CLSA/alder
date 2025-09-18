@@ -750,6 +750,7 @@ cenozoApp.defineModule({
             },
 
             onView: async function (force) {
+              this.currentAnalysis = null;
               await this.$$onView();
 
               this.isLoading = true;
