@@ -62,11 +62,12 @@ class util extends \cenozo\util
         else if( in_array( $part, ['left', 'none', 'right'] ) ) $side = $part;
         else if( preg_match( '/^[0-9]+$/', $part ) ) $number = $part;
       }
+      if( is_null( $side ) ) $side = 'none';
 
       $data['uid'] = $uid;
       $data['phase'] = $phase;
       $data['type'] = $type;
-      $data['side'] = null == $side ? 'none' : $side;
+      $data['side'] = $side;
       $data['type_side'] = 'none' == $side ? $type : sprintf( '%s_%s', $type, $side );
       $data['number'] = $number;
       $data['reanalysed'] = $reanalysed;
