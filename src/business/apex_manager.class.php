@@ -594,7 +594,7 @@ class apex_manager extends \cenozo\base_object
       {
         $file_parts = pathinfo( $file );
         $supplementary_filename = sprintf( '%s.%s', $base_supplementary_filename, $file_parts['extension'] );
-        if( !( is_writable( dirname( $supplementary_filename ) ) && copy( $file, $supplementary_filename ) ) )
+        if( !( is_writable( dirname( $supplementary_filename ) ) && rename( $file, $supplementary_filename ) ) )
         {
           $error = 'Unable to transfer re-analysed file to Data Vault.';
           break;
@@ -746,7 +746,7 @@ class apex_manager extends \cenozo\base_object
         {
           $error = 'Unable to read analysis data from Apex database.';
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
-          continue; // try again
+          break; // do not try again
         }
 
         // create an object containing all columns
