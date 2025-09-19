@@ -54,29 +54,7 @@ abstract class base_review extends \cenozo\database\record
     $interview_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
     if( 'review' == $review_table ) $interview_mod->left_join( 'site', 'interview.site_id', 'site.id' );
     $interview_mod->where( 'interview.study_phase_id', '=', $db_current_interview->study_phase_id );
-    if( $is_typist )
-    {
-      $interview_mod->where( sprintf( '%s.user_id', $review_table ), '=', $this->user_id );
-
-      // also restrict typists to reviews that have been uploaded
-      if( 'apex_review' == $review_table )
-      {
-        $interview_mod->join(
-          'apex_review_effective_apex_analysis',
-          'apex_review.id',
-          'apex_review_effective_apex_analysis.apex_review_id'
-        );
-        $interview_mod->join(
-          'apex_analysis',
-          'apex_review_effective_apex_analysis.apex_analysis_id',
-          'apex_analysis.id'
-        );
-        $interview_mod->where( 'apex_review.end_datetime', '=', NULL );
-        $interview_mod->where( 'apex_analysis.download_datetime', '=', NULL );
-        $interview_mod->where( 'apex_analysis.upload_datetime', '!=', NULL );
-        $interview_mod->where( 'apex_analysis.upload_status', '=', NULL );
-      }
-    }
+    if( $is_typist ) $this->apply_typist_restriction_to_modifier( $interview_mod );
     if( 'review' == $review_table ) $interview_mod->order( 'site.name' );
     $interview_mod->order( 'participant.uid' );
 
@@ -152,57 +130,13 @@ abstract class base_review extends \cenozo\database\record
     $base_exam_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
     $base_exam_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
     $base_exam_mod->where( 'exam.interview_id', '=', $db_current_interview->id );
-    if( $is_typist )
-    {
-      $base_exam_mod->where( sprintf( '%s.user_id', $review_table ), '=', $this->user_id );
-
-      // also restrict typists to reviews that have been uploaded
-      if( 'apex_review' == $review_table )
-      {
-        $base_exam_mod->join(
-          'apex_review_effective_apex_analysis',
-          'apex_review.id',
-          'apex_review_effective_apex_analysis.apex_review_id'
-        );
-        $base_exam_mod->join(
-          'apex_analysis',
-          'apex_review_effective_apex_analysis.apex_analysis_id',
-          'apex_analysis.id'
-        );
-        $base_exam_mod->where( 'apex_review.end_datetime', '=', NULL );
-        $base_exam_mod->where( 'apex_analysis.download_datetime', '=', NULL );
-        $base_exam_mod->where( 'apex_analysis.upload_datetime', '!=', NULL );
-        $base_exam_mod->where( 'apex_analysis.upload_status', '=', NULL );
-      }
-    }
+    if( $is_typist ) $this->apply_typist_restriction_to_modifier( $base_exam_mod );
     $base_exam_mod->limit( 1 );
 
     $base_review_mod = lib::create( 'database\modifier' );
     $base_review_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
     $base_review_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
-    if( $is_typist )
-    {
-      $base_review_mod->where( sprintf( '%s.user_id', $review_table ), '=', $this->user_id );
-
-      // also restrict typists to reviews that have been uploaded
-      if( 'apex_review' == $review_table )
-      {
-        $base_exam_mod->join(
-          'apex_review_effective_apex_analysis',
-          'apex_review.id',
-          'apex_review_effective_apex_analysis.apex_review_id'
-        );
-        $base_exam_mod->join(
-          'apex_analysis',
-          'apex_review_effective_apex_analysis.apex_analysis_id',
-          'apex_analysis.id'
-        );
-        $base_exam_mod->where( 'apex_review.end_datetime', '=', NULL );
-        $base_exam_mod->where( 'apex_analysis.download_datetime', '=', NULL );
-        $base_exam_mod->where( 'apex_analysis.upload_datetime', '!=', NULL );
-        $base_exam_mod->where( 'apex_analysis.upload_status', '=', NULL );
-      }
-    }
+    if( $is_typist ) $this->apply_typist_restriction_to_modifier( $base_review_mod );
     $base_review_mod->order( 'scan_type.name' );
     $base_review_mod->order( 'scan_type.side' );
     $base_review_mod->limit( 1 );
@@ -248,5 +182,40 @@ abstract class base_review extends \cenozo\database\record
     }
 
     return $neighbours;
+  }
+
+  /**
+   * Used by the get_neighbouring_reviews() method only (
+   */
+  private function apply_typist_restriction_to_modifier( &$modifier )
+  {
+    $review_table = static::get_table_name();
+    $modifier->where( sprintf( '%s.user_id', $review_table ), '=', $this->user_id );
+
+    // also restrict typists to reviews that have been uploaded
+    if( 'apex_review' == $review_table )
+    {
+      $modifier->join(
+        'apex_review_effective_apex_analysis',
+        'apex_review.id',
+        'apex_review_effective_apex_analysis.apex_review_id'
+      );
+      $modifier->join(
+        'apex_analysis',
+        'apex_review_effective_apex_analysis.apex_analysis_id',
+        'apex_analysis.id'
+      );
+      $modifier->where_bracket( true );
+      $modifier->where( 'apex_review.end_datetime', '=', NULL );
+      $modifier->where( 'apex_analysis.download_datetime', '=', NULL );
+      $modifier->where( 'apex_analysis.upload_datetime', '!=', NULL );
+      $modifier->where( 'apex_analysis.upload_status', '=', NULL );
+      $modifier->where_bracket( false );
+
+      // but always allow the current review, no matter what the status
+      $modifier->where_bracket( true, true );
+      $modifier->where( 'apex_review.id', '=', $this->id );
+      $modifier->where_bracket( false );
+    }
   }
 }
