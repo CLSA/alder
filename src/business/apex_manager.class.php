@@ -55,22 +55,31 @@ class apex_manager extends \cenozo\base_object
    */
   public function get_status()
   {
-    $responses = [];
-    // check if Conquest IN is online
-    $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:CONQUESTSRV1', $this->dgate_in_path ) );
-    $responses['DICOM In'] = 1 === preg_match( '/ is UP/', $response['output'] );
+    $responses = ['DICOM In' => false, 'DICOM Out' => false, 'DICOM Apex' => false, 'QDR' => false];
 
-    // check if Conquest OUT is online
-    $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:CONQUESTSRV2', $this->dgate_out_path ) );
-    $responses['DICOM Out'] = 1 === preg_match( '/ is UP/', $response['output'] );
+    try
+    {
+      // check if Conquest IN is online
+      $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:CONQUESTSRV1', $this->dgate_in_path ) );
+      $responses['DICOM In'] = 1 === preg_match( '/ is UP/', $response['output'] );
 
-    // check if apex is online
-    $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:DEXA', $this->dgate_in_path ) );
-    $responses['DICOM Apex'] = 1 === preg_match( '/ is UP/', $response['output'] );
+      // check if Conquest OUT is online
+      $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:CONQUESTSRV2', $this->dgate_out_path ) );
+      $responses['DICOM Out'] = 1 === preg_match( '/ is UP/', $response['output'] );
 
-    // check if qdr is online
-    $response = $this->ssh( 'tasklist /FI "IMAGENAME eq qdr.exe" /FO LIST' );
-    $responses['QDR'] = 1 === preg_match( '/qdr.exe/', $response['output'] );
+      // check if apex is online
+      $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:DEXA', $this->dgate_in_path ) );
+      $responses['DICOM Apex'] = 1 === preg_match( '/ is UP/', $response['output'] );
+
+      // check if qdr is online
+      $response = $this->ssh( 'tasklist /FI "IMAGENAME eq qdr.exe" /FO LIST' );
+      $responses['QDR'] = 1 === preg_match( '/qdr.exe/', $response['output'] );
+    }
+    catch( \cenozo\exception\runtime $e )
+    {
+      // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+      if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+    }
 
     return $responses;
   }
@@ -83,12 +92,24 @@ class apex_manager extends \cenozo\base_object
    */
   public function delete_all_patients()
   {
-    // remove all patients from Apex
-    $response = $this->delete_patient( 'apex' );
+    $response = NULL;
 
-    // convert an error with no description
-    if( false === $response ) $response = 'Unable to delete patient records from Apex database.';
-    return is_string( $response ) ? $response : NULL;
+    try
+    {
+      // remove all patients from Apex
+      $response = $this->delete_patient( 'apex' );
+
+      // convert an error with no description
+      if( false === $response ) $response = 'Unable to delete patient records from Apex database.';
+    }
+    catch( \cenozo\exception\runtime $e )
+    {
+      // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+      if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+      $response = 'No response from Apex server when trying to delete patient records from Apex database';
+    }
+
+    return $response;
   }
 
   /**
@@ -120,11 +141,22 @@ class apex_manager extends \cenozo\base_object
   public function upload_files( $db_apex_analysis, $replace = false )
   {
     // start by checking if the necessary servers are online
-    $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:CONQUESTSRV1', $this->dgate_in_path ) );
-    $dicom_in_online = 1 === preg_match( '/ is UP/', $response['output'] );
+    $dicom_is_online = false;
+    $qdr_online = false;
 
-    $response = $this->ssh( 'tasklist /FI "IMAGENAME eq qdr.exe" /FO LIST' );
-    $qdr_online = 1 === preg_match( '/qdr.exe/', $response['output'] );
+    try
+    {
+      $response = $this->ssh( sprintf( '%s\dgate64.exe -v --echo:CONQUESTSRV1', $this->dgate_in_path ) );
+      $dicom_is_online = 1 === preg_match( '/ is UP/', $response['output'] );
+
+      $response = $this->ssh( 'tasklist /FI "IMAGENAME eq qdr.exe" /FO LIST' );
+      $qdr_online = 1 === preg_match( '/qdr.exe/', $response['output'] );
+    }
+    catch( \cenozo\exception\runtime $e )
+    {
+      // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+      if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+    }
 
     $result_list = [];
 
@@ -172,9 +204,23 @@ class apex_manager extends \cenozo\base_object
 
       if( $delete_patient )
       {
-        // when replacing files delete the patient before proceeding
-        $this->delete_patient( 'apex', $new_patient_id );
-        $delete_patient = false; // only ever do this once
+        try
+        {
+          // when replacing files delete the patient before proceeding
+          $this->delete_patient( 'apex', $new_patient_id );
+          $delete_patient = false; // only ever do this once
+        }
+        catch( \cenozo\exception\runtime $e )
+        {
+          // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+          if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+
+          if( is_null( $first_image_success ) ) $first_image_success = false;
+          $result['error'] = 'No response from Apex when trying to reset patient before upload';
+          $result_list[] = $result;
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $result['error'] ) );
+          break;
+        }
       }
 
       // first do basic checks
@@ -187,7 +233,7 @@ class apex_manager extends \cenozo\base_object
         break;
       }
 
-      if( !$dicom_in_online || !$qdr_online )
+      if( !$dicom_is_online || !$qdr_online )
       {
         if( is_null( $first_image_success ) ) $first_image_success = false;
         $result['error'] = sprintf(
@@ -238,45 +284,85 @@ class apex_manager extends \cenozo\base_object
           continue; // try again
         }
 
-        $response = $this->scp_to_apex( $temp_filename, sprintf( '%s\incoming', $this->incoming_path ) );
-        unlink( $temp_filename ); // error or not, we're now done with the temporary file
-        if( 0 != $response['exitcode'] )
+        try
         {
-          $error = sprintf( 'Failed to copy %s to %s', $file_string, $this->db_apex_host->db_address );
+          $response = $this->scp_to_apex( $temp_filename, sprintf( '%s\incoming', $this->incoming_path ) );
+          unlink( $temp_filename ); // error or not, we're now done with the temporary file
+          if( 0 != $response['exitcode'] )
+          {
+            $error = sprintf( 'Failed to copy %s to Apex host', $file_string );
+            if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+            continue; // try again
+          }
+        }
+        catch( \cenozo\exception\runtime $e )
+        {
+          // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+          if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+
+          $error = sprintf( 'No response from Apex server when trying to copy %s', $file_string );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
 
         // wait up to 15 seconds for the file to register in the DICOM server
         $file_registered = false;
+        $no_response = false;
         for( $i = 1; $i <= 15; $i++ )
         {
           sleep(1);
-          $response = $this->ssh( sprintf( 'dir %s\%s', $this->incoming_path, $new_patient_id ) );
-          if( 0 == $response['exitcode'] )
+          try
           {
-            $file_registered = true;
-            break;
+            $response = $this->ssh( sprintf( 'dir %s\%s', $this->incoming_path, $new_patient_id ) );
+            $no_response = false;
+            if( 0 == $response['exitcode'] )
+            {
+              $file_registered = true;
+              break;
+            }
+          }
+          catch( \cenozo\exception\runtime $e )
+          {
+            // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+            if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+            $no_response = true;
           }
         }
         if( !$file_registered )
         {
-          // try deleting the file
-          $this->delete_patient( 'in', $new_patient_id );
-          $error = sprintf( 'Failed to register %s in DICOM server', $file_string );
+          // try deleting the file before registering the error
+          try { $this->delete_patient( 'in', $new_patient_id ); } catch( \cenozo\exception\runtime $e ) {}
+          $error = sprintf(
+            $no_response ?
+            'No response from Apex when trying to register %s in DICOM server' :
+            'Failed to register %s in DICOM server',
+            $file_string
+          );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
 
-        // move file to Apex DICOM server
-        $this->ssh( sprintf(
-          '%s\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
-          $this->dgate_in_path,
-          $new_patient_id
-        ) );
+        try
+        {
+          // move file to Apex DICOM server
+          $this->ssh( sprintf(
+            '%s\dgate64.exe -v --movepatient:CONQUESTSRV1,DEXA,%s',
+            $this->dgate_in_path,
+            $new_patient_id
+          ) );
+        }
+        catch( \cenozo\exception\runtime $e )
+        {
+          // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+          if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
 
-        // remove files from the DICOM IN server (whether the move patient command works or not)
-        $this->delete_patient( 'in', $new_patient_id );
+          $error = sprintf( 'No response from Apex server when trying to move %s into Apex', $file_string );
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          continue; // try again
+        }
+
+        // try removing files from the DICOM IN server (whether the move patient command works or not)
+        try { $this->delete_patient( 'in', $new_patient_id ); } catch( \cenozo\exception\runtime $e ) {}
 
         $select = lib::create( 'database\select' );
         $select->from( 'dbo.PATIENT' );
@@ -315,7 +401,8 @@ class apex_manager extends \cenozo\base_object
           if( false === $query_response || is_string( $query_response ) )
           {
             // remove the scan from Apex, if we can
-            if( false !== $query_response ) $this->delete_patient( 'apex', $old_patient_id );
+            if( false !== $query_response )
+              try { $this->delete_patient( 'apex', $old_patient_id ); } catch( \cenozo\exception\runtime $e ) {}
             $error = is_string( $query_response ) ? $query_response : 'Unable to update Apex patient record';
             if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
             continue; // try again
@@ -348,7 +435,7 @@ class apex_manager extends \cenozo\base_object
         if( false === $query_response || is_string( $query_response ) )
         {
           // something went wrong, so clean up before reporting the error
-          $this->delete_scan( $old_scan_id );
+          try { $this->delete_scan( $old_scan_id ); } catch( \cenozo\exception\runtime $e ) {}
           $error = 'Unable to update Apex ScanAnalysis table';
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
@@ -357,7 +444,7 @@ class apex_manager extends \cenozo\base_object
         if( $working_patient_id == $old_patient_id )
         {
           // delete the patient record since we have transferred its scans to the base patient
-          $this->delete_patient( 'apex', $working_patient_id );
+          try { $this->delete_patient( 'apex', $working_patient_id ); } catch( \cenozo\exception\runtime $e ) {}
         }
 
         // finally, make sure the PFILE exists
@@ -368,11 +455,23 @@ class apex_manager extends \cenozo\base_object
         $modifier->where( 'PATIENT_KEY', '=', $new_patient_id );
         $modifier->where( 'SCANID', '=', $new_scan_id );
         $pfile_name = $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
-        $response = $this->ssh( sprintf( 'dir %s\%s', $this->qdr_data_path, $pfile_name ) );
-        if( 0 != $response['exitcode'] )
+
+        try
         {
-          $this->delete_scan( $new_scan_id );
-          $error = sprintf( 'P-file is missing in %s', $file_string );
+          $response = $this->ssh( sprintf( 'dir %s\%s', $this->qdr_data_path, $pfile_name ) );
+          if( 0 != $response['exitcode'] )
+          {
+            try { $this->delete_scan( $new_scan_id ); } catch( \cenozo\exception\runtime $e ) {}
+            $error = sprintf( 'P-file is missing in %s', $file_string );
+            if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+            continue; // try again
+          }
+        }
+        catch( \cenozo\exception\runtime $e )
+        {
+          // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+          if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+          $error = 'No response from Apex server when checking for P-file';
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -394,7 +493,7 @@ class apex_manager extends \cenozo\base_object
       {
         if( !is_null( $result['error'] ) )
         {
-          $this->delete_patient( 'apex', $new_patient_id );
+          try { $this->delete_patient( 'apex', $new_patient_id ); } catch( \cenozo\exception\runtime $e ) {}
           break;
         }
       }
@@ -419,293 +518,407 @@ class apex_manager extends \cenozo\base_object
     // get the current analysis image only
     $image = $db_apex_analysis->get_images_for_apex( true );
 
-    // determine the name of the P and R files from the database
-    $select = lib::create( 'database\select' );
-    $select->from( 'dbo.ScanAnalysis' );
-    $select->add_column( 'PFILE_NAME', NULL, false );
-    $modifier = lib::create( 'database\modifier' );
-    $modifier->where( 'PATIENT_KEY', '=', $image['patient_id'] );
-    $modifier->where( 'SCANID', '=', $image['scan_id'] );
-    $pfile_name = $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
-    if( is_null( $pfile_name ) ) return 'Cannot download analysis as there are no P-files.';
-
-    $pfile_glob = preg_replace( '/\..*$/', '.*', $pfile_name );
-    $response = $this->scp_from_apex( sprintf( '%s\%s', $this->qdr_data_path, $pfile_glob ), TEMP_PATH );
-    if( 0 != $response['exitcode'] ) return 'Unable to download P and R files from Apex.';
-
-    $file_list = glob( sprintf( '%s/%s', TEMP_PATH, $pfile_glob ) );
-    if( 2 > count( $file_list ) ) return 'Unable to download re-analysed scan from Apex.';
-
-    $base_supplementary_filename = sprintf(
-      '%s/%d/dxa/%s/dxa_%s',
-      SUPPLEMENTARY_PATH,
-      $image['phase']['rank'],
-      $image['uid'],
-      $image['type_side']
-    );
-
-    // transfer file to supplementary directory
-    foreach( $file_list as $file )
+    if( static::$debug )
     {
-      $file_parts = pathinfo( $file );
-      $supplementary_filename = sprintf( '%s.%s', $base_supplementary_filename, $file_parts['extension'] );
-      if( !( is_writable( dirname( $supplementary_filename ) ) && copy( $file, $supplementary_filename ) ) )
-      {
-        return 'Unable to transfer re-analysed file to Data Vault.';
-      }
+      log::info( sprintf(
+        'Downloading %s %s-%s%s',
+        $image['uid'],
+        $image['side'],
+        $image['type'],
+        $image['reanalysed'] ? ' (reanalysed)' : ''
+      ) );
     }
 
-    $table_name_list = [];
-    $column_name_list = [];
+    $error = NULL;
+    for( $try = 0; $try < $this->tries; $try++ )
+    {
+      if( static::$debug ) log::info( sprintf( 'Attempt #%d', $try+1 ) );
+      // make sure to clear out any errors from a previous try
+      $error = NULL;
 
-    if( 'forearm' == $image['type'] )
-    {
-      $table_name_list = ['Forearm'];
-      $column_name_list = [
-        'arm_length',
-        'physician_comment',
-        'r_13_area','r_13_bmc','r_13_bmd',
-        'r_mid_area','r_mid_bmc','r_mid_bmd',
-        'r_ud_area','r_ud_bmc','r_ud_bmd',
-        'roi_height','roi_type','roi_width',
-        'rtot_area','rtot_bmc','rtot_bmd',
-        'ru13tot_area','ru13tot_bmc','ru13tot_bmd',
-        'rumidtot_area','rumidtot_bmc','rumidtot_bmd',
-        'rutot_bmc','rutot_bmd',
-        'ruudtot_area','ruudtot_bmc','ruudtot_bmd',
-        'u_13_area','u_13_bmc','u_13_bmd',
-        'u_mid_area','u_mid_bmc','u_mid_bmd',
-        'u_ud_area','u_ud_bmc','u_ud_bmd',
-        'utot_area','utot_bmc','utot_bmd'
-      ];
-    }
-    else if( 'hip' == $image['type'] )
-    {
-      $table_name_list = ['Hip','HipHSA'];
-      $column_name_list = [
-        'axis_length',
-        'fs_act','fs_bmd','fs_br','fs_cmp','fs_csa','fs_csmi','fs_ed','fs_pcd','fs_sect_mod','fs_width',
-        'htot_area','htot_bmc','htot_bmd',
-        'inter_area','inter_bmc','inter_bmd',
-        'it_act','it_bmd','it_br','it_cmp','it_csa','it_csmi','it_ed','it_pcd','it_sect_mod','it_width',
-        'neck_area','neck_bmc','neck_bmd',
-        'nn_act','nn_bmd','nn_br','nn_cmp','nn_csa','nn_csmi','nn_ed','nn_pcd','nn_sect_mod','nn_width',
-        'physician_comment',
-        'roi_height','roi_type','roi_width',
-        'shaft_neck_angle',
-        'troch_area','troch_bmc','troch_bmd',
-        'wards_area','wards_bmc','wards_bmd'
-      ];
-    }
-    else if( 'spine' == $image['type'] )
-    {
-      $table_name_list = ['Spine'];
-      $column_name_list = [
-        'l1_area','l1_bmc','l1_bmd','l1_included',
-        'l2_area','l2_bmc','l2_bmd','l2_included',
-        'l3_area','l3_bmc','l3_bmd','l3_included',
-        'l4_area','l4_bmc','l4_bmd','l4_included',
-        'no_regions',
-        'physician_comment',
-        'roi_height','roi_type','roi_width',
-        'starting_region',
-        'std_tot_bmd',
-        'tot_area','tot_bmc','tot_bmd'
-      ];
-    }
-    else if( 'wbody' == $image['type'] )
-    {
-      $table_name_list = [
-        'Wbody',
-        'WbodyComposition',
-        'AndroidGynoidComposition',
-        'ObesityIndices',
-        'SubRegionBone',
-        'SubRegionComposition'
-      ];
-
-      $column_name_list = [
-        'android_fat','android_gynoid_ratio','android_lean','android_percent_fat',
-        'appendage_lean_mass_height_2',
-        'body_mass_index',
-        'brain_fat','vfat_mass','fat_mass_height_squared','fat_std',
-        'global_area','global_bmc','global_bmd','global_fat','global_lean','global_mass','global_pfat',
-        'gynoid_fat','gynoid_lean','gynoid_percent_fat',
-        'head_area','head_bmc','head_bmd','head_fat','head_lean','head_mass','head_pfat',
-        'l_leg_fat','l_leg_lean','l_leg_mass','l_leg_pfat',
-        'l_s_area','l_s_bmc','l_s_bmd',
-        'larm_area','larm_bmc','larm_bmd','larm_fat','larm_lean','larm_mass','larm_pfat',
-        'lean_mass_height_squared','lean_std',
-        'lleg_area','lleg_bmc','lleg_bmd',
-        'lrib_area','lrib_bmc','lrib_bmd',
-        'net_avg_area','net_avg_bmc','net_avg_bmd','net_avg_fat','net_avg_lean','net_avg_mass','net_avg_pfat',
-        'no_regions',
-        'pelv_area','pelv_bmc','pelv_bmd',
-        'physician_comment',
-        'r_leg_fat','r_leg_lean','r_leg_mass','r_leg_pfat',
-        'rarm_area','rarm_bmc','rarm_bmd','rarm_fat','rarm_lean','rarm_mass','rarm_pfat',
-        'reg10_area','reg10_bmc','reg10_bmd','reg10_fat','reg10_lean','reg10_mass','reg10_name','reg10_pfat',
-        'reg11_area','reg11_bmc','reg11_bmd','reg11_fat','reg11_lean','reg11_mass','reg11_name','reg11_pfat',
-        'reg12_area','reg12_bmc','reg12_bmd','reg12_fat','reg12_lean','reg12_mass','reg12_name','reg12_pfat',
-        'reg13_area','reg13_bmc','reg13_bmd','reg13_fat','reg13_lean','reg13_mass','reg13_name','reg13_pfat',
-        'reg14_area','reg14_bmc','reg14_bmd','reg14_fat','reg14_lean','reg14_mass','reg14_name','reg14_pfat',
-        'reg1_area','reg1_bmc','reg1_bmd','reg1_fat','reg1_lean','reg1_mass','reg1_name','reg1_pfat',
-        'reg2_area','reg2_bmc','reg2_bmd','reg2_fat','reg2_lean','reg2_mass','reg2_name','reg2_pfat',
-        'reg3_area','reg3_bmc','reg3_bmd','reg3_fat','reg3_lean','reg3_mass','reg3_name','reg3_pfat',
-        'reg4_area','reg4_bmc','reg4_bmd','reg4_fat','reg4_lean','reg4_mass','reg4_name','reg4_pfat',
-        'reg5_area','reg5_bmc','reg5_bmd','reg5_fat','reg5_lean','reg5_mass','reg5_name','reg5_pfat',
-        'reg6_area','reg6_bmc','reg6_bmd','reg6_fat','reg6_lean','reg6_mass','reg6_name','reg6_pfat',
-        'reg7_area','reg7_bmc','reg7_bmd','reg7_fat','reg7_lean','reg7_mass','reg7_name','reg7_pfat',
-        'reg8_area','reg8_bmc','reg8_bmd','reg8_fat','reg8_lean','reg8_mass','reg8_name','reg8_pfat',
-        'reg9_area','reg9_bmc','reg9_bmd','reg9_fat','reg9_lean','reg9_mass','reg9_name','reg9_pfat',
-        'rleg_area','rleg_bmc','rleg_bmd',
-        'rrib_area','rrib_bmc','rrib_bmd',
-        'subtot_area','subtot_bmc','subtot_bmd','subtot_fat','subtot_lean','subtot_mass','subtot_pfat',
-        't_s_area','t_s_bmc','t_s_bmd',
-        'tissue_analysis_method',
-        'total_fat_mass','total_lean_mass','total_percent_fat',
-        'trunk_fat','trunk_lean','trunk_limb_fat_mass_ratio','trunk_mass','trunk_pfat',
-        'water_lbm',
-        'wbtot_area','wbtot_bmc','wbtot_bmd','wbtot_fat','wbtot_lean','wbtot_mass','wbtot_pfat'
-      ];
-    }
-
-    if( 0 < count( $table_name_list ) )
-    {
-      // add columns needed by the tz reference
-      $column_name_list = array_merge(
-        ['scan_date', 'sex', 'birthdate', 'ethnicity', 'height', 'weight'],
-        $column_name_list
-      );
-
+      // determine the name of the P and R files from the database
       $select = lib::create( 'database\select' );
-      $select->from( 'dbo.Patient' );
-      $select->add_column( '*', NULL, false );
+      $select->from( 'dbo.ScanAnalysis' );
+      $select->add_column( 'PFILE_NAME', NULL, false );
       $modifier = lib::create( 'database\modifier' );
-      $modifier->join( 'dbo.ScanAnalysis', 'dbo.Patient.PATIENT_KEY', 'dbo.ScanAnalysis.PATIENT_KEY' );
-      $modifier->where( 'IDENTIFIER1', '=', $image['identifier'] );
-
-      // join to all data tables
-      foreach( $table_name_list as $table_name )
-        $modifier->join( $table_name, 'dbo.ScanAnalysis.SCANID', sprintf( 'dbo.%s.SCANID', $table_name ) );
-
-      $row = $this->query_row( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
-      if( is_null( $row ) ) return 'Unable to read analysis data from Apex database.';
-
-      // create an object containing all columns
-      $height = NULL;
-      $weight = NULL;
-      $apex_data = [];
-      foreach( $column_name_list as $column_name )
+      $modifier->where( 'PATIENT_KEY', '=', $image['patient_id'] );
+      $modifier->where( 'SCANID', '=', $image['scan_id'] );
+      $pfile_name = $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
+      if( is_null( $pfile_name ) )
       {
-        // row column names are all in upper case
-        $row_column_name = strtoupper( $column_name );
-
-        if( !array_key_exists( $row_column_name, $row ) )
-        {
-          return sprintf(
-            'Column "%s" missing while reading analysis data from Apex database.',
-            $row_column_name
-          );
-        }
-
-        if( 'height' == $column_name ) $height = $row[$row_column_name];
-        else if( 'weight' == $column_name ) $weight = $row[$row_column_name];
-        else $apex_data[$column_name] = $row[$row_column_name];
+        $error = 'Cannot download analysis as there are no P-files.';
+        if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+        break; // do not try again
       }
 
-      // calculate T and Z scores
-      $tz_reference = lib::create( 'business\tz_reference' );
-      $score_data = $tz_reference->compute_tz_scores( $image['type'], $image['side'], $apex_data );
-      $apex_data = array_merge( $apex_data, $score_data );
+      $pfile_glob = preg_replace( '/\..*$/', '.*', $pfile_name );
 
-      $db_apex_analysis->data = util::json_encode( $apex_data );
-      $db_apex_analysis->save();
-
-      if(
-        'hip' == $image['type'] &&
-        0 < $height &&
-        0 < $weight &&
-        !is_null( $db_interview->previous_fracture ) &&
-        !is_null( $db_interview->parent_hip_fracture ) &&
-        !is_null( $db_interview->current_smoker ) &&
-        !is_null( $db_interview->glucocorticoid ) &&
-        !is_null( $db_interview->rheumatoid_arthritis ) &&
-        !is_null( $db_interview->secondary_osteoporosis ) &&
-        !is_null( $db_interview->alcohol )
-      ) {
-        // calculate the frax score
-
-        // start by creating the input.txt files needed by the blackbox.exe program hosted on the Apex server
-        $input_filename = sprintf( '%s/input.%s.txt', TEMP_PATH, $db_apex_analysis->id );
-        $input_values = [
-          't', // type 't' or 'z'
-          19, // countryCode
-          util::get_interval( $apex_data['scan_date'], $apex_data['birthdate'] )->y, // age int
-          'M' == $apex_data['sex'] ? 0 : 1, // sex int 0 = male, 1 = female
-          $weight / ( $height/100 * $height/100 ), // bmi double
-          $db_interview->previous_fracture ? '0' : '1',
-          $db_interview->parent_hip_fracture ? '0' : '1',
-          $db_interview->current_smoker ? '0' : '1',
-          $db_interview->glucocorticoid ? '0' : '1',
-          $db_interview->rheumatoid_arthritis ? '0' : '1',
-          $db_interview->secondary_osteoporosis ? '0' : '1',
-          $db_interview->alcohol ? '0' : '1',
-          $apex_data['neck_t'], // hip scan neck_t score
-        ];
-        $input = implode( ',', $input_values );
-        file_put_contents( $input_filename, $input, LOCK_EX );
-
-        // upload the input file to the apex server and run blackbox.exe
-        $response = $this->scp_to_apex( $input_filename, sprintf( '%s\input.txt', $this->qdr_data_path ) );
-        unlink( $input_filename );
+      try
+      {
+        $response = $this->scp_from_apex( sprintf( '%s\%s', $this->qdr_data_path, $pfile_glob ), TEMP_PATH );
         if( 0 != $response['exitcode'] )
         {
-          return sprintf( 'Failed to copy frax input.txt file to %s.', $this->db_apex_host->db_address );
+          $error = 'Unable to download P and R files from Apex.';
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          continue; // try again
         }
+      }
+      catch( \cenozo\exception\runtime $e )
+      {
+        // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+        if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
 
-        // blackbox is unpredictable, so try several times
-        $response = NULL;
-        $error = false;
-        for( $try = 0; $try <= $this->tries; $try++ )
-        {
-          $response = $this->ssh( sprintf( '%s\blackbox.exe', $this->qdr_data_path ) );
-          $error = 0 != $response['exitcode'] || $response['output'];
-          if( !$error ) break;
-        }
-
-        if( $error )
-        {
-          return sprintf(
-            'Failed to run frax calculator%s.',
-            $response['output'] ? sprintf( ' (%s)', $response['output'] ) : ''
-          );
-        }
-
-        // get the 4 frax values from the output.txt file and clean up
-        $response = $this->ssh( sprintf( 'more %s\output.txt', $this->qdr_data_path ) );
-        $parts = explode( ',', trim( $response['output'] ) );
-        if( 17 != count( $parts ) ) return 'FRAX calculator returned unexepcted result.';
-        if( '_' == $parts[13] || '_' == $parts[14] || '_' == $parts[15] || '_' == $parts[16] )
-          return 'FRAX calculator was unable to generate risk scores.';
-
-        $apex_data['osteoporotic_fracture_risk'] = $parts[13];
-        $apex_data['hip_fracture_risk'] = $parts[14];
-        $apex_data['osteoporotic_fracture_risk_bmd'] = $parts[15];
-        $apex_data['hip_fracture_risk_bmd'] = $parts[16];
-
-        $this->ssh( sprintf(
-          'del /s /q %s\input.txt %s\output.txt',
-          $this->qdr_data_path,
-          $this->qdr_data_path
-        ) );
+        $error = 'No response from Apex server when trying to download P and R files from Apex.';
+        if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+        continue; // try again
       }
 
-      $db_apex_analysis->data = util::json_encode( $apex_data );
-      $db_apex_analysis->save();
+      $file_list = glob( sprintf( '%s/%s', TEMP_PATH, $pfile_glob ) );
+      if( 2 > count( $file_list ) )
+      {
+        $error = 'Unable to download re-analysed scan from Apex.';
+        if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+        continue; // try again
+      }
+
+      $base_supplementary_filename = sprintf(
+        '%s/%d/dxa/%s/dxa_%s',
+        SUPPLEMENTARY_PATH,
+        $image['phase']['rank'],
+        $image['uid'],
+        $image['type_side']
+      );
+
+      // transfer file to supplementary directory
+      foreach( $file_list as $file )
+      {
+        $file_parts = pathinfo( $file );
+        $supplementary_filename = sprintf( '%s.%s', $base_supplementary_filename, $file_parts['extension'] );
+        if( !( is_writable( dirname( $supplementary_filename ) ) && copy( $file, $supplementary_filename ) ) )
+        {
+          $error = 'Unable to transfer re-analysed file to Data Vault.';
+          break;
+        }
+      }
+
+      if( !is_null( $error ) )
+      {
+        if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+        continue; // try again
+      }
+
+      $table_name_list = [];
+      $column_name_list = [];
+
+      if( 'forearm' == $image['type'] )
+      {
+        $table_name_list = ['Forearm'];
+        $column_name_list = [
+          'arm_length',
+          'physician_comment',
+          'r_13_area','r_13_bmc','r_13_bmd',
+          'r_mid_area','r_mid_bmc','r_mid_bmd',
+          'r_ud_area','r_ud_bmc','r_ud_bmd',
+          'roi_height','roi_type','roi_width',
+          'rtot_area','rtot_bmc','rtot_bmd',
+          'ru13tot_area','ru13tot_bmc','ru13tot_bmd',
+          'rumidtot_area','rumidtot_bmc','rumidtot_bmd',
+          'rutot_bmc','rutot_bmd',
+          'ruudtot_area','ruudtot_bmc','ruudtot_bmd',
+          'u_13_area','u_13_bmc','u_13_bmd',
+          'u_mid_area','u_mid_bmc','u_mid_bmd',
+          'u_ud_area','u_ud_bmc','u_ud_bmd',
+          'utot_area','utot_bmc','utot_bmd'
+        ];
+      }
+      else if( 'hip' == $image['type'] )
+      {
+        $table_name_list = ['Hip','HipHSA'];
+        $column_name_list = [
+          'axis_length',
+          'fs_act','fs_bmd','fs_br','fs_cmp','fs_csa','fs_csmi','fs_ed','fs_pcd','fs_sect_mod','fs_width',
+          'htot_area','htot_bmc','htot_bmd',
+          'inter_area','inter_bmc','inter_bmd',
+          'it_act','it_bmd','it_br','it_cmp','it_csa','it_csmi','it_ed','it_pcd','it_sect_mod','it_width',
+          'neck_area','neck_bmc','neck_bmd',
+          'nn_act','nn_bmd','nn_br','nn_cmp','nn_csa','nn_csmi','nn_ed','nn_pcd','nn_sect_mod','nn_width',
+          'physician_comment',
+          'roi_height','roi_type','roi_width',
+          'shaft_neck_angle',
+          'troch_area','troch_bmc','troch_bmd',
+          'wards_area','wards_bmc','wards_bmd'
+        ];
+      }
+      else if( 'spine' == $image['type'] )
+      {
+        $table_name_list = ['Spine'];
+        $column_name_list = [
+          'l1_area','l1_bmc','l1_bmd','l1_included',
+          'l2_area','l2_bmc','l2_bmd','l2_included',
+          'l3_area','l3_bmc','l3_bmd','l3_included',
+          'l4_area','l4_bmc','l4_bmd','l4_included',
+          'no_regions',
+          'physician_comment',
+          'roi_height','roi_type','roi_width',
+          'starting_region',
+          'std_tot_bmd',
+          'tot_area','tot_bmc','tot_bmd'
+        ];
+      }
+      else if( 'wbody' == $image['type'] )
+      {
+        $table_name_list = [
+          'Wbody',
+          'WbodyComposition',
+          'AndroidGynoidComposition',
+          'ObesityIndices',
+          'SubRegionBone',
+          'SubRegionComposition'
+        ];
+
+        $column_name_list = [
+          'android_fat','android_gynoid_ratio','android_lean','android_percent_fat',
+          'appendage_lean_mass_height_2',
+          'body_mass_index',
+          'brain_fat','vfat_mass','fat_mass_height_squared','fat_std',
+          'global_area','global_bmc','global_bmd','global_fat','global_lean','global_mass','global_pfat',
+          'gynoid_fat','gynoid_lean','gynoid_percent_fat',
+          'head_area','head_bmc','head_bmd','head_fat','head_lean','head_mass','head_pfat',
+          'l_leg_fat','l_leg_lean','l_leg_mass','l_leg_pfat',
+          'l_s_area','l_s_bmc','l_s_bmd',
+          'larm_area','larm_bmc','larm_bmd','larm_fat','larm_lean','larm_mass','larm_pfat',
+          'lean_mass_height_squared','lean_std',
+          'lleg_area','lleg_bmc','lleg_bmd',
+          'lrib_area','lrib_bmc','lrib_bmd',
+          'net_avg_area','net_avg_bmc','net_avg_bmd','net_avg_fat','net_avg_lean','net_avg_mass','net_avg_pfat',
+          'no_regions',
+          'pelv_area','pelv_bmc','pelv_bmd',
+          'physician_comment',
+          'r_leg_fat','r_leg_lean','r_leg_mass','r_leg_pfat',
+          'rarm_area','rarm_bmc','rarm_bmd','rarm_fat','rarm_lean','rarm_mass','rarm_pfat',
+          'reg10_area','reg10_bmc','reg10_bmd','reg10_fat','reg10_lean','reg10_mass','reg10_name','reg10_pfat',
+          'reg11_area','reg11_bmc','reg11_bmd','reg11_fat','reg11_lean','reg11_mass','reg11_name','reg11_pfat',
+          'reg12_area','reg12_bmc','reg12_bmd','reg12_fat','reg12_lean','reg12_mass','reg12_name','reg12_pfat',
+          'reg13_area','reg13_bmc','reg13_bmd','reg13_fat','reg13_lean','reg13_mass','reg13_name','reg13_pfat',
+          'reg14_area','reg14_bmc','reg14_bmd','reg14_fat','reg14_lean','reg14_mass','reg14_name','reg14_pfat',
+          'reg1_area','reg1_bmc','reg1_bmd','reg1_fat','reg1_lean','reg1_mass','reg1_name','reg1_pfat',
+          'reg2_area','reg2_bmc','reg2_bmd','reg2_fat','reg2_lean','reg2_mass','reg2_name','reg2_pfat',
+          'reg3_area','reg3_bmc','reg3_bmd','reg3_fat','reg3_lean','reg3_mass','reg3_name','reg3_pfat',
+          'reg4_area','reg4_bmc','reg4_bmd','reg4_fat','reg4_lean','reg4_mass','reg4_name','reg4_pfat',
+          'reg5_area','reg5_bmc','reg5_bmd','reg5_fat','reg5_lean','reg5_mass','reg5_name','reg5_pfat',
+          'reg6_area','reg6_bmc','reg6_bmd','reg6_fat','reg6_lean','reg6_mass','reg6_name','reg6_pfat',
+          'reg7_area','reg7_bmc','reg7_bmd','reg7_fat','reg7_lean','reg7_mass','reg7_name','reg7_pfat',
+          'reg8_area','reg8_bmc','reg8_bmd','reg8_fat','reg8_lean','reg8_mass','reg8_name','reg8_pfat',
+          'reg9_area','reg9_bmc','reg9_bmd','reg9_fat','reg9_lean','reg9_mass','reg9_name','reg9_pfat',
+          'rleg_area','rleg_bmc','rleg_bmd',
+          'rrib_area','rrib_bmc','rrib_bmd',
+          'subtot_area','subtot_bmc','subtot_bmd','subtot_fat','subtot_lean','subtot_mass','subtot_pfat',
+          't_s_area','t_s_bmc','t_s_bmd',
+          'tissue_analysis_method',
+          'total_fat_mass','total_lean_mass','total_percent_fat',
+          'trunk_fat','trunk_lean','trunk_limb_fat_mass_ratio','trunk_mass','trunk_pfat',
+          'water_lbm',
+          'wbtot_area','wbtot_bmc','wbtot_bmd','wbtot_fat','wbtot_lean','wbtot_mass','wbtot_pfat'
+        ];
+      }
+
+      if( 0 < count( $table_name_list ) )
+      {
+        // add columns needed by the tz reference
+        $column_name_list = array_merge(
+          ['scan_date', 'sex', 'birthdate', 'ethnicity', 'height', 'weight'],
+          $column_name_list
+        );
+
+        $select = lib::create( 'database\select' );
+        $select->from( 'dbo.Patient' );
+        $select->add_column( '*', NULL, false );
+        $modifier = lib::create( 'database\modifier' );
+        $modifier->join( 'dbo.ScanAnalysis', 'dbo.Patient.PATIENT_KEY', 'dbo.ScanAnalysis.PATIENT_KEY' );
+        $modifier->where( 'IDENTIFIER1', '=', $image['identifier'] );
+
+        // join to all data tables
+        foreach( $table_name_list as $table_name )
+          $modifier->join( $table_name, 'dbo.ScanAnalysis.SCANID', sprintf( 'dbo.%s.SCANID', $table_name ) );
+
+        $row = $this->query_row( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
+        if( is_null( $row ) )
+        {
+          $error = 'Unable to read analysis data from Apex database.';
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          continue; // try again
+        }
+
+        // create an object containing all columns
+        $height = NULL;
+        $weight = NULL;
+        $apex_data = [];
+        foreach( $column_name_list as $column_name )
+        {
+          // row column names are all in upper case
+          $row_column_name = strtoupper( $column_name );
+
+          if( !array_key_exists( $row_column_name, $row ) )
+          {
+            $error = sprintf(
+              'Column "%s" missing while reading analysis data from Apex database.',
+              $row_column_name
+            );
+            break;
+          }
+
+          if( 'height' == $column_name ) $height = $row[$row_column_name];
+          else if( 'weight' == $column_name ) $weight = $row[$row_column_name];
+          else $apex_data[$column_name] = $row[$row_column_name];
+        }
+
+        if( !is_null( $error ) )
+        {
+          if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+          break; // do not try again
+        }
+
+        // calculate T and Z scores
+        $tz_reference = lib::create( 'business\tz_reference' );
+        $score_data = $tz_reference->compute_tz_scores( $image['type'], $image['side'], $apex_data );
+        $apex_data = array_merge( $apex_data, $score_data );
+
+        $db_apex_analysis->data = util::json_encode( $apex_data );
+        $db_apex_analysis->save();
+
+        if(
+          'hip' == $image['type'] &&
+          0 < $height &&
+          0 < $weight &&
+          !is_null( $db_interview->previous_fracture ) &&
+          !is_null( $db_interview->parent_hip_fracture ) &&
+          !is_null( $db_interview->current_smoker ) &&
+          !is_null( $db_interview->glucocorticoid ) &&
+          !is_null( $db_interview->rheumatoid_arthritis ) &&
+          !is_null( $db_interview->secondary_osteoporosis ) &&
+          !is_null( $db_interview->alcohol )
+        ) {
+          // calculate the frax score
+
+          // start by creating the input.txt files needed by the blackbox.exe program hosted on the Apex server
+          $input_filename = sprintf( '%s/input.%s.txt', TEMP_PATH, $db_apex_analysis->id );
+          $input_values = [
+            't', // type 't' or 'z'
+            19, // countryCode
+            util::get_interval( $apex_data['scan_date'], $apex_data['birthdate'] )->y, // age int
+            'M' == $apex_data['sex'] ? 0 : 1, // sex int 0 = male, 1 = female
+            $weight / ( $height/100 * $height/100 ), // bmi double
+            $db_interview->previous_fracture ? '0' : '1',
+            $db_interview->parent_hip_fracture ? '0' : '1',
+            $db_interview->current_smoker ? '0' : '1',
+            $db_interview->glucocorticoid ? '0' : '1',
+            $db_interview->rheumatoid_arthritis ? '0' : '1',
+            $db_interview->secondary_osteoporosis ? '0' : '1',
+            $db_interview->alcohol ? '0' : '1',
+            $apex_data['neck_t'], // hip scan neck_t score
+          ];
+          $input = implode( ',', $input_values );
+          file_put_contents( $input_filename, $input, LOCK_EX );
+
+          // upload the input file to the apex server and run blackbox.exe
+          try
+          {
+            $response = $this->scp_to_apex( $input_filename, sprintf( '%s\input.txt', $this->qdr_data_path ) );
+            unlink( $input_filename );
+            if( 0 != $response['exitcode'] )
+            {
+              $error = 'Failed to copy frax input.txt file to Apex host.';
+              if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+              continue; // try again
+            }
+          }
+          catch( \cenozo\exception\runtime $e )
+          {
+            // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+            if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+
+            $error = 'No response from Apex server when trying to download copy frax input.txt to Apex.';
+            if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+            continue; // try again
+          }
+
+          $response = NULL;
+          try
+          {
+            $response = $this->ssh( sprintf( '%s\blackbox.exe', $this->qdr_data_path ) );
+            if( 0 != $response['exitcode'] || $response['output'] )
+            {
+              $error = sprintf(
+                'Failed to run frax calculator%s.',
+                $response['output'] ? sprintf( ' (%s)', $response['output'] ) : ''
+              );
+            }
+          }
+          catch( \cenozo\exception\runtime $e )
+          {
+            // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+            if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+            $error = 'No response from Apex server';
+          }
+
+          if( !is_null( $error ) )
+          {
+            if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+            continue; // try again
+          }
+
+          // get the 4 frax values from the output.txt file and clean up
+          try
+          {
+            $response = $this->ssh( sprintf( 'more %s\output.txt', $this->qdr_data_path ) );
+            $parts = explode( ',', trim( $response['output'] ) );
+            if( 17 != count( $parts ) )
+            {
+              $error = 'FRAX calculator returned unexepcted result.';
+            }
+            else if( '_' == $parts[13] || '_' == $parts[14] || '_' == $parts[15] || '_' == $parts[16] )
+            {
+              $error = 'FRAX calculator was unable to generate risk scores.';
+            }
+
+            if( !is_null( $error ) )
+            {
+              if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+              break; // do not try again
+            }
+
+            $apex_data['osteoporotic_fracture_risk'] = $parts[13];
+            $apex_data['hip_fracture_risk'] = $parts[14];
+            $apex_data['osteoporotic_fracture_risk_bmd'] = $parts[15];
+            $apex_data['hip_fracture_risk_bmd'] = $parts[16];
+
+            $this->ssh( sprintf(
+              'del /s /q %s\input.txt %s\output.txt',
+              $this->qdr_data_path,
+              $this->qdr_data_path
+            ) );
+          }
+          catch( \cenozo\exception\runtime $e )
+          {
+            // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
+            if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+
+            $error = 'No response from Apex when calculating FRAX scores';
+            if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+            continue; // try again
+          }
+        }
+
+        $db_apex_analysis->data = util::json_encode( $apex_data );
+        $db_apex_analysis->save();
+      }
+
+      // if we get here the transfer was successful so we can stop
+      if( static::$debug ) log::info( 'Scan successfully downloaded' );
+      break;
     }
 
-    return true;
+    return is_null( $error ) ? true : $error;
   }
 
   /**
