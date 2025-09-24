@@ -158,47 +158,30 @@ class apex_analysis extends \cenozo\database\record
     $db_image = $this->get_image();
     $db_apex_review = $this->get_apex_review();
     $db_exam = $db_apex_review->get_exam();
-    $db_scan_type = $db_exam->get_scan_type();
     $db_interview = $db_exam->get_interview();
     $uid = $db_interview->get_participant()->uid;
     $db_study_phase = $db_interview->get_study_phase();
     $db_apex_host = $db_apex_review->get_apex_host();
     $apex_manager = is_null( $db_apex_host ) ? NULL : lib::create( 'business\apex_manager', $db_apex_host );
 
-    // determine whether the image has a number
-    $parts = explode( '_', $db_image->filename );
-    $last_part = end( $parts );
-    $number = preg_match( '/^[0-9]+$/', $last_part ) ? $last_part : NULL;
-
-    $image = [
-      'uid' => $uid,
-      'phase' => [
-        'rank' => $db_study_phase->rank,
-        'code' => $db_study_phase->code,
-        'name' => $db_study_phase->name
-      ],
-      'type' => $db_scan_type->name,
-      'side' => $db_scan_type->side,
-      'number' => $number,
-      'reanalysed' => false,
-      'filename' => sprintf(
-        '/%d/dxa/%s/%s',
-        $db_study_phase->rank,
-        $uid,
-        $db_image->filename
-      )
-    ];
+    // parse the image filename to get all image data
+    $data = util::parse_dxa_filename( sprintf(
+      '/%d/dxa/%s/%s',
+      $db_study_phase->rank,
+      $uid,
+      $db_image->filename
+    ) );
 
     // if an apex host is provided then check if the image is on the workstation
-    if( !is_null( $apex_manager ) )
-      $image['uploaded'] = $apex_manager->check_for_scan( $image['filename'] );
+    if( !is_null( $apex_manager ) ) $data['uploaded'] = $apex_manager->check_for_scan( $data['filename'] );
 
     // we can return now if only the current image is required
-    if( $current_image_only ) return $image;
+    if( $current_image_only ) return $data;
 
-    $images = [$image];
+    $images_for_apex = [$data];
 
     // get the base paired file, if necessary
+    $db_scan_type = $db_exam->get_scan_type();
     if( in_array( $db_scan_type->name, ['forearm', 'hip', 'spine'] ) )
     {
       // get the earliest passed analysis for this participant/scan-type
@@ -226,37 +209,22 @@ class apex_analysis extends \cenozo\database\record
       if( 1 == count( $base_image_list ) )
       {
         $base_image = current( $base_image_list );
-        $parts = explode( '_', $db_image->filename );
-        $last_part = end( $parts );
-        $base_number = preg_match( '/^[0-9]+$/', $last_part ) ? $last_part : NULL;
 
-        $image = [
-          'uid' => $uid,
-          'phase' => [
-            'rank' => $base_image['rank'],
-            'code' => $base_image['code'],
-            'name' => $base_image['name']
-          ],
-          'type' => $db_scan_type->name,
-          'side' => $db_scan_type->side,
-          'number' => $base_number,
-          'reanalysed' => true,
-          'filename' => sprintf(
-            '/%d/dxa/%s/%s',
-            $base_image['rank'],
-            $uid,
-            preg_replace( '/\.dcm/', '.reanalysed.dcm', $base_image['filename'] )
-          )
-        ];
+        $data = util::parse_dxa_filename( sprintf(
+          '/%d/dxa/%s/%s',
+          $base_image['rank'],
+          $uid,
+          preg_replace( '/\.dcm/', '.reanalysed.dcm', $base_image['filename'] )
+        ) );
 
         // if an apex host is provided then check if the image is on the workstation
         if( !is_null( $apex_manager ) )
-          $image['uploaded'] = $apex_manager->check_for_scan( $image['filename'] );
+          $data['uploaded'] = $apex_manager->check_for_scan( $data['filename'] );
 
-        $images[] = $image;
+        $images_for_apex[] = $data;
       }
     }
 
-    return $images;
+    return $images_for_apex;
   }
 }

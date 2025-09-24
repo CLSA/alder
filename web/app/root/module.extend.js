@@ -31,7 +31,7 @@ cenozoApp.extendModule({
                 const el = angular.element(element[0].querySelector(".inner-view-frame div"));
                 el.append(
                   CnSession.user.apexUser ?
-                  '<cn-apex-review-list model="reviewModel"></cn-apex-review-list>' :
+                  '<cn-apex-review-list model="reviewModel" remove-columns="status end_datetime"></cn-apex-review-list>' :
                   '<cn-review-list model="reviewModel"></cn-review-list>'
                 );
                 $compile(element.contents())(scope);
@@ -48,15 +48,11 @@ cenozoApp.extendModule({
               $scope.reviewModel.listModel.heading = "Outstanding Review List";
 
               if ($scope.reviewModel.isRole("typist") && CnSession.user.apexUser) {
-                // only show assigned and uploaded reviews to apex typists
+                // only show uploaded reviews to apex typists
                 $scope.reviewModel.getServiceData = function(type, columnRestrictList) {
                   const data = this.$$getServiceData(type, columnRestrictList);
                   if (!data.modifier.where) data.modifier.where = [];
-                  data.modifier.where.push({
-                    column: "status",
-                    operator: "IN",
-                    value: ["Assigned", "Uploaded"],
-                  });
+                  data.modifier.where.push({ column: "status", operator: "=", value: "Uploaded" });
                   return data;
                 };
               }
