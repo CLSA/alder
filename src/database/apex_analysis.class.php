@@ -214,7 +214,7 @@ class apex_analysis extends \cenozo\database\record
           '/%d/dxa/%s/%s',
           $base_image['rank'],
           $uid,
-          preg_replace( '/\.dcm/', '.reanalysed.dcm', $base_image['filename'] )
+          preg_replace( '/(_[0-9]+)?\.dcm/', '.reanalysed.dcm', $base_image['filename'] )
         ) );
 
         // if an apex host is provided then check if the image is on the workstation
