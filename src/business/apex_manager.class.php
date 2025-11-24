@@ -466,6 +466,9 @@ class apex_manager extends \cenozo\base_object
             if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
             continue; // try again
           }
+
+          $db_apex_analysis->pfile_name = $pfile_name;
+          $db_apex_analysis->save();
         }
         catch( \cenozo\exception\runtime $e )
         {
