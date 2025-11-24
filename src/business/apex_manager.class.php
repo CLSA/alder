@@ -589,11 +589,10 @@ class apex_manager extends \cenozo\base_object
         $image['type_side']
       );
 
-      // transfer file to supplementary directory
+      // transfer P&R files to supplementary directory
       foreach( $file_list as $file )
       {
-        $file_parts = pathinfo( $file );
-        $supplementary_filename = sprintf( '%s.%s', $base_supplementary_filename, $file_parts['extension'] );
+        $supplementary_filename = sprintf( '%s.%s', $base_supplementary_filename, basename( $file ) );
         if( !( is_writable( dirname( $supplementary_filename ) ) && rename( $file, $supplementary_filename ) ) )
         {
           $error = 'Unable to transfer re-analysed file to Data Vault.';
@@ -936,7 +935,7 @@ class apex_manager extends \cenozo\base_object
     $modifier = lib::create( 'database\modifier' );
     $modifier->where( 'SCANID', '=', $scan_id );
 
-    foreach( $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) ) as $pfile )
+    foreach( $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) ) as $pfile_name )
     {
       $pfile_glob = preg_replace( '/\.P(..)$/', '.[Pr]\1', $pfile_name );
       $this->ssh( sprintf( 'del /s /q %s\%s', $this->qdr_data_path, $pfile_glob ) );
@@ -1000,7 +999,7 @@ class apex_manager extends \cenozo\base_object
         $modifier->join( 'dbo.ScanAnalysis', 'dbo.Patient.PATIENT_KEY', 'dbo.ScanAnalysis.PATIENT_KEY' );
         $modifier->where( 'IDENTIFIER1', '=', $identifier );
 
-        foreach( $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) ) as $pfile )
+        foreach( $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) ) as $pfile_name )
         {
           $pfile_glob = preg_replace( '/\.P(..)$/', '.[Pr]\1', $pfile_name );
           $this->ssh( sprintf( 'del /s /q %s\%s', $this->qdr_data_path, $pfile_glob ) );
