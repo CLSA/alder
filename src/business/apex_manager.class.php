@@ -551,7 +551,7 @@ class apex_manager extends \cenozo\base_object
         break; // do not try again
       }
 
-      $pfile_glob = preg_replace( '/\..*$/', '.*', $pfile_name );
+      $pfile_glob = preg_replace( '/\.P(..)$/', '.[Pr]\1', $pfile_name );
 
       try
       {
@@ -938,8 +938,8 @@ class apex_manager extends \cenozo\base_object
 
     foreach( $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) ) as $pfile )
     {
-      $glob = preg_replace( '/\.[^.]+$/', '.*', $pfile );
-      $this->ssh( sprintf( 'del /s /q %s\%s', $this->qdr_data_path, $glob ) );
+      $pfile_glob = preg_replace( '/\.P(..)$/', '.[Pr]\1', $pfile_name );
+      $this->ssh( sprintf( 'del /s /q %s\%s', $this->qdr_data_path, $pfile_glob ) );
     }
 
     return $this->query_execute( sprintf( 'DELETE FROM dbo.ScanAnalysis %s', $modifier->get_sql() ) );
@@ -1002,8 +1002,8 @@ class apex_manager extends \cenozo\base_object
 
         foreach( $this->query_col( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) ) as $pfile )
         {
-          $glob = preg_replace( '/\.[^.]+$/', '.*', $pfile );
-          $this->ssh( sprintf( 'del /s /q %s\%s', $this->qdr_data_path, $glob ) );
+          $pfile_glob = preg_replace( '/\.P(..)$/', '.[Pr]\1', $pfile_name );
+          $this->ssh( sprintf( 'del /s /q %s\%s', $this->qdr_data_path, $pfile_glob ) );
         }
       }
 
