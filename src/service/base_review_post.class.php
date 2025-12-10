@@ -256,7 +256,17 @@ abstract class base_review_post extends \cenozo\service\post
           $review_mod->where( 'uid', 'IN', $uid_list );
           foreach( $review_class_name::select_objects( $review_mod ) as $db_review )
           {
-            if( !is_null( $completed ) ) $db_review->completed = $now;
+            if( !is_null( $completed ) )
+            {
+              if( $completed && is_null( $db_review->end_datetime ) )
+              {
+                $db_review->end_datetime = util::get_datetime_obj();
+              }
+              else if( !$completed )
+              {
+                $db_review->end_datetime = NULL;
+              }
+            }
             if( !is_null( $notification ) ) $db_review->notification = $notification;
             $db_review->save();
             $data['edit']++;
