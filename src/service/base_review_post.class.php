@@ -248,7 +248,7 @@ abstract class base_review_post extends \cenozo\service\post
         // modify existing reviews (do this first so the new reviews created below are not affected)
         if( !is_null( $completed ) || !is_null( $notification ) )
         {
-          $now = lib::get_datetime_object();
+          $now = util::get_datetime_object();
           $review_mod = lib::create( 'database\modifier' );
           $review_mod->join( 'exam', sprintf( '%s.exam_id', $review_type ), 'exam.id' );
           $review_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
@@ -256,7 +256,17 @@ abstract class base_review_post extends \cenozo\service\post
           $review_mod->where( 'uid', 'IN', $uid_list );
           foreach( $review_class_name::select_objects( $review_mod ) as $db_review )
           {
-            if( !is_null( $completed ) ) $db_review->completed = $now;
+            if( !is_null( $completed ) )
+            {
+              if( $completed && is_null( $db_review->end_datetime ) )
+              {
+                $db_review->end_datetime = util::get_datetime_obj();
+              }
+              else if( !$completed )
+              {
+                $db_review->end_datetime = NULL;
+              }
+            }
             if( !is_null( $notification ) ) $db_review->notification = $notification;
             $db_review->save();
             $data['edit']++;
