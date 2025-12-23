@@ -87,6 +87,42 @@ CREATE PROCEDURE patch_interview()
       ALTER TABLE interview ADD COLUMN previous_fracture TINYINT(1) NULL DEFAULT NULL AFTER token;
     END IF;
 
+    SELECT "Adding body_mass_index column to interview table" AS "";
+
+    SELECT COUNT(*) INTO @test
+    FROM information_schema.COLUMNS
+    WHERE table_schema = DATABASE()
+    AND table_name = "interview"
+    AND column_name = "body_mass_index";
+
+    IF @test = 0 THEN
+      ALTER TABLE interview ADD COLUMN body_mass_index FLOAT NULL DEFAULT NULL AFTER alcohol;
+    END IF;
+
+    SELECT "Adding weight column to interview table" AS "";
+
+    SELECT COUNT(*) INTO @test
+    FROM information_schema.COLUMNS
+    WHERE table_schema = DATABASE()
+    AND table_name = "interview"
+    AND column_name = "weight";
+
+    IF @test = 0 THEN
+      ALTER TABLE interview ADD COLUMN weight FLOAT NULL DEFAULT NULL AFTER alcohol;
+    END IF;
+
+    SELECT "Adding height column to interview table" AS "";
+
+    SELECT COUNT(*) INTO @test
+    FROM information_schema.COLUMNS
+    WHERE table_schema = DATABASE()
+    AND table_name = "interview"
+    AND column_name = "height";
+
+    IF @test = 0 THEN
+      ALTER TABLE interview ADD COLUMN height FLOAT NULL DEFAULT NULL AFTER alcohol;
+    END IF;
+
   END //
 DELIMITER ;
 

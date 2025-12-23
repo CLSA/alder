@@ -140,6 +140,11 @@ class apex_manager extends \cenozo\base_object
    */
   public function upload_files( $db_apex_analysis, $replace = false )
   {
+    $db_exam = $db_apex_analysis->get_apex_review()->get_exam();
+    $db_interview = $db_exam->get_interview();
+    $db_participant = $db_interview()->get_participant();
+    $dob = $db_participant->date_of_birth;
+
     // start by checking if the necessary servers are online
     $dicom_is_online = false;
     $qdr_online = false;
@@ -386,15 +391,47 @@ class apex_manager extends \cenozo\base_object
         $modifier->where( 'PATIENT_KEY', '=', $new_patient_id );
         if( 0 == $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) ) )
         {
+          // Only update body columns if the data is available
+          // Note that these values will only exist if the hip exam was performed at the DCS
+          $body_columns = '';
+          if( !is_null( $db_interview->height ) )
+            $body_columns += sprintf( 'HEIGHT = %0.1f, ', $db_interview->height );
+          if( !is_null( $db_interview->weight ) )
+            $body_columns += sprintf( 'WEIGHT = %0.1f, ', $db_interview->weight );
+          if( !is_null( $db_interview->body_mass_index ) )
+            $body_columns += sprintf( 'BODY_MASS_INDEX = %0.1f, ', $db_interview->body_mass_index );
+
           $modifier = lib::create( 'database\modifier' );
           $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
           $query_response = $this->query_execute( sprintf(
-            "UPDATE dbo.PATIENT ".
-            "SET PATIENT_KEY = '%s', IDENTIFIER1 = '%s', FIRST_NAME = '%s', LAST_NAME = '%s' %s",
+            "UPDATE dbo.PATIENT SET ".
+              "PATIENT_KEY = '%s', ".
+              "IDENTIFIER1 = '%s', ".
+              "FIRST_NAME = '%s', ".
+              "LAST_NAME = '%s', ".
+              "SEX = '%s', ",
+              "BIRTHDATE = '%s', ".
+              "ADJUSTED_AGE = %0.4f, ".
+              "%s",
+              "MID_INITIAL = NULL, ".
+              "PAT_COMMENT = NULL, ".
+              "REF_PHYSICIAN = NULL, ".
+              "STUDY = NULL, ".
+              "ADDRESS1 = NULL, ".
+              "ADDRESS2 = NULL, ".
+              "CITY = NULL, ".
+              "STATE = NULL, ".
+              "POSTAL = NULL, ".
+              "COUNTRY = NULL ".
+              "%s",
             $new_patient_id,
             $new_patient_id,
             $image['type_string'],
             $image['uid'],
+            'male' == $db_participant->sex ? 'M' : 'F',
+            $dob->format( 'Y-m-d' ),
+            ($db_exam->datetime->getTimestamp() - $dob->getTimestamp()) / (60 * 60 * 24 * 365.25),
+            $body_columns,
             $modifier->get_sql()
           ) );
 
