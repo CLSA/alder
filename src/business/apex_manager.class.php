@@ -174,10 +174,10 @@ class apex_manager extends \cenozo\base_object
       if( static::$debug )
       {
         log::info( sprintf(
-          'Uploading %s %s-%s%s',
+          'Uploading %s %s %s%s',
           $image['uid'],
-          $image['side'],
-          $image['type'],
+          $image['phase'],
+          $image['type_side'],
           $image['reanalysed'] ? ' (reanalysed)' : ''
         ) );
       }
@@ -561,11 +561,10 @@ class apex_manager extends \cenozo\base_object
     if( static::$debug )
     {
       log::info( sprintf(
-        'Downloading %s %s-%s%s',
+        'Downloading %s %s %s',
         $image['uid'],
-        $image['side'],
-        $image['type'],
-        $image['reanalysed'] ? ' (reanalysed)' : ''
+        $image['phase'],
+        $image['type_side']
       ) );
     }
 
@@ -576,29 +575,46 @@ class apex_manager extends \cenozo\base_object
       // make sure to clear out any errors from a previous try
       $error = NULL;
 
-      // determine the name of the P and R files from the database
+      // determine the scan_date and serial_number of the image
       $select = lib::create( 'database\select' );
       $select->from( 'dbo.ScanAnalysis' );
-      $select->add_column( 'PFILE_NAME', NULL, false );
+      $select->add_column( "REPLACE(CAST(SCAN_DATE AS DATE), '-', '')", NULL, false );
+      $select->add_column( 'SERIAL_NUMBER', NULL, false );
       $modifier = lib::create( 'database\modifier' );
       $modifier->where( 'PATIENT_KEY', '=', $image['patient_id'] );
       $modifier->where( 'SCANID', '=', $image['scan_id'] );
-      $pfile_name = $this->query_one( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
-      if( is_null( $pfile_name ) )
+      $row = $this->query_row( sprintf( "%s %s", $select->get_sql(), $modifier->get_sql() ) );
+      if( is_null( $row ) )
       {
-        $error = 'Cannot download analysis as there are no P-files.';
+        $error = 'Unable to read analysis data from Apex database.';
         if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
         break; // do not try again
       }
-
-      $pfile_glob = preg_replace( '/\.P(..)$/', '.[Pr]\1', $pfile_name );
+      $scan_date = $row[''];
+      $serial_number = $row['SERIAL_NUMBER'];
+      $scan_glob = sprintf( '%s_%s_%s_*.dcm', $image['patient_id'], $scan_date, $serial_number );
 
       try
       {
-        $response = $this->scp_from_apex( sprintf( '%s\%s', $this->qdr_data_path, $pfile_glob ), TEMP_PATH );
+        $response = $this->scp_from_apex(
+          sprintf(
+            '%s\%s\%s\%s',
+            $this->outgoing_path,
+            str_replace( '_', '\\', $image['type_side'] ),
+            $image['patient_id'],
+            $scan_glob
+           ),
+          TEMP_PATH
+        );
         if( 0 != $response['exitcode'] )
         {
-          $error = 'Unable to download P and R files from Apex.';
+          $error = sprintf(
+            'Unable to download DICOM files from Apex.  '.
+            'Please make sure you have exported scan %s (scan date "%s") using the Apex Report feature.',
+            $image['patient_id'],
+            $scan_date
+          );
+
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -608,15 +624,15 @@ class apex_manager extends \cenozo\base_object
         // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
         if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
 
-        $error = 'No response from Apex server when trying to download P and R files from Apex.';
+        $error = 'No response from Apex server when trying to download DICOM files from Apex.';
         if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
         continue; // try again
       }
 
-      $file_list = glob( sprintf( '%s/%s', TEMP_PATH, $pfile_glob ) );
-      if( 2 > count( $file_list ) )
+      $file_list = glob( sprintf( '%s/%s', TEMP_PATH, $scan_glob ) );
+      if( 0 == count( $file_list ) )
       {
-        $error = 'Unable to download re-analysed scan from Apex.';
+        $error = 'DICOM files not found on Apex server.';
         if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
         continue; // try again
       }
@@ -629,10 +645,10 @@ class apex_manager extends \cenozo\base_object
         $image['type_side']
       );
 
-      // transfer P&R files to supplementary directory
+      // transfer DICOM files to supplementary directory
       foreach( $file_list as $file )
       {
-        $supplementary_filename = sprintf( '%s.%s', $base_supplementary_filename, basename( $file ) );
+        $supplementary_filename = sprintf( '%s.reanalysed.dcm', $base_supplementary_filename );
         if( !( is_writable( dirname( $supplementary_filename ) ) && rename( $file, $supplementary_filename ) ) )
         {
           $error = 'Unable to transfer re-analysed file to Data Vault.';
@@ -954,6 +970,10 @@ class apex_manager extends \cenozo\base_object
 
       // if we get here the transfer was successful so we can stop
       if( static::$debug ) log::info( 'Scan successfully downloaded' );
+
+      // delete the downloaded scan files from Apex
+      $this->delete_patient( sprintf( 'out_%s', $image['type_side'] ), $image['patient_id'] );
+
       break;
     }
 
@@ -994,6 +1014,7 @@ class apex_manager extends \cenozo\base_object
    */
   private function delete_patient( $type, $identifier = NULL )
   {
+    $matches = NULL;
     if( 'in' == $type )
     {
       return $this->ssh( sprintf(
@@ -1002,20 +1023,22 @@ class apex_manager extends \cenozo\base_object
         is_null( $identifier ) ? '*' : $identifier
       ) );
     }
-    else if ( 'out' == $type )
+    else if( preg_match( '/^out_(.+)/', $type, $matches ) )
     {
-      // deleting outgoing patients involves delecting a directory only (as defined by the identifier)
+      // deleting outgoing patients involves deleting a directory (as defined by the identifier)
       $response = $this->ssh( sprintf(
-        'del /s /q %s\%s',
+        'del /s /q %s\%s\%s',
         $this->outgoing_path,
+        str_replace( '_', '\\', $matches[1] ),
         is_null( $identifier ) ? '*' : $identifier
       ) );
 
       if( $response )
       {
         $response = $this->ssh( sprintf(
-          'rmdir %s\%s',
+          'rmdir %s\%s\%s',
           $this->outgoing_path,
+          str_replace( '_', '\\', $matches[1] ),
           is_null( $identifier ) ? '*' : $identifier
         ) );
       }
