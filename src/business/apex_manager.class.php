@@ -142,7 +142,7 @@ class apex_manager extends \cenozo\base_object
   {
     $db_exam = $db_apex_analysis->get_apex_review()->get_exam();
     $db_interview = $db_exam->get_interview();
-    $db_participant = $db_interview()->get_participant();
+    $db_participant = $db_interview->get_participant();
     $dob = $db_participant->date_of_birth;
 
     // start by checking if the necessary servers are online
@@ -395,11 +395,11 @@ class apex_manager extends \cenozo\base_object
           // Note that these values will only exist if the hip exam was performed at the DCS
           $body_columns = '';
           if( !is_null( $db_interview->height ) )
-            $body_columns += sprintf( 'HEIGHT = %0.1f, ', $db_interview->height );
+            $body_columns .= sprintf( 'HEIGHT = %0.1f, ', $db_interview->height );
           if( !is_null( $db_interview->weight ) )
-            $body_columns += sprintf( 'WEIGHT = %0.1f, ', $db_interview->weight );
+            $body_columns .= sprintf( 'WEIGHT = %0.1f, ', $db_interview->weight );
           if( !is_null( $db_interview->body_mass_index ) )
-            $body_columns += sprintf( 'BODY_MASS_INDEX = %0.1f, ', $db_interview->body_mass_index );
+            $body_columns .= sprintf( 'BMI = %0.1f, ', $db_interview->body_mass_index );
 
           $modifier = lib::create( 'database\modifier' );
           $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
@@ -409,10 +409,10 @@ class apex_manager extends \cenozo\base_object
               "IDENTIFIER1 = '%s', ".
               "FIRST_NAME = '%s', ".
               "LAST_NAME = '%s', ".
-              "SEX = '%s', ",
+              "SEX = '%s', ".
               "BIRTHDATE = '%s', ".
               "ADJUSTED_AGE = %0.4f, ".
-              "%s",
+              "%s".
               "MID_INITIAL = NULL, ".
               "PAT_COMMENT = NULL, ".
               "REF_PHYSICIAN = NULL, ".
