@@ -43,7 +43,8 @@ DROP PROCEDURE IF EXISTS patch_report_restriction;
         '\'"DXA forearm","DXA hip","DXA lateral","DXA spine","DXA wbody","Retinal","Carotid Intima","Spirometry"\', ',
         '"Defines which scan type to include in the generated report" ',
       "FROM ", @cenozo, ".report_type ",
-      "WHERE report_type.name = 'analysis'" );
+      "WHERE report_type.name = 'analysis'"
+    );
     PREPARE statement FROM @sql;
     EXECUTE statement;
     DEALLOCATE PREPARE statement;
@@ -55,7 +56,23 @@ DROP PROCEDURE IF EXISTS patch_report_restriction;
         '\'"Baseline","Follow-up 1","Follow-up 2","Follow-up 3","Follow-up 4"\', ',
         '"Defines which study-phase to include in the generated report" ',
       "FROM ", @cenozo, ".report_type ",
-      "WHERE report_type.name = 'analysis'" );
+      "WHERE report_type.name = 'analysis'"
+    );
+    PREPARE statement FROM @sql;
+    EXECUTE statement;
+    DEALLOCATE PREPARE statement;
+
+    SELECT "Updating analysis report scan type enum values" AS "";
+
+    SET @sql = CONCAT(
+      "UPDATE ", @cenozo, ".report_restriction ",
+      "JOIN ", @cenozo, ".report_type ON report_restriction.report_type_id = report_type.id ",
+      "SET enum_list = '",
+        '"DXA forearm (left)","DXA forearm (right)","DXA hip (left)","DXA hip (right)","DXA lateral","DXA spine","DXA wbody","Retinal (left)","Retinal (right)","Carotid Intima (left)","Carotid Intima (right)","Spirometry"',
+      "' ",
+      "WHERE report_type.name = 'analysis' ",
+      "AND report_restriction.name = 'scan_type'"
+    );
     PREPARE statement FROM @sql;
     EXECUTE statement;
     DEALLOCATE PREPARE statement;
