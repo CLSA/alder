@@ -33,6 +33,7 @@ class analysis extends \cenozo\business\report\base_report
 
     // determine scan type and study phase restrictions from the restriction list
     $scan_type_name = NULL;
+    $scan_type_side = NULL;
     $code_list = [];
     $selection_list = [];
     $db_study_phase = NULL;
@@ -45,6 +46,15 @@ class analysis extends \cenozo\business\report\base_report
           ['', '_'],
           strtolower( $restriction['value'] )
         );
+        $scan_type_side = 'none';
+
+        // check for a side in the scan type name
+        $matches = NULL;
+        if( preg_match( '/(.+)_\((.+)\)/', $scan_type_name, $matches ) )
+        {
+          $scan_type_name = $matches[1];
+          $scan_type_side = $matches[2];
+        }
 
         // get a list of the scan type's codes
         $code_sel = lib::create( 'database\select' );
@@ -54,6 +64,7 @@ class analysis extends \cenozo\business\report\base_report
         $code_mod->join( 'scan_type', 'code_group.scan_type_id', 'scan_type.id' );
         $code_mod->join( 'code', 'code_group.id', 'code.code_group_id' );
         $code_mod->where( 'scan_type.name', '=', $scan_type_name );
+        $code_mod->where( 'scan_type.side', '=', $scan_type_side );
         $code_mod->order( 'code_group.rank' );
         $code_mod->order( 'code.rank' );
         foreach( $code_group_class_name::select( $code_sel, $code_mod ) as $code )
@@ -66,6 +77,7 @@ class analysis extends \cenozo\business\report\base_report
         $selection_mod = lib::create( 'database\modifier' );
         $selection_mod->join( 'scan_type', 'selection.scan_type_id', 'scan_type.id' );
         $selection_mod->where( 'scan_type.name', '=', $scan_type_name );
+        $selection_mod->where( 'scan_type.side', '=', $scan_type_side );
         $selection_mod->order( 'selection.rank' );
         foreach( $selection_class_name::select( $selection_sel, $selection_mod ) as $selection )
           $selection_list[$selection['id']] = $selection['name'];
@@ -86,8 +98,6 @@ class analysis extends \cenozo\business\report\base_report
     $select->add_column( 'user.name', 'Reviewer', false );
     $select->add_column( 'participant.uid', 'UID', false );
     $select->add_column( 'site.name', 'Site', false );
-    if( in_array( $scan_type_name, ['forearm', 'hip', 'retinal', 'carotid_intima'] ) )
-      $select->add_column( 'scan_type.side', 'Side', false );
     $select->add_column( 'image.filename', 'Filename', false );
     $select->add_column( 'exam.interviewer', 'Interviewer', false );
     $select->add_column(
@@ -120,24 +130,6 @@ class analysis extends \cenozo\business\report\base_report
     $modifier->join( 'interview', 'exam.interview_id', 'interview.id' );
     $modifier->join( 'participant', 'interview.participant_id', 'participant.id' );
     $modifier->left_join( 'site', 'interview.site_id', 'site.id' );
-
-    /*
-    if( $has_selections )
-    {
-      // add all selections
-      $modifier->left_join(
-        sprintf( '%s_selection', $analysis_type ),
-        sprintf( '%s.id', $analysis_type ),
-        sprintf( '%s_selection.%s_id', $analysis_type, $analysis_type )
-      );
-      $modifier->left_join( 'selection', sprintf( '%s_selection.selection_id', $analysis_type ), 'selection.id' );
-      $modifier->left_join(
-        'selection_option',
-        sprintf( '%s_selection.selection_option_id', $analysis_type ),
-        'selection_option.id'
-      );
-    }
-    */
 
     // add each code as a new column
     foreach( $code_list as $id => $name )
@@ -186,6 +178,7 @@ class analysis extends \cenozo\business\report\base_report
     }
 
     $modifier->where( 'scan_type.name', '=', $scan_type_name );
+    $modifier->where( 'scan_type.side', '=', $scan_type_side );
     $modifier->where( 'interview.study_phase_id', '=', $db_study_phase->id );
     $modifier->where( sprintf( '%s.end_datetime', $review_type ), '!=', NULL );
 
