@@ -799,7 +799,7 @@ class apex_manager extends \cenozo\base_object
         $row = $this->query_row( sprintf( '%s %s', $select->get_sql(), $modifier->get_sql() ) );
         if( is_null( $row ) )
         {
-          $error = 'Unable to read analysis data from Apex database.';
+          $error = 'Unable to read analysis metadata from Apex database.';
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           break; // do not try again
         }
