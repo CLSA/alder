@@ -268,6 +268,14 @@ abstract class base_review_post extends \cenozo\service\post
               else if( !$completed )
               {
                 $db_review->end_datetime = NULL;
+                if( 'apex_review' == $review_type )
+                {
+                  foreach( $db_review->get_apex_analysis_object_list() as $db_apex_analysis )
+                  {
+                    $db_apex_analysis->download_datetime = NULL;
+                    $db_apex_analysis->save();
+                  }
+                }
               }
             }
             if( !is_null( $notification ) ) $db_review->notification = $notification;
