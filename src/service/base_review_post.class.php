@@ -254,13 +254,16 @@ abstract class base_review_post extends \cenozo\service\post
           $review_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
           $review_mod->join( 'participant', 'interview.participant_id', 'participant.id' );
           $review_mod->where( 'uid', 'IN', $uid_list );
+          if( !is_null( $study_phase_id ) ) $review_mod->where( 'interview.study_phase_id', '=', $study_phase_id );
+          if( !is_null( $modality_id ) ) $review_mod->where( 'scan_type.modality_id', '=', $modality_id );
+          if( !is_null( $scan_type_id ) ) $review_mod->where( 'scan_type_id', '=', $scan_type_id );
           foreach( $review_class_name::select_objects( $review_mod ) as $db_review )
           {
             if( !is_null( $completed ) )
             {
               if( $completed && is_null( $db_review->end_datetime ) )
               {
-                $db_review->end_datetime = util::get_datetime_obj();
+                $db_review->end_datetime = util::get_datetime_object();
               }
               else if( !$completed )
               {
