@@ -99,6 +99,7 @@ abstract class base_review extends \cenozo\database\record
         $exam_mod = lib::create( 'database\modifier' );
         $exam_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
         $exam_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
+        if( $is_typist ) $this->apply_typist_restriction_to_modifier( $exam_mod );
         $exam_mod->order( 'CONCAT( scan_type.name, scan_type.side )' );
         $exam_mod->limit( 1 );
 
@@ -116,6 +117,7 @@ abstract class base_review extends \cenozo\database\record
         $exam_mod = lib::create( 'database\modifier' );
         $exam_mod->join( 'scan_type', 'exam.scan_type_id', 'scan_type.id' );
         $exam_mod->join( $review_table, 'exam.id', sprintf( '%s.exam_id', $review_table ) );
+        if( $is_typist ) $this->apply_typist_restriction_to_modifier( $exam_mod );
         $exam_mod->order( 'CONCAT( scan_type.name, scan_type.side )' );
         $exam_mod->limit( 1 );
 
@@ -205,6 +207,9 @@ abstract class base_review extends \cenozo\database\record
         'apex_review_effective_apex_analysis.apex_analysis_id',
         'apex_analysis.id'
       );
+
+      $modifier->where_bracket( true );
+
       $modifier->where_bracket( true );
       $modifier->where( 'apex_review.end_datetime', '=', NULL );
       $modifier->where( 'apex_analysis.download_datetime', '=', NULL );
@@ -215,6 +220,8 @@ abstract class base_review extends \cenozo\database\record
       // but always allow the current review, no matter what the status
       $modifier->where_bracket( true, true );
       $modifier->where( 'apex_review.id', '=', $this->id );
+      $modifier->where_bracket( false );
+
       $modifier->where_bracket( false );
     }
   }
