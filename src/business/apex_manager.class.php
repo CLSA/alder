@@ -280,11 +280,23 @@ class apex_manager extends \cenozo\base_object
 
         $old_patient_id = $matches[1];
 
-        $response = $this->set_patient_id( $temp_filename, $new_patient_id );
-        if( 0 != $response['exitcode'] && 0 < strlen( $response['output'] ) )
+        try
         {
-          unlink( $temp_filename );
-          $error = sprintf( 'Failed to modify DICOM tags in %s', $file_string );
+          $response = $this->set_patient_id( $temp_filename, $new_patient_id );
+          if( 0 != $response['exitcode'] && 0 < strlen( $response['output'] ) )
+          {
+            unlink( $temp_filename );
+            $error = sprintf( 'Failed to modify DICOM tags in %s', $file_string );
+            if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
+            continue; // try again
+          }
+        }
+        catch( \cenozo\exception\runtime $e )
+        {
+          // ignore the errors thrown by exec_timeout (this happens sometimes when running dcmodify)
+          if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
+
+          $error = sprintf( 'Timeout when attempting to modify DICOM tags in %s', $file_string );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
