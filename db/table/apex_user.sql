@@ -1,0 +1,14 @@
+CREATE TABLE apex_user (
+  id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  update_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP(),
+  create_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+  user_id INT(10) UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  INDEX fk_user_id (user_id ASC),
+  UNIQUE INDEX uq_user_id (user_id ASC),
+  CONSTRAINT fk_apex_user_user_id
+    FOREIGN KEY (user_id)
+    REFERENCES cenozo.user (id)
+    ON DELETE CASCADE
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;

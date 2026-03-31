@@ -1,0 +1,9 @@
+CREATE TRIGGER apex_review_AFTER_INSERT AFTER INSERT ON apex_review FOR EACH ROW
+BEGIN
+  INSERT INTO apex_analysis (apex_review_id, image_id)
+  SELECT NEW.id, image.id
+  FROM image
+  WHERE exam_id = NEW.exam_id;
+  
+  CALL update_exam_effective_apex_review(NEW.exam_id);
+END$$
