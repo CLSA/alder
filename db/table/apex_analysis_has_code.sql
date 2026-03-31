@@ -16,4 +16,6 @@ CREATE TABLE apex_analysis_has_code (
     REFERENCES alder.code (id)
     ON DELETE CASCADE
     ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8mb4
+COLLATE = utf8mb4_general_ci;

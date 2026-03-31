@@ -4,6 +4,6 @@ BEGIN
   SELECT NEW.id, image.id
   FROM image
   WHERE exam_id = NEW.exam_id;
-  
+
   CALL update_exam_effective_apex_review(NEW.exam_id);
 END$$
