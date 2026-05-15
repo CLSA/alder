@@ -182,7 +182,7 @@ class analysis extends \cenozo\business\report\base_report
     $modifier->where( 'interview.study_phase_id', '=', $db_study_phase->id );
     $modifier->where( sprintf( '%s.end_datetime', $review_type ), '!=', NULL );
 
-    $modifier->group( 'analysis.id' );
+    $modifier->group( sprintf( '%s.id', $analysis_type ) );
     $modifier->order( 'uid' );
     $modifier->order( 'exam.datetime' );
     $modifier->order( 'user.name' );
