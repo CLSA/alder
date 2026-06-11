@@ -1,21 +1,20 @@
 CREATE TABLE selection (
-  id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
-  update_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP(),
-  create_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
-  scan_type_id INT(10) UNSIGNED NOT NULL,
-  apex TINYINT(1) NOT NULL DEFAULT 0,
-  rank INT(10) NOT NULL,
-  name VARCHAR(45) NOT NULL,
-  description TEXT NULL,
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  update_timestamp timestamp NOT NULL DEFAULT current_timestamp()
+    ON UPDATE current_timestamp(),
+  create_timestamp timestamp NOT NULL DEFAULT current_timestamp(),
+  scan_type_id int(10) unsigned NOT NULL,
+  apex tinyint(1) NOT NULL DEFAULT 0,
+  rank int(10) NOT NULL,
+  name varchar(45) NOT NULL,
+  description text DEFAULT NULL,
   PRIMARY KEY (id),
-  INDEX fk_scan_type_id (scan_type_id ASC),
-  UNIQUE INDEX uq_scan_type_id_apex_rank (scan_type_id ASC, apex ASC, rank ASC),
-  UNIQUE INDEX uq_scan_type_id_apex_name (scan_type_id ASC, apex ASC, name ASC),
+  UNIQUE KEY uq_scan_type_id_apex_rank (scan_type_id,apex,rank),
+  UNIQUE KEY uq_scan_type_id_apex_name (scan_type_id,apex,name),
+  KEY fk_scan_type_id (scan_type_id),
   CONSTRAINT fk_selection_scan_type_id
     FOREIGN KEY (scan_type_id)
-    REFERENCES alder.scan_type (id)
+    REFERENCES scan_type (id)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8mb4
-COLLATE = utf8mb4_general_ci;
+    ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

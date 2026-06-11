@@ -1,25 +1,24 @@
 CREATE TABLE apex_review (
-  id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
-  update_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP(),
-  create_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
-  exam_id INT(10) UNSIGNED NOT NULL,
-  user_id INT(10) UNSIGNED NOT NULL,
-  start_datetime DATETIME NOT NULL,
-  end_datetime DATETIME NULL,
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  update_timestamp timestamp NOT NULL DEFAULT current_timestamp()
+    ON UPDATE current_timestamp(),
+  create_timestamp timestamp NOT NULL DEFAULT current_timestamp(),
+  exam_id int(10) unsigned NOT NULL,
+  user_id int(10) unsigned NOT NULL,
+  start_datetime datetime NOT NULL,
+  end_datetime datetime DEFAULT NULL,
   PRIMARY KEY (id),
-  INDEX fk_exam_id (exam_id ASC),
-  INDEX fk_user_id (user_id ASC),
-  UNIQUE INDEX uq_exam_id_user_id (exam_id ASC, user_id ASC),
+  UNIQUE KEY uq_exam_id_user_id (exam_id,user_id),
+  KEY fk_exam_id (exam_id),
+  KEY fk_user_id (user_id),
   CONSTRAINT fk_apex_review_exam_id
     FOREIGN KEY (exam_id)
-    REFERENCES alder.exam (id)
+    REFERENCES exam (id)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT fk_apex_review_user_id
     FOREIGN KEY (user_id)
     REFERENCES cenozo.user (id)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8mb4
-COLLATE = utf8mb4_general_ci;
+    ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

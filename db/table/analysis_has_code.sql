@@ -1,21 +1,20 @@
 CREATE TABLE analysis_has_code (
-  analysis_id INT(10) UNSIGNED NOT NULL,
-  code_id INT(10) UNSIGNED NOT NULL,
-  update_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP(),
-  create_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
-  PRIMARY KEY (analysis_id, code_id),
-  INDEX fk_code_id (code_id ASC),
-  INDEX fk_analysis_id (analysis_id ASC),
+  analysis_id int(10) unsigned NOT NULL,
+  code_id int(10) unsigned NOT NULL,
+  update_timestamp timestamp NOT NULL DEFAULT current_timestamp()
+    ON UPDATE current_timestamp(),
+  create_timestamp timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (analysis_id,code_id),
+  KEY fk_code_id (code_id),
+  KEY fk_analysis_has_code_analysis_id (analysis_id),
   CONSTRAINT fk_analysis_has_code_analysis_id
     FOREIGN KEY (analysis_id)
-    REFERENCES alder.analysis (id)
+    REFERENCES analysis (id)
     ON DELETE CASCADE
     ON UPDATE NO ACTION,
   CONSTRAINT fk_analysis_has_code_code_id
     FOREIGN KEY (code_id)
-    REFERENCES alder.code (id)
+    REFERENCES code (id)
     ON DELETE CASCADE
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8mb4
-COLLATE = utf8mb4_general_ci;
+    ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

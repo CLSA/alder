@@ -1,6 +1,6 @@
-CREATE PROCEDURE calculate_rating (IN proc_analysis_id INT(10) UNSIGNED)
+CREATE PROCEDURE calculate_rating(IN proc_analysis_id INT(10) UNSIGNED)
 BEGIN
-  SELECT IFNULL(SUM(value), 0) INTO @cg_rating
+  SELECT IFNULL( SUM(value), 0 ) INTO @cg_rating
   FROM (
     SELECT code_group.value
     FROM analysis_has_code
@@ -10,7 +10,7 @@ BEGIN
     GROUP BY code_group.id
   ) AS temp;
 
-  SELECT IFNULL(SUM(value), 0) INTO @ct_rating
+  SELECT IFNULL( SUM(value), 0 ) INTO @ct_rating
   FROM (
     SELECT code.value
     FROM analysis_has_code
@@ -32,9 +32,9 @@ BEGIN
   AND code.name IN ("SB", "ME", "LO");
 
   SET @rating = 5 + @cg_rating + @ct_rating;
-  SET @quality = IF(@not_usable_codes > 0, "Not Usable", (IF(@re_analysable_codes > 0, "Re-analysable", "Good")));
+  SET @quality = IF( @not_usable_codes > 0, "Not Usable", ( IF( @re_analysable_codes > 0, "Re-analysable", "Good" ) ) );
 
   UPDATE analysis
-  SET rating = IF(1 > @rating, 1, IF(5 < @rating, 5, @rating)), quality = @quality
+  SET rating = IF( 1 > @rating, 1, IF( 5 < @rating, 5, @rating) ), quality = @quality
   WHERE id = proc_analysis_id;
-END$$
+END ;;

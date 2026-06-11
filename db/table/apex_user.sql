@@ -1,16 +1,15 @@
 CREATE TABLE apex_user (
-  id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
-  update_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP(),
-  create_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
-  user_id INT(10) UNSIGNED NOT NULL,
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  update_timestamp timestamp NOT NULL DEFAULT current_timestamp()
+    ON UPDATE current_timestamp(),
+  create_timestamp timestamp NOT NULL DEFAULT current_timestamp(),
+  user_id int(10) unsigned NOT NULL,
   PRIMARY KEY (id),
-  INDEX fk_user_id (user_id ASC),
-  UNIQUE INDEX uq_user_id (user_id ASC),
+  UNIQUE KEY uq_user_id (user_id),
+  KEY fk_user_id (user_id),
   CONSTRAINT fk_apex_user_user_id
     FOREIGN KEY (user_id)
     REFERENCES cenozo.user (id)
     ON DELETE CASCADE
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8mb4
-COLLATE = utf8mb4_general_ci;
+    ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

@@ -1,17 +1,16 @@
 CREATE TABLE image (
-  id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
-  update_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP(),
-  create_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
-  exam_id INT(10) UNSIGNED NOT NULL,
-  filename VARCHAR(45) NOT NULL,
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  update_timestamp timestamp NOT NULL DEFAULT current_timestamp()
+    ON UPDATE current_timestamp(),
+  create_timestamp timestamp NOT NULL DEFAULT current_timestamp(),
+  exam_id int(10) unsigned NOT NULL,
+  filename varchar(45) NOT NULL,
   PRIMARY KEY (id),
-  INDEX fk_exam_id (exam_id ASC),
-  UNIQUE INDEX uq_exam_id_path (exam_id ASC, filename ASC),
+  UNIQUE KEY uq_exam_id_path (exam_id,filename),
+  KEY fk_exam_id (exam_id),
   CONSTRAINT fk_image_exam_id
     FOREIGN KEY (exam_id)
-    REFERENCES alder.exam (id)
+    REFERENCES exam (id)
     ON DELETE CASCADE
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8mb4
-COLLATE = utf8mb4_general_ci;
+    ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
