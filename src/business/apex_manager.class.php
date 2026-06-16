@@ -140,6 +140,7 @@ class apex_manager extends \cenozo\base_object
    */
   public function upload_files( $db_apex_analysis, $replace = false )
   {
+    $event_type_class_name = lib::get_class_name( 'database\event_type' );
     $db_exam = $db_apex_analysis->get_apex_review()->get_exam();
     $db_interview = $db_exam->get_interview();
     $db_participant = $db_interview->get_participant();
@@ -413,6 +414,24 @@ class apex_manager extends \cenozo\base_object
           if( !is_null( $db_interview->body_mass_index ) )
             $body_columns .= sprintf( 'BMI = %0.1f, ', $db_interview->body_mass_index );
 
+          // We need the exam datetime to determine the adjusted age
+          $exam_datetime = $db_exam->datetime;
+          if( is_null( $exam_datetime ) )
+          {
+            // if the exam doesn't have a datetime then rely on the complete event
+            $db_event_type = $event_type_class_name::get_unique_record(
+              'name',
+              sprintf( 'completed (%s Site)', $db_interview->get_study_phase()->name )
+            );
+            $event_sel = lib::create( 'database\select' );
+            $event_sel->add_column( 'datetime' );
+            $event_mod = lib::create( 'database\modifier' );
+            $event_mod->where( 'event_type_id', '=', $db_event_type->id );
+            $exam_datetime = util::get_datetime_object(
+              current( $db_participant->get_event_list( $event_sel, $event_mod ) )['datetime']
+            );
+          }
+
           $modifier = lib::create( 'database\modifier' );
           $modifier->where( 'IDENTIFIER1', '=', $old_patient_id );
           $query_response = $this->query_execute( sprintf(
@@ -442,7 +461,7 @@ class apex_manager extends \cenozo\base_object
             $image['uid'],
             'male' == $db_participant->sex ? 'M' : 'F',
             $dob->format( 'Y-m-d' ),
-            ($db_exam->datetime->getTimestamp() - $dob->getTimestamp()) / (60 * 60 * 24 * 365.25),
+            ($exam_datetime->getTimestamp() - $dob->getTimestamp()) / (60 * 60 * 24 * 365.25),
             $body_columns,
             $modifier->get_sql()
           ) );
