@@ -27,7 +27,24 @@ class module extends \cenozo\service\user\module
     if( is_null( $this->get_resource() ) )
     {
       $apex_user = lib::create( 'business\session' )->get_user()->get_apex_user();
+      $user_class_name = lib::get_class_name( 'database\user' );
+
+      $temp_sel = lib::create( 'database\select' );
+      $temp_sel->add_column( 'user_id' );
+      $temp_sel->set_distinct( true );
+      $temp_sel->from( $apex_user ? 'apex_review' : 'review' );
+
+      $user_class_name::db()->execute( sprintf(
+        'CREATE TEMPORARY TABLE has_reviews %s',
+        $temp_sel->get_sql()
+      ) );
+      $user_class_name::db()->execute( 'ALTER TABLE has_reviews ADD INDEX dk_user_id (user_id)' );
+      $modifier->left_join( 'has_reviews', 'user.id', 'has_reviews.user_id' );
+
+      $modifier->where_bracket( true );
       $modifier->where( 'apex_user.id', $apex_user ? '!=' : '=', NULL );
+      $modifier->or_where( 'has_reviews.user_id', '!=', NULL );
+      $modifier->where_bracket( false );
     }
 
     if( $this->get_argument( 'choosing', false ) )
