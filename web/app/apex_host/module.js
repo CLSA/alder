@@ -150,10 +150,7 @@ cenozoApp.defineModule({
                 path: "user",
                 data: {
                   select: { column: ["id", "name", "first_name", "last_name"] },
-                  modifier: { where: [
-                    { column: "user.active", operator: "=", value: true },
-                    { column: "apex_user.id", operator: "!=", value: null },
-                  ] },
+                  modifier: { where: { column: "user.active", operator: "=", value: true } },
                 },
               }).query();
 
