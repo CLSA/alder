@@ -218,11 +218,12 @@ class apex_manager extends \cenozo\base_object
         }
         catch( \cenozo\exception\runtime $e )
         {
-          // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
-          if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
-
           if( is_null( $first_image_success ) ) $first_image_success = false;
-          $result['error'] = 'No response from Apex when trying to reset patient before upload';
+          $result['error'] = sprintf(
+            '%s response from Apex when trying to reset patient before upload',
+            preg_match( '/command timeout/', $e->get_raw_message() ) ? 'No' : 'Invalid'
+          );
+
           $result_list[] = $result;
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $result['error'] ) );
           break;
@@ -294,10 +295,11 @@ class apex_manager extends \cenozo\base_object
         }
         catch( \cenozo\exception\runtime $e )
         {
-          // ignore the errors thrown by exec_timeout (this happens sometimes when running dcmodify)
-          if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
-
-          $error = sprintf( 'Timeout when attempting to modify DICOM tags in %s', $file_string );
+          $error = sprintf(
+            '%s response when attempting to modify DICOM tags in %s',
+            preg_match( '/command timeout/', $e->get_raw_message() ) ? 'No' : 'Invalid',
+            $file_string
+          );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -315,10 +317,11 @@ class apex_manager extends \cenozo\base_object
         }
         catch( \cenozo\exception\runtime $e )
         {
-          // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
-          if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
-
-          $error = sprintf( 'No response from Apex server when trying to copy %s', $file_string );
+          $error = sprintf(
+            '%s response from Apex server when trying to copy %s',
+            preg_match( '/command timeout/', $e->get_raw_message() ) ? 'No' : 'Invalid',
+            $file_string
+          );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -341,9 +344,7 @@ class apex_manager extends \cenozo\base_object
           }
           catch( \cenozo\exception\runtime $e )
           {
-            // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
-            if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
-            $no_response = true;
+            $no_response = preg_match( '/command timeout/', $e->get_raw_message() );
           }
         }
         if( !$file_registered )
@@ -371,10 +372,11 @@ class apex_manager extends \cenozo\base_object
         }
         catch( \cenozo\exception\runtime $e )
         {
-          // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
-          if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
-
-          $error = sprintf( 'No response from Apex server when trying to move %s into Apex', $file_string );
+          $error = sprintf(
+            '%s response from Apex server when trying to move %s into Apex',
+            preg_match( '/command timeout/', $e->get_raw_message() ) ? 'No' : 'Invalid',
+            $file_string
+          );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
@@ -541,8 +543,10 @@ class apex_manager extends \cenozo\base_object
         catch( \cenozo\exception\runtime $e )
         {
           // ignore the errors thrown by exec_timeout (they mean the server isn't responding)
-          if( !preg_match( '/command timeout/', $e->get_raw_message() ) ) throw $e;
-          $error = 'No response from Apex server when checking for P-file';
+          $error = sprintf(
+            '%s response from Apex server when checking for P-file',
+            preg_match( '/command timeout/', $e->get_raw_message() ) ? 'No' : 'Invalid'
+          );
           if( static::$debug ) log::info( sprintf( 'ERROR: %s', $error ) );
           continue; // try again
         }
