@@ -61,9 +61,6 @@ cenozoApp.defineModule({
       isIncluded: function($state, model) {
         return model.getEditEnabled();
       },
-      isDisabled: function($state, model) {
-        return model.viewModel.deletingPatients;
-      },
     });
 
     /* ############################################################################################## */
@@ -72,7 +69,14 @@ cenozoApp.defineModule({
       "CnHttpFactory",
       "CnModalApexHostStatusFactory",
       "CnModalConfirmFactory",
-      function (CnBaseViewFactory, CnHttpFactory, CnModalApexHostStatusFactory, CnModalConfirmFactory) {
+      "CnModalMessageFactory",
+      function (
+        CnBaseViewFactory,
+        CnHttpFactory,
+        CnModalApexHostStatusFactory,
+        CnModalConfirmFactory,
+        CnModalMessageFactory
+      ) {
         var object = function (parentModel, root) {
           CnBaseViewFactory.construct(this, parentModel, root);
 
@@ -80,25 +84,30 @@ cenozoApp.defineModule({
             checkStatus: async function() {
               await CnModalApexHostStatusFactory.instance(this.record.id).show();
             },
-            deletingPatients: false,
             deletePatients: async function() {
-              this.deletingPatients = true;
+              const check = await CnModalConfirmFactory.instance({
+                message: (
+                  "Are you sure you wish to delete all patients from this Apex workstation? " +
+                  "This will remove all scans and data making it impossible to download any existing scans."
+                ),
+              }).show();
 
-              try {
-                const check = await CnModalConfirmFactory.instance({
-                  message: (
-                    "Are you sure you wish to delete all patients from this Apex workstation? " +
-                    "This will remove all scans and data making it impossible to download any existing scans."
-                  ),
-                }).show();
+              if (check) {
+                const modal = CnModalMessageFactory.instance({
+                  title: "Deleting All Patients",
+                  message: "Please wait...",
+                  block: true,
+                });
 
-                if (check) {
-                  CnHttpFactory.instance({
+                modal.show();
+
+                try {
+                  await CnHttpFactory.instance({
                     path: "apex_host/" + this.record.id + "?action=delete_patients",
                   }).patch();
+                } finally {
+                  modal.close();
                 }
-              } finally {
-                this.deletingPatients = false;
               }
             },
           });

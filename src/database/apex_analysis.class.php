@@ -208,20 +208,23 @@ class apex_analysis extends \cenozo\database\record
 
       if( 1 == count( $base_image_list ) )
       {
+        // make sure to upload reanalized scans that come before the current phase
         $base_image = current( $base_image_list );
+        if( $db_study_phase->rank > $base_image['rank'] )
+        {
+          $data = util::parse_dxa_filename( sprintf(
+            '/%d/dxa/%s/%s',
+            $base_image['rank'],
+            $uid,
+            preg_replace( '/(_[0-9]+)?\.dcm/', '.reanalysed.dcm', $base_image['filename'] )
+          ) );
 
-        $data = util::parse_dxa_filename( sprintf(
-          '/%d/dxa/%s/%s',
-          $base_image['rank'],
-          $uid,
-          preg_replace( '/(_[0-9]+)?\.dcm/', '.reanalysed.dcm', $base_image['filename'] )
-        ) );
+          // if an apex host is provided then check if the image is on the workstation
+          if( !is_null( $apex_manager ) )
+            $data['uploaded'] = $apex_manager->check_for_scan( $data['filename'] );
 
-        // if an apex host is provided then check if the image is on the workstation
-        if( !is_null( $apex_manager ) )
-          $data['uploaded'] = $apex_manager->check_for_scan( $data['filename'] );
-
-        $images_for_apex[] = $data;
+          $images_for_apex[] = $data;
+        }
       }
     }
 

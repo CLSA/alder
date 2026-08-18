@@ -67,7 +67,7 @@ abstract class base_review_module extends \cenozo\service\site_restricted_module
     $modifier->join( 'user', sprintf( '%s.user_id', $review_type ), 'user.id' );
 
     // only show typists their own reviews
-    if( 'typist' == $db_role->name )
+    if( 'typist' == $db_role->name && !$this->get_argument( 'include_all', false ) )
     {
       $modifier->where( sprintf( '%s.user_id', $review_type ), '=', $db_user->id );
     }

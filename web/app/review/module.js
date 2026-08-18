@@ -142,10 +142,12 @@ cenozoApp.defineModule({
         type: "text",
         isExcluded: function($state, model) { return "add"; },
       },
-      prev_interview_review_id: { type: "hidden" },
       prev_exam_review_id: { type: "hidden" },
       next_exam_review_id: { type: "hidden" },
+      prev_interview_review_id: { type: "hidden" },
       next_interview_review_id: { type: "hidden" },
+      prev_phase_review_id: { type: "hidden" },
+      next_phase_review_id: { type: "hidden" },
     });
 
     if (angular.isDefined(module.actions.multiedit)) {
@@ -247,56 +249,68 @@ cenozoApp.defineModule({
       },
     });
 
-    module.addExtraOperation("view", {
-      title: "<i class='glyphicon glyphicon-fast-backward'></i> Prev Interview",
-      operation: async function ($state, model) {
-        await $state.go("review.view", { identifier: model.viewModel.record.prev_interview_review_id });
-      },
-      isDisabled: function ($state, model) {
-        return null == model.viewModel.record.prev_interview_review_id;
-      },
+    module.addExtraOperationGroup("view", {
+      title: "<i class='glyphicon glyphicon-backward'></i> Prev",
       isIncluded: function ($state, model) {
         return model.isRole("typist", "administrator");
       },
+      operations: [{
+        title: "Exam",
+        operation: async function ($state, model) {
+          await $state.go("review.view", { identifier: model.viewModel.record.prev_exam_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.prev_exam_review_id;
+        },
+      }, {
+        title: "Interview",
+        operation: async function ($state, model) {
+          await $state.go("review.view", { identifier: model.viewModel.record.prev_interview_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.prev_interview_review_id;
+        },
+      }, {
+        title: "Phase",
+        operation: async function ($state, model) {
+          await $state.go("review.view", { identifier: model.viewModel.record.prev_phase_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.prev_phase_review_id;
+        },
+      }],
     });
 
-    module.addExtraOperation("view", {
-      title: "<i class='glyphicon glyphicon-backward'></i> Prev Exam",
-      operation: async function ($state, model) {
-        await $state.go("review.view", { identifier: model.viewModel.record.prev_exam_review_id });
-      },
-      isDisabled: function ($state, model) {
-        return null == model.viewModel.record.prev_exam_review_id;
-      },
+    module.addExtraOperationGroup("view", {
+      title: "<i class='glyphicon glyphicon-forward'></i> Next",
       isIncluded: function ($state, model) {
         return model.isRole("typist", "administrator");
       },
-    });
-
-    module.addExtraOperation("view", {
-      title: "<i class='glyphicon glyphicon-forward'></i> Next Exam",
-      operation: async function ($state, model) {
-        await $state.go("review.view", { identifier: model.viewModel.record.next_exam_review_id });
-      },
-      isDisabled: function ($state, model) {
-        return null == model.viewModel.record.next_exam_review_id;
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist", "administrator");
-      },
-    });
-
-    module.addExtraOperation("view", {
-      title: "<i class='glyphicon glyphicon-fast-forward'></i> Next Interview",
-      operation: async function ($state, model) {
-        await $state.go("review.view", { identifier: model.viewModel.record.next_interview_review_id });
-      },
-      isDisabled: function ($state, model) {
-        return null == model.viewModel.record.next_interview_review_id;
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist", "administrator");
-      },
+      operations: [{
+        title: "Exam",
+        operation: async function ($state, model) {
+          await $state.go("review.view", { identifier: model.viewModel.record.next_exam_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.next_exam_review_id;
+        },
+      }, {
+        title: "Interview",
+        operation: async function ($state, model) {
+          await $state.go("review.view", { identifier: model.viewModel.record.next_interview_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.next_interview_review_id;
+        },
+      }, {
+        title: "Phase",
+        operation: async function ($state, model) {
+          await $state.go("review.view", { identifier: model.viewModel.record.next_phase_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.next_phase_review_id;
+        },
+      }],
     });
 
     /* ############################################################################################## */

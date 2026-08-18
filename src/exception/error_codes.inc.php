@@ -29,6 +29,8 @@ define( 'SYSTEM_ALDER_BASE_ERRNO',     750000 );
 /**
  * "notice" error codes
  */
+define( 'NOTICE__ALDER_SERVICE_APEX_REVIEW_PATCH__EXECUTE__ERRNO',
+        NOTICE_ALDER_BASE_ERRNO + 1 );
 
 /**
  * "permission" error codes

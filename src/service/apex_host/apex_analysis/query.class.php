@@ -35,6 +35,7 @@ class query extends \cenozo\service\query
     $modifier = clone $this->modifier;
     $modifier->where( 'apex_host.id', '=', $this->get_parent_record()->id );
     $modifier->where( 'apex_analysis.upload_status', '!=', NULL );
+    $this->select->apply_aliases_to_modifier( $modifier );
 
     return $apex_analysis_class_name::count( $modifier );
   }
@@ -50,6 +51,7 @@ class query extends \cenozo\service\query
     $modifier = clone $this->modifier;
     $modifier->where( 'apex_host.id', '=', $this->get_parent_record()->id );
     $modifier->where( 'apex_analysis.upload_status', '!=', NULL );
+    $this->select->apply_aliases_to_modifier( $modifier );
 
     return $apex_analysis_class_name::select( $this->select, $modifier );
   }

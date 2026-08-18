@@ -132,11 +132,15 @@ cenozoApp.defineModule({
         type: "text",
         isExcluded: function($state, model) { return "add"; },
       },
+      participant_id: { column: "participant.id", type: "hidden" },
+      scan_type_id: { column: "scan_type.id", type: "hidden" },
       apex_host_id: { column: "apex_host.id", type: "hidden" },
-      prev_interview_review_id: { type: "hidden" },
       prev_exam_review_id: { type: "hidden" },
       next_exam_review_id: { type: "hidden" },
+      prev_interview_review_id: { type: "hidden" },
       next_interview_review_id: { type: "hidden" },
+      prev_phase_review_id: { type: "hidden" },
+      next_phase_review_id: { type: "hidden" },
     });
 
     if (angular.isDefined(module.actions.multiedit)) {
@@ -152,56 +156,68 @@ cenozoApp.defineModule({
       });
     }
 
-    module.addExtraOperation("view", {
-      title: "<i class='glyphicon glyphicon-fast-backward'></i> Prev Interview",
-      operation: async function ($state, model) {
-        await $state.go("apex_review.view", { identifier: model.viewModel.record.prev_interview_review_id });
-      },
-      isDisabled: function ($state, model) {
-        return null == model.viewModel.record.prev_interview_review_id;
-      },
+    module.addExtraOperationGroup("view", {
+      title: "<i class='glyphicon glyphicon-backward'></i> Prev",
       isIncluded: function ($state, model) {
         return model.isRole("typist", "administrator");
       },
+      operations: [{
+        title: "Exam",
+        operation: async function ($state, model) {
+          await $state.go("apex_review.view", { identifier: model.viewModel.record.prev_exam_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.prev_exam_review_id;
+        },
+      }, {
+        title: "Interview",
+        operation: async function ($state, model) {
+          await $state.go("apex_review.view", { identifier: model.viewModel.record.prev_interview_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.prev_interview_review_id;
+        },
+      }, {
+        title: "Phase",
+        operation: async function ($state, model) {
+          await $state.go("apex_review.view", { identifier: model.viewModel.record.prev_phase_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.prev_phase_review_id;
+        },
+      }],
     });
 
-    module.addExtraOperation("view", {
-      title: "<i class='glyphicon glyphicon-backward'></i> Prev Exam",
-      operation: async function ($state, model) {
-        await $state.go("apex_review.view", { identifier: model.viewModel.record.prev_exam_review_id });
-      },
-      isDisabled: function ($state, model) {
-        return null == model.viewModel.record.prev_exam_review_id;
-      },
+    module.addExtraOperationGroup("view", {
+      title: "<i class='glyphicon glyphicon-forward'></i> Next",
       isIncluded: function ($state, model) {
         return model.isRole("typist", "administrator");
       },
-    });
-
-    module.addExtraOperation("view", {
-      title: "<i class='glyphicon glyphicon-forward'></i> Next Exam",
-      operation: async function ($state, model) {
-        await $state.go("apex_review.view", { identifier: model.viewModel.record.next_exam_review_id });
-      },
-      isDisabled: function ($state, model) {
-        return null == model.viewModel.record.next_exam_review_id;
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist", "administrator");
-      },
-    });
-
-    module.addExtraOperation("view", {
-      title: "<i class='glyphicon glyphicon-fast-forward'></i> Next Interview",
-      operation: async function ($state, model) {
-        await $state.go("apex_review.view", { identifier: model.viewModel.record.next_interview_review_id });
-      },
-      isDisabled: function ($state, model) {
-        return null == model.viewModel.record.next_interview_review_id;
-      },
-      isIncluded: function ($state, model) {
-        return model.isRole("typist", "administrator");
-      },
+      operations: [{
+        title: "Exam",
+        operation: async function ($state, model) {
+          await $state.go("apex_review.view", { identifier: model.viewModel.record.next_exam_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.next_exam_review_id;
+        },
+      }, {
+        title: "Interview",
+        operation: async function ($state, model) {
+          await $state.go("apex_review.view", { identifier: model.viewModel.record.next_interview_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.next_interview_review_id;
+        },
+      }, {
+        title: "Phase",
+        operation: async function ($state, model) {
+          await $state.go("apex_review.view", { identifier: model.viewModel.record.next_phase_review_id });
+        },
+        isDisabled: function ($state, model) {
+          return null == model.viewModel.record.next_phase_review_id;
+        },
+      }],
     });
 
     module.addExtraOperation("view", {
@@ -211,6 +227,17 @@ cenozoApp.defineModule({
       },
       isIncluded: function ($state, model) {
         return model.isRole("typist");
+      },
+    });
+
+    module.addExtraOperation("view", {
+      title: "Assign All Phases",
+      classes: "btn-warning",
+      operation: async function ($state, model) {
+        await model.viewModel.assignAllPhases();
+      },
+      isIncluded: function ($state, model) {
+        return model.isRole("administrator", "typist");
       },
     });
 
@@ -853,6 +880,67 @@ cenozoApp.defineModule({
                 // errors are handled above in the onError functions
               } finally {
                 code.working = false;
+              }
+            },
+
+            assignAllPhases: async function () {
+              // get list of all other reviews for the same study/participant/scan_type
+              const review_response = await CnHttpFactory.instance({
+                path: "apex_review?include_all=1",
+                data: {
+                  select: { column: { table: "study_phase", column: "name" } },
+                  modifier: {
+                    where: [
+                      { column: "interview.participant_id", operator: "=", value: this.record.participant_id },
+                      { column: "exam.scan_type_id", operator: "=", value: this.record.scan_type_id },
+                    ],
+                    order: "study_phase.rank",
+                  },
+                }
+              }).query();
+              const study_phase_list = review_response.data.map(row => row.name);
+
+              if (2 > study_phase_list.length ) {
+                await CnModalMessageFactory.instance({
+                  title: "No Other Reviews Found",
+                  message:
+                    "There are no other " + this.record.scan_type +
+                    " reviews for this participant to be reassigned.",
+                }).show();
+              } else {
+                const response = await CnModalConfirmFactory.instance({
+                  title: "Re-assign and Open All Phases",
+                  html: true,
+                  message:
+                    "Are you sure you wish to re-assign and re-open all " + this.record.scan_type +
+                    " reviews for this participant to " +
+                    (this.parentModel.isRole("typist") ? "yourself" : this.formattedRecord.user_id) + "?" +
+                    "<br\><br\>\n" +
+                    "This participant has the following " + this.record.scan_type + " reviews:<br/>\n" +
+                    "<ul>" + study_phase_list.map(phase => "<li>" + phase + "</li>").join("\n") + "</ul>"
+                }).show();
+
+                if (response) {
+                  const modal = CnModalMessageFactory.instance({
+                    title: "Uploading Scans to Apex",
+                    message: "Please wait...",
+                    block: true,
+                  });
+
+                  modal.show();
+
+                  await CnHttpFactory.instance({
+                    path: this.parentModel.getServiceResourcePath() + "?reassign_all=1", 
+                    data: {},
+                    onError: function(error) {
+                      modal.close();
+                      CnModalMessageFactory.httpError(error);
+                    },
+                  }).patch();
+
+                  modal.close();
+                  await this.onView(true);
+                }
               }
             },
           });

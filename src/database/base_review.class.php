@@ -26,11 +26,13 @@ abstract class base_review extends \cenozo\database\record
    */
   public function get_neighbouring_reviews()
   {
+    $review_table = static::get_table_name();
+
     $interview_class_name = lib::get_class_name( 'database\interview' );
     $exam_class_name = lib::get_class_name( 'database\exam' );
+    $review_class_name = lib::get_class_name( sprintf( 'database\%s', $review_table ) );
 
     $is_typist = 'typist' == lib::create( 'business\session' )->get_role()->name;
-    $review_table = static::get_table_name();
     $db_current_exam = $this->get_exam();
     $db_current_scan_type = $db_current_exam->get_scan_type();
     $db_current_interview = $db_current_exam->get_interview();
@@ -38,11 +40,44 @@ abstract class base_review extends \cenozo\database\record
     $current_scan_type = $db_current_scan_type->name . $db_current_scan_type->side;
 
     $neighbours = [
+      'prev_phase_review_id' => NULL,
+      'next_phase_review_id' => NULL,
       'prev_interview_review_id' => NULL,
+      'next_interview_review_id' => NULL,
       'prev_exam_review_id' => NULL,
-      'next_exam_review_id' => NULL,
-      'next_interview_review_id' => NULL
+      'next_exam_review_id' => NULL
     ];
+
+    // Get the previous and next phase review (with the same study, participant, scan type)
+    // Typists will only see their own available reviews, other roles will see all reviews
+    $db_exam = $this->get_exam();
+    $db_interview = $db_exam->get_interview();
+    $db_study_phase = $db_interview->get_study_phase();
+
+    $review_sel = lib::create( 'database\select' );
+    $review_sel->add_column( 'id' );
+    $review_mod = lib::create( 'database\modifier' );
+    $review_mod->join( 'exam', sprintf( '%s.exam_id', $review_table ), 'exam.id' );
+    $review_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
+    $review_mod->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
+    $review_mod->where( 'study_phase.study_id', '=', $db_study_phase->study_id );
+    $review_mod->where( 'interview.participant_id', '=', $db_interview->participant_id );
+    $review_mod->where( 'exam.scan_type_id', '=', $db_exam->scan_type_id );
+    if( $is_typist ) $this->apply_typist_restriction_to_modifier( $review_mod );
+    $review_mod->order( 'study_phase.rank' );
+
+    $review_list = $review_class_name::select( $review_sel, $review_mod );
+
+    foreach( $review_list as $index => $review )
+    {
+      if( $review['id'] == $this->id )
+      {
+        if( 0 < $index ) $neighbours['prev_phase_review_id'] = $review_list[$index-1]['id'];
+        if( count( $review_list ) > ( $index + 1 ) )
+          $neighbours['next_phase_review_id'] = $review_list[$index+1]['id'];
+        break;
+      }
+    }
 
     // Get the previous and next interview
     // Typists will only see their own available reviews, other roles will see all reviews
@@ -187,7 +222,7 @@ abstract class base_review extends \cenozo\database\record
   }
 
   /**
-   * Used by the get_neighbouring_reviews() method only (
+   * Used by the get_neighbouring_reviews() method only
    */
   private function apply_typist_restriction_to_modifier( &$modifier )
   {
