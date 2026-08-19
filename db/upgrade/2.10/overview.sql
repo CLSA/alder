@@ -32,7 +32,8 @@ DROP PROCEDURE IF EXISTS patch_overview;
 
     SET @sql = CONCAT(
       "UPDATE ", @cenozo, ".overview ",
-      "SET description = 'Overview of reviews'"
+      "SET description = 'Overview of reviews' ",
+      "WHERE name = 'review'"
     );
     PREPARE statement FROM @sql;
     EXECUTE statement;
