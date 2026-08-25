@@ -17,7 +17,7 @@ class patch extends \alder\service\base_review_patch
   {
     parent::execute();
 
-    // reassign all reviews having the same study, participant and scan type
+    // reassign all reviews having the same study, participant and scan type (all study phases)
     if( $this->get_argument( 'reassign_all', false ) )
     {
       $apex_host_class_name = lib::get_class_name( 'database\apex_host' );
@@ -45,7 +45,12 @@ class patch extends \alder\service\base_review_patch
       $db_study_phase = $db_interview->get_study_phase();
 
       $apex_review_mod = lib::create( 'database\modifier' );
-      $apex_review_mod->join( 'exam', 'apex_review.exam_id', 'exam.id' );
+      $apex_review_mod->join(
+        'exam_effective_apex_review',
+        'apex_review.id',
+        'exam_effective_apex_review.apex_review_id'
+      );
+      $apex_review_mod->join( 'exam', 'exam_effective_apex_review.exam_id', 'exam.id' );
       $apex_review_mod->join( 'interview', 'exam.interview_id', 'interview.id' );
       $apex_review_mod->join( 'study_phase', 'interview.study_phase_id', 'study_phase.id' );
       $apex_review_mod->where( 'study_phase.study_id', '=', $db_study_phase->study_id );
@@ -54,10 +59,23 @@ class patch extends \alder\service\base_review_patch
       $apex_review_mod->order_desc( 'study_phase.rank' );
 
       $base_study_phase_rank = NULL;
-      foreach( $apex_review_class_name::select_objects( $apex_review_mod ) as $db_apex_review )
+      foreach( $apex_review_class_name::select_objects( $apex_review_mod ) as $db_effective_apex_review )
       {
-        $db_apex_review->user_id = $db_current_apex_review->user_id;
-        $db_apex_review->end_datetime = null;
+        // check to see if the effective apex review already exists to the current typist
+        $db_apex_review = NULL;
+        if( $db_effective_apex_review->user_id == $db_current_apex_review->user_id )
+        {
+          // reopen the review
+          $db_apex_review = $db_effective_apex_review;
+          $db_apex_review->end_datetime = NULL;
+        }
+        else
+        {
+          // create a new review
+          $db_apex_review = lib::create( 'database\apex_review' );
+          $db_apex_review->exam_id = $db_effective_apex_review->exam_id;
+          $db_apex_review->user_id = $db_current_apex_review->user_id;
+        }
         $db_apex_review->save();
 
         // upload the analysis

@@ -898,7 +898,10 @@ cenozoApp.defineModule({
                   },
                 }
               }).query();
-              const study_phase_list = review_response.data.map(row => row.name);
+              const study_phase_list = review_response.data.reduce((list,row) => {
+                if (!list.includes(row.name)) list.push(row.name);
+                return list;
+              }, []);
 
               if (2 > study_phase_list.length ) {
                 await CnModalMessageFactory.instance({
