@@ -6,14 +6,14 @@ const { CN_session } = await import(`${CENOZO_URL}/js/session.mjs`);
 const classes = await import(`${CENOZO_URL}/js/model/home.mjs`);
 
 export class CN_model_home extends classes.CN_model_home {
-  /** 
+  /**
    * Extend parent method
    */
   _create_element() {
     const el = super._create_element();
 
     const config_el = el.querySelector("div[name=config]");
-    
+
     const row_el = CN_base_element.html('<div class="row ms-3"></div>');
     CN_element_label.append(row_el, {
       for: "apex_user_mode",
