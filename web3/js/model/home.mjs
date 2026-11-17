@@ -1,9 +1,9 @@
+const classes = await import(`${CENOZO_URL}/js/model/home.mjs`);
 const { CN_api } = await import(`${CENOZO_URL}/js/api.mjs`);
 const { CN_base_element } = await import(`${CENOZO_URL}/js/element/base_element.mjs`);
 const { CN_element_label } = await import(`${CENOZO_URL}/js/element/label.mjs`);
 const { CN_input_enum } = await import(`${CENOZO_URL}/js/input/enum.mjs`);
 const { CN_session } = await import(`${CENOZO_URL}/js/session.mjs`);
-const classes = await import(`${CENOZO_URL}/js/model/home.mjs`);
 
 export class CN_model_home extends classes.CN_model_home {
   /**
